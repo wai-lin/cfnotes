@@ -1,0 +1,46 @@
+{
+	"name": "cfnotes",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vp dev",
+		"build": "vp build",
+		"gen": "space gen",
+		"test": "vp test"
+	},
+	"dependencies": {
+		"@jitl/quickjs-wasmfile-release-sync": "0.31.0",
+		"@lexical/clipboard": "^0.53.0",
+		"@lexical/code": "^0.53.0",
+		"@lexical/code-shiki": "^0.53.0",
+		"@lexical/history": "^0.53.0",
+		"@lexical/link": "^0.53.0",
+		"@lexical/list": "^0.53.0",
+		"@lexical/markdown": "^0.53.0",
+		"@lexical/rich-text": "^0.53.0",
+		"@lexical/selection": "^0.53.0",
+		"@lexical/table": "^0.53.0",
+		"@lexical/utils": "^0.53.0",
+		"@shikijs/themes": "^4.6.0",
+		"@tabler/icons": "^3.51.0",
+		"cf": "1.0.0-beta.26",
+		"hono": "^4.13.14",
+		"katex": "0.16.22",
+		"lexical": "^0.53.0",
+		"mermaid": "11.4.1",
+		"quickjs-emscripten-core": "0.31.0",
+		"shiki": "^4.6.0",
+		"spacefn": "^0.10.0",
+		"sucrase": "3.35.0"
+	},
+	"devDependencies": {
+		"@cloudflare/vite-plugin": "2.0.0-beta.v.1",
+		"@cloudflare/workers-types": "^5.20261030.1",
+		"@jitl/quickjs-singlefile-mjs-release-sync": "0.31.0",
+		"@types/node": "^26.6.6",
+		"marked": "^18.1.1",
+		"typescript": "^7.0.2",
+		"vite-plus": "^1.4.0"
+	}
+}
