@@ -1,0 +1,66 @@
+/* ---------- images ---------- */
+
+.ne-image {
+	display: block;
+	width: fit-content;
+	max-width: 100%;
+	margin: 4px 0;
+}
+
+.ne-image-frame {
+	position: relative;
+	line-height: 0;
+}
+
+.ne-image-caption {
+	display: block;
+	width: 100%;
+	min-width: 160px;
+	border: 0;
+	outline: 0;
+	background: none;
+	padding: 6px 2px 2px;
+	font: inherit;
+	font-size: 13px;
+	color: var(--muted);
+}
+
+.ne-image-caption::placeholder {
+	color: var(--faint);
+}
+
+/* An empty caption appears only while the image is selected or being captioned. */
+.ne-image:not(.has-caption):not(.is-selected):not(:focus-within) .ne-image-caption {
+	display: none;
+}
+
+.ne-image img {
+	max-width: 100%;
+	height: auto;
+	border-radius: 4px;
+	display: block;
+}
+
+.ne-image.is-selected img {
+	outline: 2px solid var(--accent);
+	outline-offset: 1px;
+}
+
+.ne-image-handle {
+	position: absolute;
+	right: -5px;
+	bottom: -5px;
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	background: var(--accent);
+	border: 2px solid var(--bg);
+	cursor: nwse-resize;
+	opacity: 0;
+	touch-action: none;
+}
+
+.ne-image:hover .ne-image-handle,
+.ne-image.is-selected .ne-image-handle {
+	opacity: 1;
+}

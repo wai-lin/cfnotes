@@ -1,0 +1,88 @@
+/* ---------- block handles ---------- */
+
+.blk-handle {
+	position: absolute;
+	display: flex;
+	gap: 0;
+	height: 24px;
+	z-index: 10;
+}
+
+.blk-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 24px;
+	padding: 0;
+	border: 0;
+	border-radius: 4px;
+	background: none;
+	color: var(--faint);
+	cursor: pointer;
+}
+
+.blk-btn:hover {
+	background: var(--bg-hover);
+	color: var(--muted);
+}
+
+.blk-grip {
+	cursor: grab;
+}
+
+.blk-source {
+	opacity: 0.4;
+}
+
+.blk-dropline {
+	position: absolute;
+	height: 3px;
+	border-radius: 2px;
+	background: var(--accent);
+	opacity: 0.55;
+	pointer-events: none;
+	z-index: 10;
+}
+
+.blk-menu {
+	position: fixed;
+	z-index: 60;
+	width: 220px;
+	max-height: 360px;
+	overflow-y: auto;
+	padding: 6px;
+	border-radius: 8px;
+	background: var(--bg);
+	box-shadow: var(--shadow);
+}
+
+.blk-menu-item {
+	display: block;
+	width: 100%;
+	border: 0;
+	background: none;
+	padding: 6px 10px;
+	border-radius: 6px;
+	text-align: left;
+	font-size: 14px;
+	color: var(--text);
+	cursor: pointer;
+}
+
+.blk-menu-item:hover {
+	background: var(--bg-hover);
+}
+
+.blk-menu-item.is-danger {
+	color: var(--danger);
+}
+
+.blk-menu-head {
+	padding: 8px 10px 4px;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--muted);
+}

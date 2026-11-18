@@ -1,0 +1,22 @@
+/* ---------- divider ---------- */
+
+.ne-hr {
+	padding: 8px 2px;
+	cursor: default;
+}
+
+.ne-hr hr {
+	border: 0;
+	border-top: 1px solid var(--table-border);
+	margin: 0;
+}
+
+.blk-handle[hidden],
+.blk-dropline[hidden],
+.blk-menu[hidden],
+.fmt-bar[hidden],
+.link-pop[hidden],
+.link-card[hidden],
+.emoji-pick[hidden] {
+	display: none;
+}

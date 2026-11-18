@@ -1,4 +1,4 @@
-import { parseLink } from "@modules/embeds";
+import { parseLink } from "@lib/editor/extensions/embed/providers";
 import { fetchable, parsePreview } from "@modules/unfurl";
 import { defineHandler } from "spacefn/handler";
 

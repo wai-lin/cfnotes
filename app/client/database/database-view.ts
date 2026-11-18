@@ -37,8 +37,8 @@ import { canHoldFormula, isScriptError, scriptText } from "@modules/script/scrip
  * Inside the editor it keeps its events to itself so Lexical doesn't act on them.
  */
 import { alertDialog, confirmDialog } from "../_dialog";
+import { setIndexTitle } from "../_page-directory";
 import { archivedToast } from "../_undo";
-import { setIndexTitle } from "../editor/page-directory";
 import { Popover, type MenuEntry } from "./popover";
 import { toolbar, viewBar, type ViewContext } from "./view-controls";
 
@@ -2469,7 +2469,7 @@ export class DatabaseView extends HTMLElement {
 						danger: true,
 						run: async () => {
 							if (!(await this.op({ op: "delete" }))) return;
-							// The editor removes the block and offers Undo (see database-node.ts).
+							// The editor removes the block and offers Undo (see notes/adapters.ts).
 							this.dispatchEvent(
 								new CustomEvent("cf-database-deleted", {
 									detail: { id: state.id, title: state.title },

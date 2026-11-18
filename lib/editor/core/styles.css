@@ -1,0 +1,182 @@
+/* ---------- editor ---------- */
+
+.ne-content {
+	outline: none;
+	min-height: 200px;
+	/* Room under the last block: a click there starts a new line. */
+	padding-bottom: 80px;
+	caret-color: var(--text);
+}
+
+.ne-content > * {
+	margin: 2px 0;
+	padding: 3px 2px;
+}
+
+.ne-p {
+	min-height: 1.5em;
+}
+
+[data-placeholder]::before {
+	content: attr(data-placeholder);
+	color: var(--faint);
+	position: absolute;
+	pointer-events: none;
+	user-select: none;
+}
+
+.ne-h1 {
+	font-size: 1.875em;
+	font-weight: 600;
+	line-height: 1.3;
+	margin-top: 1.4em;
+}
+
+.ne-h2 {
+	font-size: 1.5em;
+	font-weight: 600;
+	line-height: 1.3;
+	margin-top: 1.1em;
+}
+
+.ne-h3 {
+	font-size: 1.25em;
+	font-weight: 600;
+	line-height: 1.3;
+	margin-top: 1em;
+}
+
+.ne-quote {
+	border-left: 3px solid currentColor;
+	padding-left: 14px;
+	margin-left: 0;
+	font-size: 1.1em;
+}
+
+.ne-ul,
+.ne-ol {
+	padding-left: 1.6em;
+}
+
+.ne-li {
+	padding: 2px 0;
+}
+
+.ne-li-nested {
+	list-style: none;
+}
+
+.ne-li-nested::before,
+.ne-li-nested::after {
+	display: none;
+}
+
+.ne-checklist {
+	padding-left: 0;
+	list-style: none;
+}
+
+.ne-li-checked,
+.ne-li-unchecked {
+	position: relative;
+	list-style: none;
+	padding-left: 28px;
+	outline: none;
+}
+
+/* Lexical toggles the item when the click lands on this ::before box. */
+.ne-li-checked::before,
+.ne-li-unchecked::before {
+	content: "";
+	position: absolute;
+	left: 0;
+	top: 5px;
+	width: 16px;
+	height: 16px;
+	border: 1.5px solid var(--muted);
+	border-radius: 3px;
+	cursor: pointer;
+}
+
+.ne-li-checked::before {
+	background: var(--accent);
+	border-color: var(--accent);
+}
+
+/* Tabler "check" icon, white on the accent box. */
+.ne-li-checked::after {
+	content: "";
+	position: absolute;
+	left: 0;
+	top: 5px;
+	width: 16px;
+	height: 16px;
+	background: #fff;
+	-webkit-mask: var(--icon-check) center / 12px no-repeat;
+	mask: var(--icon-check) center / 12px no-repeat;
+	pointer-events: none;
+}
+
+.ne-li-checked {
+	color: var(--muted);
+	text-decoration: line-through;
+}
+
+.ne-code {
+	display: block;
+	background: var(--code-bg);
+	border-radius: 4px;
+	padding: 38px 20px 16px !important;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 14px;
+	line-height: 1.6;
+	white-space: pre-wrap;
+	tab-size: 2;
+	overflow-x: auto;
+}
+
+.ne-link {
+	color: inherit;
+	text-decoration: underline;
+	text-decoration-color: var(--faint);
+}
+
+.ne-bold {
+	font-weight: 600;
+}
+
+.ne-italic {
+	font-style: italic;
+}
+
+.ne-underline {
+	text-decoration: underline;
+}
+
+.ne-strike {
+	text-decoration: line-through;
+}
+
+.ne-underline-strike {
+	text-decoration: underline line-through;
+}
+
+.ne-inline-code {
+	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 85%;
+	background: var(--code-bg);
+	color: var(--code-text);
+	border-radius: 4px;
+	padding: 0.2em 0.4em;
+}
+
+.ne-highlight {
+	background: var(--highlight);
+}
+
+/* Shiki tokens carry both theme colours; switch to the dark one in dark mode. */
+@media (prefers-color-scheme: dark) {
+	.ne-code [style*="--shiki-dark"] {
+		color: var(--shiki-dark) !important;
+	}
+}

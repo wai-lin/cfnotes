@@ -1,0 +1,145 @@
+/* ---------- tables ---------- */
+
+.ne-table-wrap {
+	overflow-x: auto;
+	margin: 8px 0 28px; /* room for the "add row" bar */
+	padding-right: 24px; /* room for the "add column" bar */
+}
+
+.ne-table {
+	border-collapse: collapse;
+}
+
+.ne-td,
+.ne-th {
+	width: 140px;
+	min-width: 80px;
+	padding: 6px 9px;
+	border: 1px solid var(--table-border);
+	vertical-align: top;
+	text-align: left;
+	font-weight: inherit;
+	line-height: 1.5;
+	position: relative;
+}
+
+.ne-th {
+	background: var(--bg-side);
+	font-weight: 600;
+}
+
+.ne-td > *,
+.ne-th > * {
+	margin: 0;
+}
+
+.ne-cell-selected {
+	background: var(--cell-selected) !important;
+	caret-color: transparent;
+}
+
+/* Lexical paints its own cell highlight during a table selection. */
+.ne-table-selection *::selection {
+	background: transparent;
+}
+
+.ne-table-selected {
+	outline: 2px solid var(--accent);
+}
+
+.table-add {
+	position: absolute;
+	z-index: 5;
+	display: grid;
+	place-items: center;
+	border: 0;
+	border-radius: 4px;
+	background: var(--bg-hover);
+	color: var(--muted);
+	font-size: 14px;
+	line-height: 1;
+	cursor: pointer;
+}
+
+.table-add[hidden],
+.table-cell-btn[hidden] {
+	display: none;
+}
+
+.table-add:hover {
+	background: var(--bg-active);
+	color: var(--text);
+}
+
+.table-add-row {
+	height: 18px;
+}
+
+.table-add-col {
+	width: 18px;
+}
+
+.table-cell-btn {
+	display: grid;
+	place-items: center;
+	position: absolute;
+	z-index: 6;
+	width: 20px;
+	height: 20px;
+	padding: 0;
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	background: var(--bg);
+	color: var(--muted);
+	font-size: 12px;
+	line-height: 1;
+	cursor: pointer;
+	box-shadow: 0 1px 2px rgba(15, 15, 15, 0.1);
+}
+
+.table-cell-btn:hover {
+	color: var(--text);
+	background: var(--bg-hover);
+}
+
+.table-menu {
+	position: fixed;
+	z-index: 50;
+	width: 220px;
+	padding: 6px;
+	border-radius: 8px;
+	background: var(--bg);
+	box-shadow: var(--shadow);
+}
+
+.table-menu[hidden] {
+	display: none;
+}
+
+.table-menu-item {
+	display: flex;
+	justify-content: space-between;
+	width: 100%;
+	padding: 5px 10px;
+	border: 0;
+	border-radius: 6px;
+	background: none;
+	color: var(--text);
+	font-size: 14px;
+	text-align: left;
+	cursor: pointer;
+}
+
+.table-menu-item.is-active {
+	background: var(--bg-active);
+}
+
+.table-menu-item.is-danger {
+	color: var(--danger);
+}
+
+.table-menu-sep {
+	height: 1px;
+	margin: 5px 4px;
+	background: var(--border);
+}

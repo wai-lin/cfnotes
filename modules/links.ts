@@ -1,5 +1,6 @@
-/** Lexical node type of an inline link to another page (see `app/client/editor/page-link-node.ts`). */
-export const PAGE_LINK_TYPE = "page-link";
+import { PAGE_LINK_TYPE } from "@lib/editor/extensions/page-link/type";
+
+export { PAGE_LINK_TYPE };
 
 const ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
