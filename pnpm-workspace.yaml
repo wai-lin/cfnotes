@@ -1,0 +1,5 @@
+allowBuilds:
+  workerd: true
+minimumReleaseAgeExclude:
+  - spacefn@0.11.1
+  - spacefn-docs@0.11.1
