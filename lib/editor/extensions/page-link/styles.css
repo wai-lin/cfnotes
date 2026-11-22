@@ -1,0 +1,68 @@
+/* ---------- page links ---------- */
+
+.ne-page-link {
+	display: inline;
+	white-space: nowrap;
+}
+
+.ne-page-link-a {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 3px;
+	padding: 0 3px;
+	border-radius: 4px;
+	color: inherit;
+	font-weight: 500;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.ne-page-link-a .icon {
+	flex: none;
+	align-self: center;
+	color: var(--muted);
+}
+
+.ne-page-link-title {
+	text-decoration: underline;
+	text-decoration-color: var(--faint);
+	text-underline-offset: 2px;
+	white-space: normal;
+}
+
+a.ne-page-link-a:hover {
+	background: var(--bg-hover);
+}
+
+.ne-page-link.is-missing .ne-page-link-a {
+	color: var(--muted);
+	cursor: default;
+}
+
+.ne-page-link.is-missing .ne-page-link-title {
+	text-decoration: line-through;
+}
+
+.page-picker-head {
+	padding: 4px 10px 6px;
+	font-size: 12px;
+	font-weight: 500;
+	color: var(--muted);
+}
+
+.slash-item.page-pick {
+	flex-direction: row;
+	align-items: center;
+	gap: 8px;
+}
+
+.slash-item.page-pick .icon {
+	flex: none;
+	color: var(--muted);
+}
+
+.slash-item.page-pick .slash-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

@@ -1,0 +1,101 @@
+/* ---------- Mermaid diagrams (code blocks in the Mermaid language) ---------- */
+
+.code-bar-right {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.code-views {
+	display: inline-flex;
+	pointer-events: auto;
+	padding: 2px;
+	border-radius: 6px;
+	background: var(--bg-active);
+}
+
+.code-views[hidden] {
+	display: none;
+}
+
+.code-view {
+	border: 0;
+	background: none;
+	color: var(--muted);
+	font-size: 12px;
+	padding: 2px 8px;
+	border-radius: 4px;
+	cursor: pointer;
+}
+
+.code-view:hover {
+	color: var(--text);
+}
+
+.code-view.is-active {
+	background: var(--bg);
+	color: var(--text);
+	box-shadow: 0 1px 2px rgba(15, 15, 15, 0.1);
+}
+
+/* The diagram, under the source (Split) or instead of it (Preview). */
+.ne-code[data-mermaid="split"]::after,
+.ne-code[data-mermaid="preview"]::after {
+	display: block;
+	white-space: normal;
+	font-family:
+		ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+	font-size: 13px;
+	color: var(--muted);
+}
+
+.ne-code[data-mermaid="split"]::after {
+	margin-top: 18px;
+}
+
+.ne-code[data-mermaid][data-mermaid-state="ok"]:is(
+		[data-mermaid="split"],
+		[data-mermaid="preview"]
+	)::after {
+	content: "";
+	width: min(100%, var(--mermaid-w));
+	aspect-ratio: var(--mermaid-ratio);
+	margin-inline: auto;
+	background: var(--mermaid-img) center / contain no-repeat;
+}
+
+.ne-code[data-mermaid][data-mermaid-state="loading"]:is(
+		[data-mermaid="split"],
+		[data-mermaid="preview"]
+	)::after {
+	content: "Drawing diagram…";
+}
+
+.ne-code[data-mermaid][data-mermaid-state="error"]:is(
+		[data-mermaid="split"],
+		[data-mermaid="preview"]
+	)::after {
+	content: "⚠ " attr(data-mermaid-error);
+	color: var(--danger);
+}
+
+/* Diagrams are drawn in Mermaid's light theme; in dark mode, inverted (hue kept). */
+@media screen and (prefers-color-scheme: dark) {
+	.ne-code[data-mermaid][data-mermaid-state="ok"]::after {
+		filter: invert(0.88) hue-rotate(180deg);
+	}
+}
+
+/* Preview: only the diagram; the source is still there (switch to Code or Split to edit). */
+.ne-code[data-mermaid="preview"] > * {
+	display: none;
+}
+
+.ne-code[data-mermaid="preview"] {
+	caret-color: transparent;
+	cursor: default;
+}
+
+.ne-code[data-mermaid="preview"]::after {
+	margin-top: 4px;
+}

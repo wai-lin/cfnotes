@@ -1,0 +1,304 @@
+/* ---------- embeds and bookmarks ---------- */
+
+.ne-embed {
+	position: relative;
+	margin: 6px 0;
+	border-radius: 6px;
+}
+
+.ne-embed.is-selected {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+.ne-embed.is-empty {
+	padding: 10px 12px;
+	background: var(--bg-hover);
+}
+
+.ne-embed-form {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+.ne-embed-glyph {
+	display: flex;
+	color: var(--muted);
+}
+
+.ne-embed-input {
+	flex: 1 1 220px;
+	min-width: 0;
+	padding: 6px 8px;
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	background: var(--bg);
+	color: var(--text);
+	font: inherit;
+	font-size: 14px;
+	outline: 0;
+}
+
+.ne-embed-input:focus {
+	border-color: var(--accent);
+}
+
+.ne-embed-go {
+	padding: 6px 12px;
+	border: 0;
+	border-radius: 6px;
+	background: var(--accent);
+	color: #fff;
+	font-size: 13px;
+	font-weight: 500;
+	cursor: pointer;
+}
+
+.ne-embed-error {
+	flex-basis: 100%;
+	font-size: 12px;
+	color: var(--danger);
+}
+
+.ne-embed-error:empty {
+	display: none;
+}
+
+.ne-embed-frame {
+	position: relative;
+	width: 100%;
+	overflow: hidden;
+	border-radius: 6px;
+	border: 1px solid var(--border);
+	background: var(--bg-side);
+}
+
+.ne-embed-frame iframe {
+	display: block;
+	width: 100%;
+	height: 100%;
+	border: 0;
+}
+
+/* Don't let the frame swallow the pointer while resizing. */
+.ne-embed.is-resizing iframe {
+	pointer-events: none;
+}
+
+.ne-embed-handle {
+	position: absolute;
+	left: 50%;
+	bottom: 4px;
+	width: 48px;
+	height: 6px;
+	margin-left: -24px;
+	border-radius: 3px;
+	background: rgba(0, 0, 0, 0.45);
+	border: 1px solid rgba(255, 255, 255, 0.7);
+	cursor: ns-resize;
+	opacity: 0;
+	transition: opacity 0.15s;
+}
+
+.ne-embed:hover .ne-embed-handle,
+.ne-embed.is-resizing .ne-embed-handle {
+	opacity: 1;
+}
+
+.ne-embed-bar {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	min-width: 0;
+	padding: 4px 2px 0;
+	font-size: 12px;
+	color: var(--muted);
+}
+
+.ne-embed-provider {
+	flex: none;
+	font-weight: 500;
+}
+
+.ne-embed-link {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: inherit;
+	text-decoration: none;
+}
+
+.ne-embed-link:hover {
+	color: var(--text);
+	text-decoration: underline;
+}
+
+.ne-embed-tools {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	display: flex;
+	gap: 2px;
+	padding: 2px;
+	border-radius: 6px;
+	background: var(--bg);
+	box-shadow: var(--shadow);
+	opacity: 0;
+	transition: opacity 0.15s;
+}
+
+.ne-embed:hover .ne-embed-tools,
+.ne-embed.is-selected .ne-embed-tools,
+.ne-embed-tools:focus-within {
+	opacity: 1;
+}
+
+.ne-embed-tool {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 3px 6px;
+	border: 0;
+	border-radius: 4px;
+	background: none;
+	font-size: 12px;
+	color: var(--text);
+	cursor: pointer;
+}
+
+.ne-embed-tool:hover {
+	background: var(--bg-hover);
+}
+
+.ne-bookmark {
+	display: flex;
+	min-height: 104px;
+	overflow: hidden;
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	color: var(--text);
+	text-decoration: none;
+}
+
+.ne-bookmark:hover {
+	background: var(--bg-hover);
+}
+
+.ne-bm-text {
+	flex: 1 1 auto;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 12px 14px;
+}
+
+.ne-bm-title {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 14px;
+	font-weight: 500;
+}
+
+.ne-bookmark.is-loading .ne-bm-title {
+	color: var(--muted);
+}
+
+.ne-bm-desc {
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	font-size: 12px;
+	line-height: 1.45;
+	color: var(--muted);
+}
+
+.ne-bm-url {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-top: auto;
+	min-width: 0;
+	font-size: 12px;
+	color: var(--text);
+}
+
+.ne-bm-url span {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ne-bm-icon {
+	flex: none;
+	width: 16px;
+	height: 16px;
+	border-radius: 3px;
+}
+
+.ne-bm-image {
+	flex: 0 0 33%;
+	max-width: 240px;
+}
+
+.ne-bm-image img {
+	display: block;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+@media (max-width: 600px) {
+	.ne-bm-image {
+		display: none;
+	}
+}
+
+/* "Paste as" menu after pasting a link on an empty line. */
+.paste-menu {
+	position: absolute;
+	z-index: 60;
+	width: 220px;
+	padding: 4px;
+	border-radius: 8px;
+	background: var(--bg);
+	box-shadow: var(--shadow);
+}
+
+.paste-menu[hidden] {
+	display: none;
+}
+
+.paste-menu-title {
+	padding: 4px 8px 6px;
+	font-size: 12px;
+	color: var(--muted);
+}
+
+.paste-menu-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: 100%;
+	padding: 6px 8px;
+	border: 0;
+	border-radius: 6px;
+	background: none;
+	font-size: 14px;
+	text-align: left;
+	cursor: pointer;
+}
+
+.paste-menu-item svg {
+	flex: none;
+	color: var(--muted);
+}
+
+.paste-menu-item.is-active,
+.paste-menu-item:hover {
+	background: var(--bg-active);
+}

@@ -1,0 +1,26 @@
+/*
+ * The editor's styles, each extension's in its folder, in cascade order.
+ * They use the host page's design tokens: --bg, --text, --muted, --faint,
+ * --border, --accent, --code-bg, --code-text, --highlight, --table-border,
+ * --cell-selected, --danger, --shadow, --bg-side, --bg-hover, --bg-active,
+ * --icon-check.
+ */
+@import "./core/styles.css";
+@import "./extensions/code/toolbar/styles.css";
+@import "./extensions/table/styles.css";
+@import "./extensions/slash-menu/styles.css";
+@import "./extensions/page-link/styles.css";
+@import "./extensions/block-handles/styles.css";
+@import "./extensions/format-toolbar/styles.css";
+@import "./extensions/link/styles.css";
+@import "./extensions/toggle/styles.css";
+@import "./extensions/callout/styles.css";
+@import "./extensions/divider/styles.css";
+@import "./extensions/image/styles.css";
+@import "./extensions/format-toolbar/colors.css";
+@import "./extensions/file/styles.css";
+@import "./extensions/block-select/styles.css";
+@import "./extensions/columns/styles.css";
+@import "./extensions/equation/styles.css";
+@import "./extensions/embed/styles.css";
+@import "./extensions/code/mermaid/styles.css";
