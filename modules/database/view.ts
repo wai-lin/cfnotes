@@ -38,7 +38,7 @@ export interface Filter {
 	value?: string | number;
 }
 
-export const LAYOUTS = ["table", "board", "list", "gallery", "calendar"] as const;
+export const LAYOUTS = ["table", "board", "list", "gallery", "calendar", "timeline"] as const;
 export type Layout = (typeof LAYOUTS)[number];
 
 export interface View {
@@ -47,10 +47,17 @@ export interface View {
 	layout: Layout;
 	sorts: Sort[];
 	filters: Filter[];
-	/** Board only: the select column whose options are the board's groups. */
+	/**
+	 * A board's select or status column, whose options are its lanes; or the
+	 * column a table or list groups its rows by (see `groupRows`).
+	 */
 	groupBy?: string;
-	/** Calendar only: the date column that places rows on days. */
+	/** Groups folded away in a table or list, by key. */
+	collapsed?: string[];
+	/** Calendar and timeline: the date column that places rows on days (a timeline's start). */
 	dateBy?: string;
+	/** Timeline only: the date column where a row's bar ends; unset = one day long. */
+	endBy?: string;
 }
 
 export const MAX_VIEWS = 20;
@@ -60,6 +67,7 @@ export const LAYOUT_NAMES: Record<Layout, string> = {
 	list: "List",
 	gallery: "Gallery",
 	calendar: "Calendar",
+	timeline: "Timeline",
 };
 
 export function isLayout(value: unknown): value is Layout {
@@ -188,6 +196,154 @@ function asPlain(column: Column, row: Row): { column: Column; row: Row } {
 export const canGroup = (column: Column | undefined) =>
 	column?.type === "select" || column?.type === "status";
 
+const LIST_GROUP_TYPES = new Set<ColumnType>([
+	"select",
+	"status",
+	"multi_select",
+	"checkbox",
+	"person",
+	"created_by",
+	"last_edited_by",
+	"date",
+	"created_time",
+	"last_edited_time",
+]);
+
+/** Whether a table or list can group its rows by `column`. */
+export const canGroupList = (column: Column | undefined) =>
+	!!column && LIST_GROUP_TYPES.has(column.type);
+
+/** Whether `layout` groups by `groupBy`, and by which columns. */
+const groupsBy = (layout: Layout, column: Column | undefined) =>
+	layout === "board"
+		? canGroup(column)
+		: layout === "table" || layout === "list"
+			? canGroupList(column)
+			: false;
+
+/** A group of rows in a grouped table or list. */
+export interface Group {
+	/** Stable across loads: an option id, an email, `YYYY-MM`, `true`/`false`, or "" for no value. */
+	key: string;
+	label: string;
+	/** Select, multi-select and status groups: their option, drawn as a pill. */
+	option?: SelectOption;
+	/** What a row added to this group gets in the grouped column; unset for none. */
+	value?: unknown;
+	rows: Row[];
+}
+
+const monthLabel = (key: string) =>
+	new Date(`${key}-01T00:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+const isTimeType = (type: ColumnType) =>
+	type === "date" || type === "created_time" || type === "last_edited_time";
+const isPersonType = (type: ColumnType) =>
+	type === "person" || type === "created_by" || type === "last_edited_by";
+
+/**
+ * `rows` (already filtered and sorted) in groups by `column`, keeping their
+ * order within each. Every option gets a group, even with no rows; other types
+ * get one per value found. A multi-select or person row is in each of its
+ * values' groups. Dates group by month. The "no value" group comes first.
+ */
+export function groupRows(column: Column, rows: Row[]): Group[] {
+	const none: Group = { key: "", label: `No ${column.name}`, rows: [] };
+	const groups = new Map<string, Group>();
+	const add = (key: string, make: () => Omit<Group, "rows" | "key">, row: Row) => {
+		let group = groups.get(key);
+		if (!group) groups.set(key, (group = { key, ...make(), rows: [] }));
+		group.rows.push(row);
+	};
+	// Automatic properties can't be set, so their groups give a new row nothing.
+	const editable = column.type === "person" || column.type === "date";
+
+	if (column.type === "select" || column.type === "status" || column.type === "multi_select") {
+		const options =
+			column.type === "status"
+				? (["todo", "in_progress", "complete"] as const).flatMap((g) =>
+						(column.options ?? []).filter((o) => o.group === g),
+					)
+				: (column.options ?? []);
+		for (const option of options) {
+			const value = column.type === "multi_select" ? [option.id] : option.id;
+			groups.set(option.id, { key: option.id, label: option.name, option, value, rows: [] });
+		}
+	}
+	if (column.type === "checkbox") {
+		groups.set("true", { key: "true", label: "Checked", value: true, rows: [] });
+		groups.set("false", { key: "false", label: "Unchecked", rows: [] });
+	}
+
+	for (const row of rows) {
+		const value = readCell(column, row.cells[column.id]);
+		if (column.type === "select" || column.type === "status") {
+			const option = value as SelectOption | null;
+			(option ? groups.get(option.id)! : none).rows.push(row);
+		} else if (column.type === "multi_select") {
+			const options = value as SelectOption[];
+			if (options.length === 0) none.rows.push(row);
+			for (const option of options) groups.get(option.id)!.rows.push(row);
+		} else if (column.type === "checkbox") {
+			groups.get(value === true ? "true" : "false")!.rows.push(row);
+		} else if (isPersonType(column.type)) {
+			const emails = value as string[];
+			if (emails.length === 0) none.rows.push(row);
+			for (const email of emails)
+				add(email, () => ({ label: email, ...(editable ? { value: [email] } : {}) }), row);
+		} else if (isTimeType(column.type)) {
+			const day =
+				typeof value === "number"
+					? dayKey(new Date(value))
+					: typeof value === "string"
+						? value
+						: null;
+			if (!day) none.rows.push(row);
+			else {
+				const key = day.slice(0, 7);
+				// A row added to a month's group is dated its first day.
+				const value = editable ? { value: `${key}-01` } : {};
+				add(key, () => ({ label: monthLabel(key), ...value }), row);
+			}
+		} else {
+			none.rows.push(row);
+		}
+	}
+	const found = [...groups.values()];
+	if (isTimeType(column.type)) found.sort((a, b) => (a.key < b.key ? -1 : 1));
+	else if (isPersonType(column.type)) found.sort((a, b) => collator.compare(a.label, b.label));
+	return column.type === "checkbox" ? found : [none, ...found];
+}
+
+/** A row's place on a timeline: its first and last day (`YYYY-MM-DD`, inclusive). */
+export interface Span {
+	start: string;
+	end: string;
+}
+
+/**
+ * Where `row` sits on a timeline that starts at `start` and ends at `end` (a
+ * date column, optional). Without an end, or with one before the start, the
+ * bar is one day long. `null` when the row has no start date.
+ */
+export function timelineSpan(row: Row, start: Column, end?: Column): Span | null {
+	const from = readCell(start, row.cells[start.id]);
+	if (typeof from !== "string") return null;
+	const to = end ? readCell(end, row.cells[end.id]) : null;
+	return { start: from, end: typeof to === "string" && to >= from ? to : from };
+}
+
+/** `YYYY-MM-DD` moved by `days` (calendar days, so daylight saving doesn't shift it). */
+export function addDays(key: string, days: number): string {
+	const [y, m, d] = key.split("-").map(Number);
+	return new Date(Date.UTC(y!, m! - 1, d! + days)).toISOString().slice(0, 10);
+}
+
+/** Days from `a` to `b` (both `YYYY-MM-DD`). */
+export function daysBetween(a: string, b: string): number {
+	return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
+}
+
 export const emptyView = (): View => ({
 	id: "table",
 	name: "Table",
@@ -208,8 +364,9 @@ export function newView(views: View[], layout: Layout, columns: Column[]): View 
 	const view: View = { id: shortId(), name, layout, sorts: [], filters: [] };
 	const select = columns.find((c) => canGroup(c));
 	if (layout === "board" && select) view.groupBy = select.id;
-	const date = columns.find((c) => c.type === "date");
-	if (layout === "calendar" && date) view.dateBy = date.id;
+	const dates = columns.filter((c) => c.type === "date");
+	if ((layout === "calendar" || layout === "timeline") && dates[0]) view.dateBy = dates[0].id;
+	if (layout === "timeline" && dates[1]) view.endBy = dates[1].id;
 	return view;
 }
 
@@ -290,16 +447,27 @@ export function cleanView(raw: unknown, columns: Column[]): View {
 	}
 	const view = emptyView();
 	if (!input || typeof input !== "object") return view;
-	const { sorts, filters, id, name, layout, groupBy, dateBy } = input as Record<string, unknown>;
+	const { sorts, filters, id, name, layout, groupBy, dateBy, endBy, collapsed } = input as Record<
+		string,
+		unknown
+	>;
 	const byId = new Map(columns.map((c) => [c.id, c]));
 	if (typeof id === "string" && /^[\w-]{1,20}$/.test(id)) view.id = id;
 	if (isLayout(layout)) view.layout = layout;
 	view.name = cleanName(name, 60) ?? LAYOUT_NAMES[view.layout];
-	if (view.layout === "board" && typeof groupBy === "string" && canGroup(byId.get(groupBy))) {
+	if (typeof groupBy === "string" && groupsBy(view.layout, byId.get(groupBy))) {
 		view.groupBy = groupBy;
+		if (view.layout !== "board" && Array.isArray(collapsed)) {
+			const keys = collapsed.filter((k): k is string => typeof k === "string" && k.length <= 400);
+			if (keys.length > 0) view.collapsed = [...new Set(keys)].slice(0, 200);
+		}
 	}
-	if (view.layout === "calendar" && typeof dateBy === "string" && byId.get(dateBy)?.type === "date")
+	const isDate = (key: unknown): key is string =>
+		typeof key === "string" && byId.get(key)?.type === "date";
+	if ((view.layout === "calendar" || view.layout === "timeline") && isDate(dateBy))
 		view.dateBy = dateBy;
+	if (view.layout === "timeline" && view.dateBy && isDate(endBy) && endBy !== view.dateBy)
+		view.endBy = endBy;
 
 	for (const item of Array.isArray(sorts) ? sorts : []) {
 		if (!item || typeof item !== "object" || view.sorts.length >= MAX_SORTS) continue;

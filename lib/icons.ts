@@ -36,6 +36,7 @@ import infoCircle from "@tabler/icons/outline/info-circle.svg?raw";
 import italic from "@tabler/icons/outline/italic.svg?raw";
 import layoutGrid from "@tabler/icons/outline/layout-grid.svg?raw";
 import layoutKanban from "@tabler/icons/outline/layout-kanban.svg?raw";
+import layoutRows from "@tabler/icons/outline/layout-rows.svg?raw";
 import letterCase from "@tabler/icons/outline/letter-case.svg?raw";
 import link from "@tabler/icons/outline/link.svg?raw";
 import list from "@tabler/icons/outline/list.svg?raw";
@@ -58,6 +59,7 @@ import strikethrough from "@tabler/icons/outline/strikethrough.svg?raw";
  * shell and the browser scripts draw the same icons. Add a name here to use it.
  */
 import table from "@tabler/icons/outline/table.svg?raw";
+import timeline from "@tabler/icons/outline/timeline.svg?raw";
 import trash from "@tabler/icons/outline/trash.svg?raw";
 import underline from "@tabler/icons/outline/underline.svg?raw";
 import userEdit from "@tabler/icons/outline/user-edit.svg?raw";
@@ -128,6 +130,8 @@ const SOURCES = {
 	clock,
 	clockEdit,
 	userEdit,
+	timeline,
+	layoutRows,
 } as const;
 
 export type IconName = keyof typeof SOURCES;

@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import { TITLE_COLUMN, type Column, type Row } from "./columns.ts";
-import { applyView, cleanView, matches, newView, prefill, type Filter } from "./view.ts";
+import {
+	addDays,
+	applyView,
+	cleanView,
+	daysBetween,
+	groupRows,
+	matches,
+	newView,
+	prefill,
+	timelineSpan,
+	type Filter,
+} from "./view.ts";
 
 const columns: Column[] = [
 	{ id: TITLE_COLUMN, name: "Name", type: "title" },
@@ -188,10 +199,10 @@ describe("layouts", () => {
 	const withDate = columns;
 	const noDate = columns.filter((c) => c.type !== "date");
 
-	it("keeps list, gallery and calendar layouts and drops unknown ones", () => {
-		for (const layout of ["list", "gallery", "calendar", "board", "table"])
+	it("keeps every layout and drops unknown ones", () => {
+		for (const layout of ["list", "gallery", "calendar", "timeline", "board", "table"])
 			expect(cleanView({ layout }, withDate).layout).toBe(layout);
-		expect(cleanView({ layout: "timeline" }, withDate).layout).toBe("table");
+		expect(cleanView({ layout: "gantt" }, withDate).layout).toBe("table");
 	});
 
 	it("keeps a calendar's date property only while it is a date", () => {
@@ -263,5 +274,108 @@ describe("automatic, person and status properties", () => {
 	it("prefills a person a filter asks for", () => {
 		const view = { sorts: [], filters: [filter("p", "contains", "b@x.io")] };
 		expect(prefill(all, view).cells).toEqual({ p: ["b@x.io"] });
+	});
+});
+
+describe("groupRows", () => {
+	const row = (id: string, cells: Row["cells"]): Row => ({ id, title: id, cells });
+	const keys = (groups: { key: string; rows: Row[] }[]) =>
+		groups.map((g) => [g.key, g.rows.map((r) => r.id).join("")]);
+
+	it("gives every option a group, empty ones too, with no value first", () => {
+		const rows = [row("a", { s: "done" }), row("b", {}), row("c", { s: "done" })];
+		expect(keys(groupRows(col("s"), rows))).toEqual([
+			["", "b"],
+			["todo", ""],
+			["done", "ac"],
+		]);
+	});
+
+	it("puts a multi-select row in each of its options' groups", () => {
+		const rows = [row("a", { m: ["a", "b"] }), row("b", { m: ["b"] })];
+		const groups = groupRows(col("m"), rows);
+		expect(keys(groups)).toEqual([
+			["", ""],
+			["a", "a"],
+			["b", "ab"],
+		]);
+		expect(groups[1]!.value).toEqual(["a"]);
+	});
+
+	it("groups dates by month, in order, and dates a new row the 1st", () => {
+		const rows = [row("a", { d: "2026-05-20" }), row("b", { d: "2026-03-02" }), row("c", {})];
+		const groups = groupRows(col("d"), rows);
+		expect(keys(groups)).toEqual([
+			["", "c"],
+			["2026-03", "b"],
+			["2026-05", "a"],
+		]);
+		expect(groups[1]!.value).toBe("2026-03-01");
+	});
+
+	it("groups checkboxes as checked, then unchecked", () => {
+		const groups = groupRows(col("c"), [row("a", { c: true }), row("b", {})]);
+		expect(keys(groups)).toEqual([
+			["true", "a"],
+			["false", "b"],
+		]);
+		expect(groups[1]!.value).toBeUndefined();
+	});
+
+	it("groups people by email, but a Created by group sets nothing", () => {
+		const person: Column = { id: "p", name: "Who", type: "person" };
+		const author: Column = { id: "a", name: "By", type: "created_by" };
+		const rows = [row("x", { p: ["b@x.io", "a@x.io"], a: "b@x.io" }), row("y", { p: [] })];
+		expect(keys(groupRows(person, rows))).toEqual([
+			["", "y"],
+			["a@x.io", "x"],
+			["b@x.io", "x"],
+		]);
+		expect(groupRows(person, rows)[1]!.value).toEqual(["a@x.io"]);
+		expect(groupRows(author, rows).find((g) => g.key === "b@x.io")!.value).toBeUndefined();
+	});
+
+	it("keeps grouping and folded groups only where a layout can use them", () => {
+		const table = cleanView(
+			{ layout: "table", groupBy: "d", collapsed: ["", 3, "2026-03"] },
+			columns,
+		);
+		expect(table.groupBy).toBe("d");
+		expect(table.collapsed).toEqual(["", "2026-03"]);
+		expect(cleanView({ layout: "board", groupBy: "d" }, columns).groupBy).toBeUndefined();
+		expect(cleanView({ layout: "gallery", groupBy: "s" }, columns).groupBy).toBeUndefined();
+		expect(cleanView({ layout: "table", groupBy: "n" }, columns).groupBy).toBeUndefined();
+	});
+});
+
+describe("timeline", () => {
+	const start: Column = { id: "s", name: "Start", type: "date" };
+	const end: Column = { id: "e", name: "End", type: "date" };
+	const row = (cells: Row["cells"]): Row => ({ id: "r", title: "r", cells });
+
+	it("spans from start to end, or one day without a usable end", () => {
+		expect(timelineSpan(row({ s: "2026-03-01", e: "2026-03-04" }), start, end)).toEqual({
+			start: "2026-03-01",
+			end: "2026-03-04",
+		});
+		expect(timelineSpan(row({ s: "2026-03-05", e: "2026-03-04" }), start, end)?.end).toBe(
+			"2026-03-05",
+		);
+		expect(timelineSpan(row({ s: "2026-03-05" }), start)?.end).toBe("2026-03-05");
+		expect(timelineSpan(row({ e: "2026-03-05" }), start, end)).toBeNull();
+	});
+
+	it("counts days across months and daylight saving", () => {
+		expect(addDays("2026-02-27", 3)).toBe("2026-03-02");
+		expect(addDays("2026-03-30", -31)).toBe("2026-02-27");
+		expect(daysBetween("2026-03-07", "2026-03-09")).toBe(2);
+		expect(daysBetween("2026-10-24", "2026-10-26")).toBe(2);
+	});
+
+	it("starts a new timeline on the first two dates, and keeps an end only if it differs", () => {
+		const cols: Column[] = [{ id: "title", name: "Name", type: "title" }, start, end];
+		expect(newView([], "timeline", cols)).toMatchObject({ dateBy: "s", endBy: "e" });
+		expect(cleanView({ layout: "timeline", dateBy: "s", endBy: "s" }, cols).endBy).toBeUndefined();
+		expect(cleanView({ layout: "calendar", dateBy: "s", endBy: "e" }, cols).endBy).toBeUndefined();
 	});
 });

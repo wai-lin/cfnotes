@@ -33,9 +33,15 @@ import {
 import { fnsFor, ROLLUP_FNS, rollupKind } from "../rollup.ts";
 import { canHoldFormula, isScriptError, scriptText } from "../script/script.ts";
 import {
+	addDays,
 	applyView,
 	canGroup,
+	canGroupList,
+	daysBetween,
 	emptyView,
+	groupRows,
+	timelineSpan,
+	type Group,
 	LAYOUT_NAMES,
 	LAYOUTS,
 	prefill,
@@ -75,7 +81,13 @@ const LAYOUT_ICONS: Record<Layout, IconName> = {
 	list: "list",
 	gallery: "layoutGrid",
 	calendar: "calendar",
+	timeline: "timeline",
 };
+
+/** A timeline's zoom: how wide one day is, in pixels. */
+const DAY_WIDTHS = { week: 44, month: 22, quarter: 8 } as const;
+type Zoom = keyof typeof DAY_WIDTHS;
+const ZOOM_NAMES: Record<Zoom, string> = { week: "Week", month: "Month", quarter: "Quarter" };
 
 /** A local date as `YYYY-MM-DD` (how date cells are stored). */
 function dayKey(date: Date): string {
@@ -460,8 +472,11 @@ export class DatabaseView extends HTMLElement {
 		// View tabs, then the view's tools.
 		const strip = h("div", "db-strip");
 		strip.append(this.#tabs(state), h("span", "db-head-space"));
-		if (this.#view.layout === "board") strip.append(this.#groupButton(state));
-		if (this.#view.layout === "calendar") strip.append(this.#dateButton(state));
+		const layout0 = this.#view.layout;
+		if (layout0 === "board" || layout0 === "table" || layout0 === "list")
+			strip.append(this.#groupButton(state));
+		if (layout0 === "calendar") strip.append(this.#dateButton(state));
+		if (layout0 === "timeline") strip.append(this.#timelineButton(state));
 		strip.append(toolbar(this.#viewContext()));
 		root.append(strip);
 		const bar = viewBar(this.#viewContext());
@@ -470,6 +485,15 @@ export class DatabaseView extends HTMLElement {
 		const layout = this.#view.layout;
 		if (layout !== "table") {
 			const boardScroll = this.querySelector(".db-board")?.scrollLeft ?? 0;
+			const timelineScroll = this.querySelector<HTMLElement>(".db-tl-scroll");
+			const tlLeft = timelineScroll?.scrollLeft;
+			const tlTop = timelineScroll?.scrollTop ?? 0;
+			// A focused bar (moved with the keyboard) keeps focus through the redraw.
+			const focused = document.activeElement;
+			const tlFocus =
+				focused?.classList.contains("db-tl-bar") && this.contains(focused)
+					? (focused.closest<HTMLElement>(".db-tl-row")?.dataset.row ?? null)
+					: null;
 			const body =
 				layout === "board"
 					? this.#board(state)
@@ -477,10 +501,13 @@ export class DatabaseView extends HTMLElement {
 						? this.#list(state)
 						: layout === "gallery"
 							? this.#gallery(state)
-							: this.#calendar(state);
+							: layout === "timeline"
+								? this.#timeline(state)
+								: this.#calendar(state);
 			root.append(body);
 			this.replaceChildren(root);
 			if (layout === "board") body.scrollLeft = boardScroll;
+			if (layout === "timeline") this.#placeTimeline(tlLeft, tlTop, tlFocus);
 			return;
 		}
 
@@ -529,8 +556,9 @@ export class DatabaseView extends HTMLElement {
 
 		const body = h("tbody");
 		const rows = applyView(state.columns, state.rows, this.#view, this.#keep, state.titles);
-		// Sorts decide the order, so rows can only be dragged when there are none.
-		const draggable = this.#view.sorts.length === 0;
+		const groupCol = this.#groupColumn(state);
+		// Sorts and groups decide the order, so rows can only be dragged without them.
+		const draggable = this.#view.sorts.length === 0 && !groupCol;
 		if (!draggable) table.classList.add("is-sorted");
 		if (rows.length === 0 && state.rows.length > 0) {
 			const tr = h("tr");
@@ -548,7 +576,7 @@ export class DatabaseView extends HTMLElement {
 			state.rows.some((row) => row.formulas && Object.keys(row.formulas).length > 0)
 		)
 			table.classList.add("has-formulas");
-		for (const row of rows) {
+		const rowEl = (row: Row) => {
 			const tr = h("tr", "db-tr");
 			tr.dataset.row = row.id;
 			const gripCell = h("td", "db-grip-cell");
@@ -564,15 +592,42 @@ export class DatabaseView extends HTMLElement {
 			more.innerHTML = icon("dots");
 			end.append(more);
 			tr.append(end);
-			body.append(tr);
+			return tr;
+		};
+		if (groupCol) {
+			// One body per group: a header row (fold, name, count), its rows, then "New".
+			const span = state.columns.length + 2;
+			for (const group of groupRows(groupCol, rows)) {
+				const section = h("tbody", "db-sect");
+				const head = h("tr", "db-sect-row");
+				const td = h("td", "db-sect-cell");
+				td.colSpan = span;
+				td.append(this.#groupHeader(groupCol, group));
+				head.append(td);
+				section.append(head);
+				if (!this.#isCollapsed(group)) {
+					for (const row of group.rows) section.append(rowEl(row));
+					const addTr = h("tr", "db-sect-row");
+					const addTd = h("td", "db-sect-add-cell");
+					addTd.colSpan = span;
+					addTd.append(this.#groupAdd(groupCol, group));
+					addTr.append(addTd);
+					section.append(addTr);
+				}
+				table.append(section);
+			}
+		} else {
+			for (const row of rows) body.append(rowEl(row));
 		}
 		table.append(body);
 		if (draggable) this.#rowDrop(body);
 		scroll.append(table);
-
-		const addRow = withIcon(h("button", "db-add-row"), "plus", "New");
-		addRow.type = "button";
-		root.append(scroll, addRow);
+		root.append(scroll);
+		if (!groupCol) {
+			const addRow = withIcon(h("button", "db-add-row"), "plus", "New");
+			addRow.type = "button";
+			root.append(addRow);
+		}
 		this.replaceChildren(root);
 		scroll.scrollLeft = scrollLeft;
 	}
@@ -1320,32 +1375,98 @@ export class DatabaseView extends HTMLElement {
 
 	/** "Group by" for a board: which select property makes the groups. */
 	#groupButton(state: DatabaseState): HTMLElement {
-		const group = state.columns.find((c) => c.id === this.#view.groupBy);
+		const board = this.#view.layout === "board";
+		const group = board
+			? state.columns.find((c) => c.id === this.#view.groupBy)
+			: this.#groupColumn(state);
 		const button = withIcon(
-			h("button", "db-tool db-tool-group"),
-			"layoutKanban",
+			h("button", `db-tool db-tool-group${!board && group ? " is-active" : ""}`),
+			board ? "layoutKanban" : "layoutRows",
 			group ? `Group: ${group.name}` : "Group",
 		);
 		button.type = "button";
 		button.addEventListener("click", () => {
 			this.#pop.open(button, (panel) => {
-				const selects = state.columns.filter((c) => canGroup(c));
-				panel.append(
-					this.#pop.menu([
-						{
-							heading: selects.length ? "Group by" : "Add a Select or Status property to group by",
+				const choices = state.columns.filter((c) => (board ? canGroup(c) : canGroupList(c)));
+				const entries: MenuEntry[] = [
+					{
+						heading: choices.length
+							? "Group by"
+							: board
+								? "Add a Select or Status property to group by"
+								: "Add a property to group by",
+					},
+					...choices.map((c) => ({
+						label: c.name,
+						icon: TYPE_ICONS[c.type],
+						checked: c.id === this.#view.groupBy,
+						run: () => {
+							const { collapsed: _, ...rest } = this.#view;
+							this.#setView({ ...rest, groupBy: c.id });
 						},
-						...selects.map((c) => ({
-							label: c.name,
-							icon: TYPE_ICONS[c.type],
-							checked: c.id === this.#view.groupBy,
-							run: () => this.#setView({ ...this.#view, groupBy: c.id }),
-						})),
-					]),
-				);
+					})),
+				];
+				if (!board && group) {
+					entries.push(
+						{ separator: true },
+						{
+							label: "Don't group",
+							icon: "x",
+							run: () => {
+								const { groupBy: _, collapsed: __, ...rest } = this.#view;
+								this.#setView(rest);
+							},
+						},
+					);
+				}
+				panel.append(this.#pop.menu(entries));
 			});
 		});
 		return button;
+	}
+
+	/** The column a table or list is grouped by, if it still can be. */
+	#groupColumn(state: DatabaseState): Column | undefined {
+		const view = this.#view;
+		if (view.layout !== "table" && view.layout !== "list") return undefined;
+		const column = state.columns.find((c) => c.id === view.groupBy);
+		return canGroupList(column) ? column : undefined;
+	}
+
+	#isCollapsed(group: Group): boolean {
+		return this.#view.collapsed?.includes(group.key) ?? false;
+	}
+
+	/** A group's header: a fold button with its name (a pill for an option) and how many rows. */
+	#groupHeader(column: Column, group: Group): HTMLElement {
+		const collapsed = this.#isCollapsed(group);
+		const toggle = h("button", "db-sect-toggle");
+		toggle.type = "button";
+		toggle.setAttribute("aria-expanded", String(!collapsed));
+		toggle.insertAdjacentHTML("beforeend", icon(collapsed ? "chevronRight" : "chevronDown", 14));
+		if (group.option) toggle.append(pill(group.option));
+		else if (group.key && ["person", "created_by", "last_edited_by"].includes(column.type))
+			toggle.append(personChip(group.key));
+		else toggle.append(h("span", `db-sect-name${group.key ? "" : " is-none"}`, group.label));
+		toggle.append(h("span", "db-sect-count", String(group.rows.length)));
+		toggle.addEventListener("click", () => {
+			const folded = new Set(this.#view.collapsed ?? []);
+			if (folded.has(group.key)) folded.delete(group.key);
+			else folded.add(group.key);
+			this.#setView({ ...this.#view, collapsed: [...folded] });
+		});
+		return toggle;
+	}
+
+	/** "New" in a group: a row that has the group's value (when one can be set). */
+	#groupAdd(column: Column, group: Group): HTMLElement {
+		const add = withIcon(h("button", "db-sect-add"), "plus", "New", 14);
+		add.type = "button";
+		add.addEventListener(
+			"click",
+			() => void this.#addRow(group.value === undefined ? {} : { [column.id]: group.value }),
+		);
+		return add;
 	}
 
 	// ---------- list, gallery, calendar ----------
@@ -1399,17 +1520,31 @@ export class DatabaseView extends HTMLElement {
 	/** A list: one line per row, its name on the left and its properties on the right. */
 	#list(state: DatabaseState): HTMLElement {
 		const rows = applyView(state.columns, state.rows, this.#view, this.#keep, state.titles);
-		const shown = state.columns.filter((c) => c.type !== "title");
+		const groupCol = this.#groupColumn(state);
+		const shown = state.columns.filter((c) => c.type !== "title" && c.id !== groupCol?.id);
 		const wrap = h("div", "db-list");
 		const none = this.#noMatches(state, rows);
 		if (none) wrap.append(none);
-		for (const row of rows) {
+		const itemEl = (row: Row) => {
 			const item = this.#item(row, "db-list-item");
 			const props = h("div", "db-list-props");
 			props.append(...this.#itemProps(row, shown, "db-list-prop"));
 			item.append(this.#itemTitle(row), props);
-			wrap.append(item);
+			return item;
+		};
+		if (groupCol) {
+			for (const group of groupRows(groupCol, rows)) {
+				const section = h("div", "db-sect db-list-group");
+				section.append(this.#groupHeader(groupCol, group));
+				if (!this.#isCollapsed(group)) {
+					for (const row of group.rows) section.append(itemEl(row));
+					section.append(this.#groupAdd(groupCol, group));
+				}
+				wrap.append(section);
+			}
+			return wrap;
 		}
+		for (const row of rows) wrap.append(itemEl(row));
 		const add = withIcon(h("button", "db-add-row"), "plus", "New");
 		add.type = "button";
 		wrap.append(add);
@@ -1478,9 +1613,12 @@ export class DatabaseView extends HTMLElement {
 	}
 
 	/** A calendar with no date property to use yet: pick one, or make one. */
-	#calendarSetup(state: DatabaseState): HTMLElement {
+	#calendarSetup(
+		state: DatabaseState,
+		text = "A calendar places rows on the days of a Date property.",
+	): HTMLElement {
 		const box = h("div", "db-board-setup");
-		box.append(h("p", "", "A calendar places rows on the days of a Date property."));
+		box.append(h("p", "", text));
 		for (const column of state.columns.filter((c) => c.type === "date")) {
 			const pick = withIcon(h("button", "db-chip"), TYPE_ICONS.date, `Use ${column.name}`);
 			pick.type = "button";
@@ -1649,6 +1787,381 @@ export class DatabaseView extends HTMLElement {
 			this.#render();
 			void this.op({ op: "setCell", rowId, columnId, value: key });
 		});
+	}
+
+	// ---------- timeline ----------
+
+	/** A timeline's zoom and the days it spans; this page visit only. */
+	#zoom: Zoom = "month";
+	#tlRange: { start: string; end: string } | null = null;
+	/** Set when the timeline should scroll to a day on its next draw (`today` on first show). */
+	#tlScrollTo: string | null = null;
+
+	/** "Dates: …" for a timeline: the date properties where bars start and end. */
+	#timelineButton(state: DatabaseState): HTMLElement {
+		const view = this.#view;
+		const start = state.columns.find((c) => c.id === view.dateBy);
+		const end = state.columns.find((c) => c.id === view.endBy);
+		const button = withIcon(
+			h("button", "db-tool db-tool-date"),
+			"calendar",
+			start ? `Dates: ${start.name}${end ? ` → ${end.name}` : ""}` : "Dates",
+		);
+		button.type = "button";
+		button.addEventListener("click", () => {
+			this.#pop.open(button, (panel) => {
+				const dates = state.columns.filter((c) => c.type === "date");
+				const entries: MenuEntry[] = [
+					{ heading: dates.length ? "Starts on" : "Add a Date property first" },
+					...dates.map((c) => ({
+						label: c.name,
+						icon: TYPE_ICONS[c.type],
+						checked: c.id === this.#view.dateBy,
+						run: () => {
+							const { endBy, ...rest } = this.#view;
+							this.#setView({
+								...rest,
+								dateBy: c.id,
+								...(endBy && endBy !== c.id ? { endBy } : {}),
+							});
+						},
+					})),
+				];
+				if (this.#view.dateBy && dates.length > 1) {
+					entries.push(
+						{ separator: true },
+						{ heading: "Ends on" },
+						{
+							label: "Same day",
+							checked: !this.#view.endBy,
+							run: () => {
+								const { endBy: _, ...rest } = this.#view;
+								this.#setView(rest);
+							},
+						},
+						...dates
+							.filter((c) => c.id !== this.#view.dateBy)
+							.map((c) => ({
+								label: c.name,
+								icon: TYPE_ICONS[c.type],
+								checked: c.id === this.#view.endBy,
+								run: () => this.#setView({ ...this.#view, endBy: c.id }),
+							})),
+					);
+				}
+				panel.append(this.#pop.menu(entries));
+			});
+		});
+		return button;
+	}
+
+	/**
+	 * A timeline: a bar per row from its start date to its end date, on a
+	 * scrolling strip of days. Drag a bar to move it, or its ends to change
+	 * them; click an undated row's track to give it that date.
+	 */
+	#timeline(state: DatabaseState): HTMLElement {
+		const view = this.#view;
+		const startCol = state.columns.find((c) => c.id === view.dateBy && c.type === "date");
+		if (!startCol)
+			return this.#calendarSetup(
+				state,
+				"A timeline draws rows as bars along the days of their Date properties.",
+			);
+		const endCol = state.columns.find((c) => c.id === view.endBy && c.type === "date");
+		const rows = applyView(state.columns, state.rows, view, this.#keep, state.titles);
+		const spans = new Map(rows.map((row) => [row.id, timelineSpan(row, startCol, endCol)]));
+		const dw = DAY_WIDTHS[this.#zoom];
+
+		// The days drawn: from a month before the first bar (or today) to three after the last.
+		// It only ever grows, so moving a bar never shifts what's on screen.
+		const today = dayKey(new Date());
+		let first = today;
+		let last = today;
+		for (const span of spans.values()) {
+			if (span && span.start < first) first = span.start;
+			if (span && span.end > last) last = span.end;
+		}
+		const monthStart = (key: string) => `${key.slice(0, 7)}-01`;
+		const from = monthStart(addDays(monthStart(first), -1));
+		const to = addDays(monthStart(addDays(monthStart(last), 100)), -1);
+		const range = this.#tlRange;
+		this.#tlRange = {
+			start: range && range.start < from ? range.start : from,
+			end: range && range.end > to ? range.end : to,
+		};
+		if (!range) this.#tlScrollTo = today;
+		const { start: rangeStart, end: rangeEnd } = this.#tlRange;
+		const days = daysBetween(rangeStart, rangeEnd) + 1;
+		const x = (key: string) => daysBetween(rangeStart, key) * dw;
+
+		const wrap = h("div", "db-timeline");
+		const tools = h("div", "db-tl-tools");
+		const zooms = h("div", "db-tl-zoom");
+		zooms.setAttribute("role", "group");
+		zooms.setAttribute("aria-label", "Zoom");
+		for (const zoom of Object.keys(DAY_WIDTHS) as Zoom[]) {
+			const b = h(
+				"button",
+				`db-tl-zoom-btn${zoom === this.#zoom ? " is-active" : ""}`,
+				ZOOM_NAMES[zoom],
+			);
+			b.type = "button";
+			b.setAttribute("aria-pressed", String(zoom === this.#zoom));
+			b.addEventListener("click", () => {
+				if (zoom === this.#zoom) return;
+				// Keep the day in the middle of the view in the middle.
+				this.#tlScrollTo = this.#tlCenter() ?? today;
+				this.#zoom = zoom;
+				this.#render();
+			});
+			zooms.append(b);
+		}
+		const todayBtn = h("button", "db-tl-today-btn", "Today");
+		todayBtn.type = "button";
+		todayBtn.addEventListener("click", () => this.#tlScroll(today, true));
+		tools.append(zooms, todayBtn);
+		wrap.append(tools, ...(this.#noMatches(state, rows) ? [this.#noMatches(state, rows)!] : []));
+
+		const scroll = h("div", "db-tl-scroll");
+		const canvas = h("div", "db-tl-canvas");
+		canvas.style.setProperty("--tl-width", `${days * dw}px`);
+		canvas.style.setProperty("--tl-day", `${dw}px`);
+		// Week lines fall on Mondays.
+		const toMonday = (8 - new Date(`${rangeStart}T00:00:00`).getDay()) % 7;
+		canvas.style.setProperty("--tl-week-offset", `${toMonday * dw}px`);
+
+		// Header: months, then days (or week starts when zoomed out).
+		const head = h("div", "db-tl-head");
+		const corner = h("div", "db-tl-corner", startCol.name);
+		const scale = h("div", "db-tl-scale");
+		const months = h("div", "db-tl-months");
+		const ticks = h("div", "db-tl-ticks");
+		for (let i = 0; i < days; i++) {
+			const key = addDays(rangeStart, i);
+			const date = new Date(`${key}T00:00:00`);
+			if (date.getDate() === 1 || i === 0) {
+				const m = h(
+					"span",
+					"db-tl-month",
+					date.toLocaleDateString(undefined, {
+						month: this.#zoom === "quarter" ? "short" : "long",
+						year: "numeric",
+					}),
+				);
+				m.style.left = `${i * dw}px`;
+				months.append(m);
+			}
+			const showTick = this.#zoom === "quarter" ? date.getDay() === 1 : true;
+			if (showTick) {
+				const t = h(
+					"span",
+					`db-tl-tick${key === today ? " is-today" : ""}${date.getDay() === 0 || date.getDay() === 6 ? " is-weekend" : ""}`,
+					String(date.getDate()),
+				);
+				t.style.left = `${i * dw}px`;
+				t.style.width = `${this.#zoom === "quarter" ? dw * 7 : dw}px`;
+				ticks.append(t);
+			}
+		}
+		scale.append(months, ticks);
+		head.append(corner, scale);
+		canvas.append(head);
+
+		const lanes = h("div", "db-tl-lanes");
+		const todayLine = h("div", "db-tl-today");
+		todayLine.style.left = `calc(var(--tl-name) + ${x(today) + dw / 2}px)`;
+		for (const row of rows) {
+			const lane = h("div", "db-tl-row");
+			lane.dataset.row = row.id;
+			const name = this.#item(row, "db-tl-name");
+			name.append(this.#itemTitle(row));
+			const track = h("div", "db-tl-track");
+			const span = spans.get(row.id);
+			if (span) track.append(this.#tlBar(row, span, startCol, endCol, x, dw));
+			else {
+				track.classList.add("is-undated");
+				track.title = `Click to set ${startCol.name}`;
+				track.addEventListener("click", (e) => {
+					const left = e.clientX - track.getBoundingClientRect().left;
+					const key = addDays(rangeStart, Math.floor(left / dw));
+					this.#tlSet(row.id, startCol.id, key, endCol ? { id: endCol.id, value: key } : null);
+				});
+			}
+			lane.append(name, track);
+			lanes.append(lane);
+		}
+		lanes.append(todayLine);
+		canvas.append(lanes);
+		scroll.append(canvas);
+		wrap.append(scroll);
+		const add = withIcon(h("button", "db-add-row"), "plus", "New");
+		add.type = "button";
+		wrap.append(add);
+		return wrap;
+	}
+
+	/** A row's bar: drag it to move both dates, or a grip to move one end. A click opens the row. */
+	#tlBar(
+		row: Row,
+		span: { start: string; end: string },
+		startCol: Column,
+		endCol: Column | undefined,
+		x: (key: string) => number,
+		dw: number,
+	): HTMLElement {
+		const bar = h("div", "db-tl-bar");
+		const place = (s: string, e: string) => {
+			const width = (daysBetween(s, e) + 1) * dw;
+			bar.style.left = `${x(s)}px`;
+			bar.style.width = `${width}px`;
+			// Too narrow for its title: the title goes just after the bar.
+			bar.classList.toggle("is-short", width < 72);
+		};
+		place(span.start, span.end);
+		bar.tabIndex = 0;
+		bar.setAttribute("role", "button");
+		const title = row.title.trim() || "Untitled";
+		const days = daysBetween(span.start, span.end) + 1;
+		bar.setAttribute(
+			"aria-label",
+			`${title}: ${formatDate(span.start)}${days > 1 ? ` to ${formatDate(span.end)}` : ""}`,
+		);
+		bar.title = `${title}\n${formatDate(span.start)}${days > 1 ? ` – ${formatDate(span.end)}` : ""}`;
+		if (row.icon) bar.append(h("span", "db-item-icon", row.icon));
+		bar.append(h("span", `db-tl-bar-title${row.title.trim() ? "" : " is-empty"}`, title));
+		const grips: HTMLElement[] = [];
+		for (const side of endCol ? (["start", "end"] as const) : []) {
+			const grip = h("span", `db-tl-grip is-${side}`);
+			grip.dataset.side = side;
+			grips.push(grip);
+		}
+		bar.append(...grips);
+
+		bar.addEventListener("pointerdown", (down) => {
+			if (down.button !== 0) return;
+			down.preventDefault();
+			const mode =
+				((down.target as HTMLElement).dataset.side as "start" | "end" | undefined) ?? "move";
+			try {
+				bar.setPointerCapture(down.pointerId);
+			} catch {
+				// A pointer that's already gone: the drag just ends on the next event.
+			}
+			let shift = 0;
+			const next = () => {
+				if (mode === "move")
+					return { start: addDays(span.start, shift), end: addDays(span.end, shift) };
+				if (mode === "start") {
+					const s = addDays(span.start, shift);
+					return { start: s > span.end ? span.end : s, end: span.end };
+				}
+				const e = addDays(span.end, shift);
+				return { start: span.start, end: e < span.start ? span.start : e };
+			};
+			const move = (e: PointerEvent) => {
+				shift = Math.round((e.clientX - down.clientX) / dw);
+				const n = next();
+				place(n.start, n.end);
+				bar.classList.toggle("is-dragging", shift !== 0);
+			};
+			const up = (e: PointerEvent) => {
+				bar.removeEventListener("pointermove", move);
+				bar.removeEventListener("pointerup", up);
+				bar.removeEventListener("pointercancel", up);
+				bar.classList.remove("is-dragging");
+				if (e.type === "pointercancel") return place(span.start, span.end);
+				if (shift === 0) {
+					if (mode === "move") location.assign(`/p/${row.id}`);
+					return;
+				}
+				const n = next();
+				this.#tlSet(
+					row.id,
+					startCol.id,
+					n.start,
+					endCol && n.end !== span.end ? { id: endCol.id, value: n.end } : null,
+					n.start === span.start,
+				);
+			};
+			bar.addEventListener("pointermove", move);
+			bar.addEventListener("pointerup", up);
+			bar.addEventListener("pointercancel", up);
+		});
+		// ←/→ move the bar a day; with Shift, its end.
+		bar.addEventListener("keydown", (e) => {
+			if (e.key === "Enter") return location.assign(`/p/${row.id}`);
+			if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+			e.preventDefault();
+			const step = e.key === "ArrowLeft" ? -1 : 1;
+			if (e.shiftKey && endCol) {
+				const end = addDays(span.end, step);
+				if (end >= span.start)
+					this.#tlSet(row.id, startCol.id, span.start, { id: endCol.id, value: end }, true);
+			} else {
+				const end = endCol ? { id: endCol.id, value: addDays(span.end, step) } : null;
+				this.#tlSet(row.id, startCol.id, addDays(span.start, step), end);
+			}
+		});
+		return bar;
+	}
+
+	/** Sets a row's start (and end) dates: shown at once, then saved. */
+	#tlSet(
+		rowId: string,
+		startId: string,
+		start: string,
+		end: { id: string; value: string } | null,
+		startUnchanged = false,
+	) {
+		const state = this.#state;
+		const row = state?.rows.find((r) => r.id === rowId);
+		if (!state || !row) return;
+		const cells = { ...row.cells, [startId]: start, ...(end ? { [end.id]: end.value } : {}) };
+		this.#state = { ...state, rows: state.rows.map((r) => (r === row ? { ...row, cells } : r)) };
+		this.#render();
+		void (async () => {
+			if (!startUnchanged) await this.op({ op: "setCell", rowId, columnId: startId, value: start });
+			if (end) await this.op({ op: "setCell", rowId, columnId: end.id, value: end.value });
+		})();
+	}
+
+	/** The day in the middle of the timeline's view. */
+	#tlCenter(): string | null {
+		const scroll = this.querySelector<HTMLElement>(".db-tl-scroll");
+		const range = this.#tlRange;
+		if (!scroll || !range) return null;
+		const name = this.querySelector<HTMLElement>(".db-tl-corner")?.offsetWidth ?? 0;
+		const mid = scroll.scrollLeft + (scroll.clientWidth - name) / 2;
+		return addDays(range.start, Math.floor(mid / DAY_WIDTHS[this.#zoom]));
+	}
+
+	/** Scrolls the timeline so `key` is a third of the way across. */
+	#tlScroll(key: string, smooth = false) {
+		const scroll = this.querySelector<HTMLElement>(".db-tl-scroll");
+		const range = this.#tlRange;
+		if (!scroll || !range) return;
+		const name = this.querySelector<HTMLElement>(".db-tl-corner")?.offsetWidth ?? 0;
+		const left =
+			daysBetween(range.start, key) * DAY_WIDTHS[this.#zoom] - (scroll.clientWidth - name) / 3;
+		scroll.scrollTo({ left: Math.max(0, left), behavior: smooth ? "smooth" : "auto" });
+	}
+
+	/** After drawing: keep the scroll where it was, or go where asked. */
+	#placeTimeline(left: number | undefined, top: number, focusRow: string | null) {
+		const scroll = this.querySelector<HTMLElement>(".db-tl-scroll");
+		if (!scroll) return;
+		scroll.scrollTop = top;
+		if (this.#tlScrollTo) {
+			this.#tlScroll(this.#tlScrollTo);
+			this.#tlScrollTo = null;
+		} else if (left !== undefined) scroll.scrollLeft = left;
+		if (focusRow) {
+			const bar = this.querySelector<HTMLElement>(
+				`.db-tl-row[data-row="${CSS.escape(focusRow)}"] .db-tl-bar`,
+			);
+			bar?.focus({ preventScroll: true });
+		}
 	}
 
 	// ---------- board ----------

@@ -2665,6 +2665,361 @@ a.db-rel:hover {
 	gap: 6px;
 }
 
+/* ---------- grouped tables and lists ---------- */
+
+.db-sect-cell,
+.db-sect-add-cell {
+	padding: 0;
+	border: 0;
+}
+
+.db-sect-toggle {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-top: 14px;
+	padding: 4px 6px 4px 2px;
+	border: 0;
+	border-radius: 4px;
+	background: none;
+	color: var(--text);
+	font: inherit;
+	font-size: 14px;
+	cursor: pointer;
+}
+
+.db-sect-toggle:hover {
+	background: var(--bg-hover);
+}
+
+.db-sect-toggle .icon {
+	flex: none;
+	color: var(--muted);
+}
+
+.db-sect-toggle .db-pill {
+	margin: 0;
+}
+
+.db-sect-name {
+	font-weight: 500;
+}
+
+.db-sect-name.is-none {
+	color: var(--muted);
+	font-weight: 400;
+}
+
+.db-sect-count {
+	color: var(--faint);
+	font-size: 13px;
+}
+
+.db-sect-add {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	padding: 6px 8px;
+	border: 0;
+	border-bottom: 1px solid var(--table-border);
+	background: none;
+	color: var(--muted);
+	font: inherit;
+	font-size: 13px;
+	text-align: left;
+	cursor: pointer;
+}
+
+.db-sect-add:hover {
+	background: var(--bg-hover);
+}
+
+.db-sect:first-of-type .db-sect-toggle {
+	margin-top: 4px;
+}
+
+/* ---------- timeline ---------- */
+
+.db-timeline {
+	--tl-name: 220px;
+	--tl-row: 36px;
+}
+
+.db-tl-tools {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 6px 0 8px;
+}
+
+.db-tl-zoom {
+	display: inline-flex;
+	padding: 2px;
+	border-radius: 6px;
+	background: var(--bg-hover);
+}
+
+.db-tl-zoom-btn,
+.db-tl-today-btn {
+	padding: 2px 10px;
+	border: 0;
+	border-radius: 4px;
+	background: none;
+	color: var(--muted);
+	font: inherit;
+	font-size: 13px;
+	cursor: pointer;
+}
+
+.db-tl-zoom-btn.is-active {
+	background: var(--bg);
+	color: var(--text);
+	box-shadow: 0 1px 2px rgba(15, 15, 15, 0.1);
+}
+
+.db-tl-today-btn {
+	border: 1px solid var(--border);
+}
+
+.db-tl-today-btn:hover,
+.db-tl-zoom-btn:not(.is-active):hover {
+	background: var(--bg-hover);
+	color: var(--text);
+}
+
+.db-tl-scroll {
+	overflow: auto;
+	max-height: 70vh;
+	border-top: 1px solid var(--table-border);
+	border-bottom: 1px solid var(--table-border);
+	overscroll-behavior-x: contain;
+}
+
+.db-tl-canvas {
+	position: relative;
+	width: calc(var(--tl-name) + var(--tl-width));
+}
+
+.db-tl-head {
+	position: sticky;
+	top: 0;
+	z-index: 5;
+	display: flex;
+	height: 48px;
+	background: var(--bg);
+	border-bottom: 1px solid var(--table-border);
+}
+
+.db-tl-corner,
+.db-tl-name {
+	position: sticky;
+	left: 0;
+	z-index: 4;
+	flex: none;
+	width: var(--tl-name);
+	background: var(--bg);
+	border-right: 1px solid var(--table-border);
+}
+
+.db-tl-corner {
+	display: flex;
+	align-items: flex-end;
+	padding: 0 8px 6px;
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.db-tl-scale {
+	position: relative;
+	flex: none;
+	width: var(--tl-width);
+}
+
+.db-tl-months,
+.db-tl-ticks {
+	position: absolute;
+	inset-inline: 0;
+	height: 24px;
+}
+
+.db-tl-ticks {
+	top: 24px;
+}
+
+.db-tl-month {
+	position: absolute;
+	top: 4px;
+	padding-left: 6px;
+	border-left: 1px solid var(--table-border);
+	font-size: 12px;
+	font-weight: 500;
+	white-space: nowrap;
+}
+
+.db-tl-tick {
+	position: absolute;
+	top: 3px;
+	color: var(--muted);
+	font-size: 11px;
+	text-align: center;
+}
+
+.db-tl-tick.is-weekend {
+	color: var(--faint);
+}
+
+.db-tl-tick.is-today {
+	color: #fff;
+}
+
+.db-tl-tick.is-today::before {
+	content: "";
+	position: absolute;
+	inset: -1px 50%;
+	z-index: -1;
+	width: 20px;
+	margin-left: -10px;
+	border-radius: 10px;
+	background: var(--danger);
+}
+
+.db-tl-lanes {
+	position: relative;
+}
+
+.db-tl-row {
+	display: flex;
+	height: var(--tl-row);
+	border-bottom: 1px solid var(--border);
+}
+
+.db-tl-name {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	padding: 0 8px;
+	cursor: pointer;
+}
+
+.db-tl-name .db-item-head {
+	min-width: 0;
+}
+
+.db-tl-name .db-card-title {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.db-tl-name:hover {
+	background: var(--bg-side);
+}
+
+.db-tl-track {
+	position: relative;
+	flex: none;
+	width: var(--tl-width);
+	background-image: linear-gradient(to right, var(--border) 1px, transparent 1px);
+	background-size: calc(var(--tl-day) * 7) 100%;
+	background-position: var(--tl-week-offset, 0) 0;
+}
+
+.db-tl-track.is-undated {
+	cursor: copy;
+}
+
+.db-tl-track.is-undated:hover {
+	background-color: var(--bg-hover);
+}
+
+.db-tl-bar {
+	position: absolute;
+	z-index: 2;
+	top: 5px;
+	bottom: 5px;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 6px;
+	padding: 0 8px;
+	border: 1px solid var(--table-border);
+	border-radius: 5px;
+	background: var(--bg);
+	box-shadow: 0 1px 2px rgba(15, 15, 15, 0.08);
+	font-size: 13px;
+	white-space: nowrap;
+	cursor: grab;
+	touch-action: none;
+	user-select: none;
+}
+
+.db-tl-bar:hover,
+.db-tl-bar:focus-visible {
+	border-color: var(--accent);
+	outline: none;
+}
+
+.db-tl-bar.is-dragging {
+	cursor: grabbing;
+	opacity: 0.85;
+	box-shadow: 0 4px 12px rgba(15, 15, 15, 0.15);
+}
+
+.db-tl-bar-title {
+	overflow: visible;
+}
+
+.db-tl-bar.is-short {
+	padding: 0;
+}
+
+.db-tl-bar.is-short .db-item-icon {
+	display: none;
+}
+
+.db-tl-bar.is-short .db-tl-bar-title {
+	position: absolute;
+	left: calc(100% + 6px);
+	pointer-events: none;
+}
+
+.db-tl-bar-title.is-empty {
+	color: var(--muted);
+}
+
+.db-tl-grip {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	width: 8px;
+	cursor: ew-resize;
+}
+
+.db-tl-grip.is-start {
+	left: -4px;
+}
+
+.db-tl-grip.is-end {
+	right: -4px;
+}
+
+.db-tl-today {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	z-index: 1;
+	width: 1px;
+	background: var(--danger);
+	pointer-events: none;
+}
+
+@media (max-width: 720px) {
+	.db-timeline {
+		--tl-name: 120px;
+	}
+}
+
 @media (max-width: 720px) {
 	.db-cal-day {
 		min-height: 64px;
