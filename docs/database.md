@@ -49,6 +49,13 @@ erDiagram
 		TEXT to_id PK,FK "pages.id, ON DELETE CASCADE"
 	}
 
+	sessions {
+		TEXT token_hash PK "SHA-256 of the cookie's token"
+		TEXT email "who signed in"
+		INTEGER expires_at "30 days after sign-in"
+		INTEGER last_seen_at "refreshed at most hourly"
+	}
+
 	row_relations {
 		TEXT column_id PK "relation column in the from row's database columns JSON"
 		TEXT from_id PK,FK "pages.id (logical)"
@@ -73,6 +80,7 @@ erDiagram
   - Restore and purge act on the whole group.
 - **`row_relations.column_id`** points into the `columns` JSON of the `from_id` row's database, not to a table. A two-way relation's other side reads the same links from `to_id`.
 - **`page_links`** records which pages link to which. It's rebuilt from `content` on save.
+- **`sessions`** is who's signed in. There is no users table: the workspace is shared by the emails in `ALLOWED_EMAILS`, which is checked on every request. A daily cron deletes ended sessions.
 - **Indexes:**
   - `pages`: `(parent_id, created_at)`, `(folder_id, created_at)`, `(folder_id, position)`, `(database_id, position)`, `host_id`, `archived_at`, `archived_with`.
   - `folders`: `(parent_id, name)`.

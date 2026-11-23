@@ -73,7 +73,16 @@ CREATE TABLE row_relations (
 CREATE INDEX row_relations_from_idx ON row_relations (from_id);
 CREATE INDEX row_relations_to_idx ON row_relations (to_id);
 
+-- Who is signed in. Only a hash of the cookie's token is stored.
+CREATE TABLE sessions (
+	token_hash TEXT PRIMARY KEY NOT NULL,
+	email TEXT NOT NULL,
+	expires_at INTEGER NOT NULL,
+	last_seen_at INTEGER NOT NULL
+) WITHOUT ROWID;
+
 -- down
+DROP TABLE sessions;
 DROP TABLE row_relations;
 DROP TABLE page_links;
 DROP TABLE pages;
