@@ -1,6 +1,7 @@
 /** The whole app in memory, with a stand-in for Google, and the requests its browser code makes. For tests. */
-import { Effect, Layer } from "effect";
+import { Effect, Layer, Schema } from "effect";
 import { HttpClient, HttpClientResponse } from "effect/http";
+import { Input, route } from "spacefn";
 import { memoryServices, testApp, testDb, testEnv } from "spacefn/testing";
 
 import Env from "#configs/env.ts";
@@ -43,6 +44,37 @@ function fakeGoogle() {
 	return { google, layer };
 }
 
+const TOKEN_PATH = "/test/api-token";
+
+/**
+ * Makes an API token for `email`, as `modules/auth/tokens.ts` stores one (a
+ * SHA-256 hash of `cfn_…`). A route only tests have: the tokens page can't be
+ * rendered here.
+ */
+const tokenRoute = route({
+	POST: Effect.gen(function* () {
+		const { email, scope } = yield* Input.body(
+			Schema.Struct({ email: Schema.String, scope: Schema.String }),
+		);
+		const token = `cfn_test${crypto.randomUUID().replaceAll("-", "")}`;
+		const digest = yield* Effect.promise(() =>
+			crypto.subtle.digest("SHA-256", new TextEncoder().encode(token)),
+		);
+		const tokenHash = [...new Uint8Array(digest)]
+			.map((b) => b.toString(16).padStart(2, "0"))
+			.join("");
+		yield* MainDb.createApiToken({
+			id: crypto.randomUUID(),
+			name: "test",
+			tokenHash,
+			scope,
+			now: Date.now(),
+			by: email,
+		});
+		return { token };
+	}),
+});
+
 /** The cookies a response sets, as the browser sends them back. */
 export const cookiesOf = (response: Response) =>
 	response.headers
@@ -54,7 +86,13 @@ export const cookiesOf = (response: Response) =>
 export function cfnotes(env: Partial<typeof TEST_ENV> = {}) {
 	const { google, layer } = fakeGoogle();
 	const app = testApp(
-		manifest,
+		{
+			...manifest,
+			routes: [
+				...manifest.routes,
+				{ path: TOKEN_PATH, params: [], file: "lib/testing.ts", module: { default: tokenRoute } },
+			],
+		},
 		Layer.mergeAll(
 			testDb(MainDb),
 			memoryServices,
@@ -89,6 +127,27 @@ export function cfnotes(env: Partial<typeof TEST_ENV> = {}) {
 		anonymous: app.fetch,
 		google,
 		signIn,
+		/** An API token, made by `email` (the owner by default). */
+		async token(scope: "read" | "write" = "write", email = "owner@example.com") {
+			const res = await fetch(TOKEN_PATH, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ email, scope }),
+			});
+			return ((await res.json()) as { token: string }).token;
+		},
+		/** A request to the API with `token`. */
+		api: (token: string, path: string, init: RequestInit & { json?: unknown } = {}) => {
+			const headers = new Headers(init.headers);
+			headers.set("authorization", `Bearer ${token}`);
+			const { json, ...rest } = init;
+			if (json !== undefined) headers.set("content-type", "application/json");
+			return app.fetch(path, {
+				...rest,
+				headers,
+				...(json !== undefined ? { body: JSON.stringify(json) } : {}),
+			});
+		},
 		/** A page action called with JSON, as the browser code and Datastar's `@post` do. */
 		post: (path: string, action: string, body: unknown) =>
 			fetch(`${path}?__action=${action}`, {
