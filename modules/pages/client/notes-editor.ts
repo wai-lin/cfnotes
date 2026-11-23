@@ -10,7 +10,7 @@
  * serialized editor state as a JSON string. `save-path` (a page action) lets
  * it save on its own when the reader leaves right after an edit, before the
  * page's debounced save has run. `link-path` is the action that creates a page
- * from the `[[` picker.
+ * from the `[[` picker, and `synced-path` the one that keeps synced blocks.
  */
 import { rocket } from "#lib/datastar/index.ts";
 import { mountEditor, notionLikeExtensions } from "#lib/editor/index.ts";
@@ -26,6 +26,7 @@ import {
 	fetchPreview,
 	isUploadedImage,
 	pageCreator,
+	syncedStore,
 	upload,
 } from "./adapters.ts";
 
@@ -55,7 +56,12 @@ export const defineNotesEditor = () =>
 		mode: "light",
 		ignoredByMorph: "children",
 		renderOnPropChange: false,
-		props: ({ string }) => ({ state: string, savePath: string, linkPath: string }),
+		props: ({ string }) => ({
+			state: string,
+			savePath: string,
+			linkPath: string,
+			syncedPath: string,
+		}),
 		onFirstRender({ host, props, cleanup, defineHostProp }) {
 			const edits = editsOf.get(host) ?? { doc: props.state, changedAt: 0 };
 			editsOf.set(host, edits);
@@ -110,6 +116,7 @@ export const defineNotesEditor = () =>
 						onDeleted: databaseDeleted,
 					},
 					fetchPreview,
+					synced: syncedStore(props.syncedPath),
 					blockSelect: {
 						marqueeArea: ".main",
 						marqueeIgnore:

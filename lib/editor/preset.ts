@@ -17,6 +17,7 @@ import { imageExtension } from "./extensions/image/index.ts";
 import { linkExtension } from "./extensions/link/index.ts";
 import { listExtension } from "./extensions/list/index.ts";
 import { markdownExtension } from "./extensions/markdown/index.ts";
+import { mediaExtension } from "./extensions/media/index.ts";
 import { pageLinkExtension, type PageLinkOptions } from "./extensions/page-link/index.ts";
 import { pagePickerExtension } from "./extensions/page-picker/index.ts";
 import { pasteExtension } from "./extensions/paste/index.ts";
@@ -24,7 +25,9 @@ import { placeholderExtension, type PlaceholderOptions } from "./extensions/plac
 import { richTextExtension } from "./extensions/rich-text/index.ts";
 import { shortcutsExtension } from "./extensions/shortcuts/index.ts";
 import { slashMenuExtension } from "./extensions/slash-menu/index.ts";
+import { syncedExtension, type SyncedStore } from "./extensions/synced/index.ts";
 import { tableExtension } from "./extensions/table/index.ts";
+import { tocExtension } from "./extensions/toc/index.ts";
 import { toggleExtension } from "./extensions/toggle/index.ts";
 import { trailingLineExtension } from "./extensions/trailing-line/index.ts";
 import type { Uploader } from "./shared/upload.ts";
@@ -38,6 +41,8 @@ export interface NotionLikeOptions {
 	pages?: PageLinkOptions & { createPage?: (title: string) => Promise<string | null> };
 	/** Inline databases; left out, there are none. */
 	database?: DatabaseOptions;
+	/** Where synced blocks' content is kept; left out, there are none. */
+	synced?: SyncedStore;
 	/** Titles and images for bookmarks. */
 	fetchPreview?: PreviewFetcher;
 	code?: CodeOptions;
@@ -77,12 +82,15 @@ export function notionLikeExtensions(options: NotionLikeOptions): EditorExtensio
 		calloutExtension(),
 		imageExtension({ upload: options.upload, localSource: options.localImageSource }),
 		fileExtension({ upload: options.upload }),
+		mediaExtension({ upload: options.upload }),
 		shortcutsExtension(),
 		pasteExtension(),
 		blockSelectExtension(options.blockSelect),
 		columnsExtension(),
 		equationExtension(),
 		embedExtension({ fetchPreview: options.fetchPreview }),
+		tocExtension(),
+		...(options.synced ? [syncedExtension({ store: options.synced })] : []),
 		dividerExtension(),
 		trailingLineExtension(),
 		globalUndoExtension({ ignore: options.undoIgnore }),

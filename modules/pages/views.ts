@@ -5,7 +5,7 @@ import { pageLabel } from "#lib/titles.ts";
 import type { DatabaseState } from "#modules/database/columns.ts";
 
 type PageUrls = Record<
-	"save" | "title" | "linkPage" | "dbOp" | "icon" | "cover" | "remove",
+	"save" | "title" | "linkPage" | "dbOp" | "synced" | "icon" | "cover" | "remove",
 	string
 >;
 
@@ -64,6 +64,7 @@ export function pageView({
 						state="${page.content ?? ""}"
 						save-path="${urls.save}"
 						link-path="${urls.linkPage}"
+						synced-path="${urls.synced}"
 					></notes-editor>
 				</div>`;
 

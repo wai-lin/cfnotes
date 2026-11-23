@@ -1,0 +1,45 @@
+/* Table of contents: one line per heading, indented by level. */
+.ne-toc {
+	display: flex;
+	flex-direction: column;
+	margin: 4px 0;
+	padding: 4px 0;
+	border-radius: 4px;
+	user-select: none;
+}
+
+.ne-toc.is-selected {
+	background: var(--cell-selected);
+}
+
+.ne-toc-item {
+	padding: 3px 4px 3px calc(4px + var(--toc-depth, 0) * 24px);
+	border-radius: 3px;
+	color: var(--muted);
+	font-size: 14px;
+	text-decoration: underline;
+	text-decoration-color: var(--faint);
+	text-underline-offset: 3px;
+}
+
+.ne-toc-item:hover {
+	background: var(--bg-hover);
+	color: var(--text);
+}
+
+.ne-toc-empty {
+	margin: 0;
+	padding: 3px 4px;
+	color: var(--faint);
+	font-size: 14px;
+}
+
+.ne-toc-target {
+	animation: ne-toc-flash 1.2s ease-out;
+}
+
+@keyframes ne-toc-flash {
+	from {
+		background: var(--highlight);
+	}
+}

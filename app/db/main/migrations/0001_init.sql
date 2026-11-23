@@ -83,7 +83,16 @@ CREATE TABLE sessions (
 	last_seen_at INTEGER NOT NULL
 ) WITHOUT ROWID;
 
+-- Synced blocks: content shown in every page that holds a block with this id.
+CREATE TABLE synced_blocks (
+	id TEXT PRIMARY KEY NOT NULL,
+	content TEXT NOT NULL,
+	updated_at INTEGER NOT NULL,
+	updated_by TEXT
+) WITHOUT ROWID;
+
 -- down
+DROP TABLE synced_blocks;
 DROP TABLE sessions;
 DROP TABLE row_relations;
 DROP TABLE page_links;

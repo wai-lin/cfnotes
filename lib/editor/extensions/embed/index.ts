@@ -78,7 +78,7 @@ export function embedExtension({
 			),
 			item(
 				"video",
-				"Video",
+				"Video link",
 				"Embed from YouTube, Vimeo or Loom",
 				"video youtube vimeo loom movie clip",
 				190,

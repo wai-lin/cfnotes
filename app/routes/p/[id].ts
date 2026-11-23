@@ -10,6 +10,7 @@ import { pageView } from "#modules/pages/views.ts";
 import { renderTree, sidebarActions, sidebarUrls } from "#modules/sidebar/actions.ts";
 import * as Sidebar from "#modules/sidebar/sidebar.ts";
 import { navLink } from "#modules/sidebar/views.ts";
+import * as Synced from "#modules/synced/synced.ts";
 import { shell } from "#modules/workspace/views.ts";
 
 // /p/:id
@@ -71,6 +72,12 @@ export default page({
 			input: Schema.Struct({}),
 			handler: () => Effect.map(Effect.flatMap(id, Pages.remove), (to) => redirect(to)),
 		}),
+		// The latest content of synced blocks, and saving it.
+		synced: action({
+			input: Synced.Op,
+			limits: Synced.SYNCED_LIMITS,
+			handler: (op) => Effect.map(Synced.run(op), json),
+		}),
 		dbOp: action({
 			input: Database.Op,
 			limits: Database.OP_LIMITS,
@@ -99,6 +106,7 @@ export default page({
 					title: actions.title.url,
 					linkPage: actions.linkPage.url,
 					dbOp: actions.dbOp.url,
+					synced: actions.synced.url,
 					icon: actions.icon.url,
 					cover: actions.cover.url,
 					remove: actions.remove.url,

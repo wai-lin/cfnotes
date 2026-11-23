@@ -29,7 +29,13 @@ export { notionLikeExtensions, type NotionLikeOptions } from "./preset.ts";
 
 // ---- shared ----
 export { BACK_COLORS, TEXT_COLORS, type Palette } from "./shared/colors.ts";
-export { IMAGE_TYPES, type Uploaded, type Uploader } from "./shared/upload.ts";
+export {
+	IMAGE_TYPES,
+	MEDIA_ACCEPT,
+	type MediaKind,
+	type Uploaded,
+	type Uploader,
+} from "./shared/upload.ts";
 
 // ---- extensions ----
 export { blockHandlesExtension } from "./extensions/block-handles/index.ts";
@@ -58,6 +64,9 @@ export { imageExtension, INSERT_IMAGE_COMMAND } from "./extensions/image/index.t
 export { linkExtension, OPEN_LINK_EDITOR_COMMAND } from "./extensions/link/index.ts";
 export { listExtension } from "./extensions/list/index.ts";
 export { markdownExtension } from "./extensions/markdown/index.ts";
+export { INSERT_MEDIA_COMMAND, mediaExtension } from "./extensions/media/index.ts";
+export { syncedExtension, type SyncedStore } from "./extensions/synced/index.ts";
+export { tocExtension } from "./extensions/toc/index.ts";
 export {
 	pageLinkExtension,
 	PAGE_LINK_TYPE,

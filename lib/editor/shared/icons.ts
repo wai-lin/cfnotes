@@ -1,3 +1,4 @@
+import arrowsExchange from "@tabler/icons/outline/arrows-exchange.svg?raw";
 /**
  * The Tabler icons (https://tabler.io/icons) the editor draws, imported as SVG
  * text. Add a name here to use it.
@@ -14,18 +15,29 @@ import externalLink from "@tabler/icons/outline/external-link.svg?raw";
 import fileOff from "@tabler/icons/outline/file-off.svg?raw";
 import filePlus from "@tabler/icons/outline/file-plus.svg?raw";
 import fileText from "@tabler/icons/outline/file-text.svg?raw";
+import fileTypePdf from "@tabler/icons/outline/file-type-pdf.svg?raw";
 import gripVertical from "@tabler/icons/outline/grip-vertical.svg?raw";
 import italic from "@tabler/icons/outline/italic.svg?raw";
 import link from "@tabler/icons/outline/link.svg?raw";
+import listTree from "@tabler/icons/outline/list-tree.svg?raw";
+import music from "@tabler/icons/outline/music.svg?raw";
 import paperclip from "@tabler/icons/outline/paperclip.svg?raw";
 import plus from "@tabler/icons/outline/plus.svg?raw";
 import squareRoot from "@tabler/icons/outline/square-root.svg?raw";
 import strikethrough from "@tabler/icons/outline/strikethrough.svg?raw";
 import underline from "@tabler/icons/outline/underline.svg?raw";
+import unlink from "@tabler/icons/outline/unlink.svg?raw";
+import video from "@tabler/icons/outline/video.svg?raw";
 import world from "@tabler/icons/outline/world.svg?raw";
 import x from "@tabler/icons/outline/x.svg?raw";
 
 const SOURCES = {
+	listTree,
+	unlink,
+	video,
+	music,
+	fileTypePdf,
+	arrowsExchange,
 	bold,
 	bookmark,
 	check,

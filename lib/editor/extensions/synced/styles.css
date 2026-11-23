@@ -1,0 +1,60 @@
+/* Synced blocks: an outline while they're active, and their bar above. */
+.ne-synced {
+	position: relative;
+	margin: 4px -8px;
+	padding: 2px 8px;
+	border-radius: 4px;
+	outline: 2px solid transparent;
+	outline-offset: -1px;
+	transition: outline-color 120ms;
+}
+
+.ne-synced.is-active {
+	outline-color: rgba(235, 87, 87, 0.45);
+}
+
+.ne-synced-bar {
+	position: absolute;
+	z-index: 6;
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	padding: 2px;
+	border-radius: 6px;
+	background: var(--bg);
+	box-shadow: var(--shadow);
+	font-size: 12px;
+	user-select: none;
+}
+
+.ne-synced-bar[hidden] {
+	display: none;
+}
+
+.ne-synced-label,
+.ne-synced-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 3px 6px;
+	border-radius: 4px;
+	white-space: nowrap;
+}
+
+.ne-synced-label {
+	color: #d44c47;
+	font-weight: 500;
+}
+
+.ne-synced-btn {
+	border: 0;
+	background: none;
+	color: var(--muted);
+	font: inherit;
+	cursor: pointer;
+}
+
+.ne-synced-btn:hover {
+	background: var(--bg-hover);
+	color: var(--text);
+}

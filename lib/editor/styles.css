@@ -19,6 +19,9 @@
 @import "./extensions/image/styles.css";
 @import "./extensions/format-toolbar/colors.css";
 @import "./extensions/file/styles.css";
+@import "./extensions/media/styles.css";
+@import "./extensions/toc/styles.css";
+@import "./extensions/synced/styles.css";
 @import "./extensions/block-select/styles.css";
 @import "./extensions/columns/styles.css";
 @import "./extensions/equation/styles.css";

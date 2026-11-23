@@ -2,7 +2,13 @@
  * What the editor library needs from cfnotes: where files and pages are
  * stored, how databases are made, and how failures are told to the reader.
  */
-import { IMAGE_TYPES, type LinkPreview, type Uploaded } from "#lib/editor/index.ts";
+import {
+	IMAGE_TYPES,
+	type LinkPreview,
+	type MediaKind,
+	type SyncedStore,
+	type Uploaded,
+} from "#lib/editor/index.ts";
 import { alertDialog } from "#lib/ui/dialog.ts";
 import { primeState } from "#modules/database/client/database-view.ts";
 import type { DatabaseState } from "#modules/database/columns.ts";
@@ -10,21 +16,55 @@ import { archivedToast } from "#modules/trash/client/undo.ts";
 
 const tryAgain = "Check your connection and try again.";
 
+/** What a stored media type plays as. */
+const mediaKind = (type: string): MediaKind | null =>
+	type === "application/pdf"
+		? "pdf"
+		: type.startsWith("audio/")
+			? "audio"
+			: type.startsWith("video/")
+				? "video"
+				: null;
+
+/** POSTs a file to an upload route; its stored key and type, or why not. */
+async function send(route: string, file: File) {
+	const body = new FormData();
+	body.append("file", file);
+	const res = await fetch(route, { method: "POST", body });
+	if (!res.ok) return { status: res.status } as const;
+	return (await res.json()) as { key: string; type: string };
+}
+
 /**
  * Uploads one file to R2 through the matching route: images render inline,
+ * audio, video and PDFs play in the page (when the server recognises them),
  * everything else becomes a downloadable attachment.
  */
 export async function upload(file: File): Promise<Uploaded | null> {
-	const image = IMAGE_TYPES.includes(file.type);
-	const body = new FormData();
-	body.append("file", file);
 	try {
-		const res = await fetch(image ? "/files" : "/files/attach", { method: "POST", body });
-		if (!res.ok) throw new Error(`upload failed: ${res.status}`);
-		const { key } = (await res.json()) as { key: string };
-		return image
-			? { kind: "image", src: `/files/${key}`, alt: file.name.replace(/\.\w+$/, "") }
-			: { kind: "file", src: `/files/${key}`, name: file.name, size: file.size };
+		if (IMAGE_TYPES.includes(file.type)) {
+			const sent = await send("/files", file);
+			if ("status" in sent) throw new Error(`upload failed: ${sent.status}`);
+			return { kind: "image", src: `/files/${sent.key}`, alt: file.name.replace(/\.\w+$/, "") };
+		}
+		if (mediaKind(file.type)) {
+			const sent = await send("/files/media", file);
+			const media = "key" in sent ? mediaKind(sent.type) : null;
+			if ("key" in sent && media)
+				return {
+					kind: "media",
+					media,
+					src: `/files/${sent.key}`,
+					name: file.name,
+					size: file.size,
+				};
+			// Too big, or a format we can't play: it can still be attached.
+			if ("status" in sent && sent.status !== 413 && sent.status !== 415)
+				throw new Error(`upload failed: ${sent.status}`);
+		}
+		const sent = await send("/files/attach", file);
+		if ("status" in sent) throw new Error(`upload failed: ${sent.status}`);
+		return { kind: "file", src: `/files/${sent.key}`, name: file.name, size: file.size };
 	} catch (error) {
 		console.warn("[upload]", error);
 		void alertDialog(`Couldn't upload “${file.name}”`, tryAgain);
@@ -96,4 +136,34 @@ export function databaseDeleted(
 ): void {
 	const { id, title = "" } = event.detail;
 	archivedToast({ id, title, keepHost: true, onUndone: restore });
+}
+
+/** Synced blocks' content, through the page action `path`. */
+export function syncedStore(path: string | undefined): SyncedStore | undefined {
+	if (!path) return undefined;
+	const call = (body: unknown, keepalive = false) =>
+		fetch(location.pathname + path, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify(body),
+			keepalive,
+		});
+	return {
+		async load(ids) {
+			const res = await call({ op: "get", ids });
+			if (!res.ok) return null;
+			return ((await res.json()) as { blocks: Record<string, unknown[]> }).blocks;
+		},
+		async save(id, content, keepalive) {
+			try {
+				const body = { op: "save", id, content };
+				// Browsers cap a keepalive request at 64 KB.
+				const small = new Blob([JSON.stringify(body)]).size <= 60_000;
+				return (await call(body, keepalive && small)).ok;
+			} catch (error) {
+				console.warn("[synced] save failed", error);
+				return false;
+			}
+		},
+	};
 }

@@ -51,6 +51,13 @@ erDiagram
 		TEXT to_id PK,FK "pages.id, ON DELETE CASCADE"
 	}
 
+	synced_blocks {
+		TEXT id PK "the id synced block nodes in page content carry"
+		TEXT content "the block's children, Lexical JSON array"
+		INTEGER updated_at
+		TEXT updated_by "email"
+	}
+
 	sessions {
 		TEXT token_hash PK "SHA-256 of the cookie's token"
 		TEXT email "who signed in"

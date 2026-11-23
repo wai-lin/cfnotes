@@ -1,0 +1,73 @@
+/* Audio, video and PDF blocks. */
+.ne-media {
+	margin: 6px 0;
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+.ne-media.is-selected {
+	outline: 2px solid var(--accent);
+	outline-offset: 1px;
+}
+
+.ne-media-player {
+	display: block;
+	width: 100%;
+}
+
+.ne-media.is-video .ne-media-player {
+	max-height: 70vh;
+	background: #000;
+}
+
+.ne-media.is-audio .ne-media-player {
+	padding: 8px 8px 0;
+	box-sizing: border-box;
+}
+
+.ne-media-pdf {
+	display: block;
+	width: 100%;
+	height: min(80vh, 720px);
+	border: 0;
+	background: var(--bg-side);
+}
+
+.ne-media-caption {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	font-size: 13px;
+	cursor: default;
+}
+
+.ne-media-icon,
+.ne-media-link {
+	display: flex;
+	color: var(--muted);
+}
+
+.ne-media-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ne-media-size {
+	flex-shrink: 0;
+	margin-right: auto;
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.ne-media-link {
+	padding: 3px;
+	border-radius: 4px;
+}
+
+.ne-media-link:hover {
+	background: var(--bg-hover);
+	color: var(--text);
+}
