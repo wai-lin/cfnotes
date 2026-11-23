@@ -6,6 +6,7 @@ import { middleware, redirect } from "spacefn";
 import { returnPath } from "./access.ts";
 import { PATH as GOOGLE } from "./google.ts";
 import * as Sessions from "./sessions.ts";
+import { isApiPath } from "./tokens.ts";
 
 // Exact paths, so another spelling of one is private rather than public.
 const PUBLIC = new Set(["/login", GOOGLE, "/logout"]);
@@ -14,6 +15,11 @@ const PUBLIC = new Set(["/login", GOOGLE, "/logout"]);
 const SIGNED_OUT = "x-signed-out";
 
 const refuse = (request: HttpServerRequest.HttpServerRequest, path: string) => {
+	if (isApiPath(path))
+		return HttpServerResponse.jsonUnsafe(
+			{ error: "Unauthorized", message: "Send an API token: Authorization: Bearer cfn_…" },
+			{ status: 401, headers: { "www-authenticate": 'Bearer realm="cfnotes"' } },
+		);
 	const navigating =
 		request.headers["datastar-request"] !== "true" &&
 		request.headers["accept"]?.startsWith("text/html");

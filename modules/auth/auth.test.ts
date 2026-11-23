@@ -16,7 +16,10 @@ describe("the guard", () => {
 			for (const method of ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]) {
 				const response = await app.anonymous(path, { method });
 				expect(response.status, `${method} ${path}`).toBe(401);
-				expect(response.headers.get("x-signed-out")).toBe("1");
+				// The API asks for a token instead of a sign-in.
+				if (path.startsWith("/api/"))
+					expect(response.headers.get("www-authenticate")).toContain("Bearer");
+				else expect(response.headers.get("x-signed-out")).toBe("1");
 			}
 		}
 	});

@@ -1,0 +1,117 @@
+/* The API tokens page. Its list borrows Trash's rows. */
+.tokens-intro {
+	margin: 0 0 24px;
+	color: var(--muted);
+	font-size: 14px;
+	line-height: 1.6;
+}
+
+.tokens-page h2 {
+	margin: 0 0 12px;
+	font-size: 16px;
+	font-weight: 600;
+}
+
+.tokens-page h3 {
+	margin: 16px 0 6px;
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.tokens-page code {
+	font-size: 13px;
+}
+
+.tokens-page pre {
+	overflow-x: auto;
+	margin: 0;
+	padding: 10px 12px;
+	border-radius: 6px;
+	background: var(--bg-hover);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.token-made {
+	margin: 0 0 28px;
+	padding: 16px;
+	border: 1px solid var(--accent);
+	border-radius: 8px;
+}
+
+.token-made > p {
+	margin: 0 0 10px;
+	color: var(--muted);
+	font-size: 14px;
+}
+
+.token-copy {
+	display: flex;
+	gap: 8px;
+}
+
+.token-value {
+	flex: 1;
+	min-width: 0;
+	padding: 6px 8px;
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	background: var(--bg);
+	color: var(--text);
+	font-family: var(--mono, ui-monospace, monospace);
+	font-size: 13px;
+}
+
+.token-new {
+	display: grid;
+	gap: 12px;
+	justify-items: start;
+	margin: 0 0 32px;
+}
+
+.token-field {
+	display: grid;
+	gap: 4px;
+	width: min(100%, 360px);
+	font-size: 14px;
+}
+
+.token-field input {
+	padding: 6px 8px;
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	background: var(--bg);
+	color: var(--text);
+	font: inherit;
+}
+
+.token-scope {
+	display: grid;
+	gap: 6px;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	font-size: 14px;
+}
+
+.token-scope legend {
+	margin-bottom: 4px;
+	padding: 0;
+}
+
+.token-new button[type="submit"] {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.token-error {
+	margin: 0;
+	color: var(--danger, #c4320a);
+	font-size: 14px;
+}
+
+.tokens-empty {
+	color: var(--muted);
+	font-size: 14px;
+}

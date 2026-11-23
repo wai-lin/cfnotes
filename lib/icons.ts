@@ -35,6 +35,7 @@ import gripVertical from "@tabler/icons/outline/grip-vertical.svg?raw";
 import hash from "@tabler/icons/outline/hash.svg?raw";
 import infoCircle from "@tabler/icons/outline/info-circle.svg?raw";
 import italic from "@tabler/icons/outline/italic.svg?raw";
+import key from "@tabler/icons/outline/key.svg?raw";
 import layoutGrid from "@tabler/icons/outline/layout-grid.svg?raw";
 import layoutKanban from "@tabler/icons/outline/layout-kanban.svg?raw";
 import layoutRows from "@tabler/icons/outline/layout-rows.svg?raw";
@@ -140,6 +141,7 @@ const SOURCES = {
 	circleCheck,
 	pencil,
 	send,
+	key,
 } as const;
 
 export type IconName = keyof typeof SOURCES;

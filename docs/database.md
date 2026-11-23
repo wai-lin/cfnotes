@@ -86,6 +86,15 @@ erDiagram
 		INTEGER last_seen_at "refreshed at most hourly"
 	}
 
+	api_tokens {
+		TEXT id PK
+		TEXT name
+		TEXT token_hash UK "SHA-256 of the token"
+		TEXT scope "read | write"
+		TEXT created_by "the email it acts as"
+		INTEGER last_used_at "refreshed at most every minute"
+	}
+
 	row_relations {
 		TEXT column_id PK "relation column in the from row's database columns JSON"
 		TEXT from_id PK,FK "pages.id (logical)"
@@ -112,6 +121,7 @@ erDiagram
 - **`page_links`** records which pages link to which. It's rebuilt from `content` on save.
 - **Comments.** A thread on text is tied to it by Lexical mark nodes in the page's `content` that carry the thread's id. Resolving a thread leaves the marks, which then aren't highlighted. A thread goes when its last comment is deleted, and every thread goes when its page is deleted for good.
 - **`sessions`** is who's signed in. There is no users table: the workspace is shared by the emails in `ALLOWED_EMAILS`, which is checked on every request. A daily cron deletes ended sessions.
+- **`api_tokens`** stand in for a session on `/api/…` (see [API](api.md)). A token acts as `created_by`, and stops working once that email leaves `ALLOWED_EMAILS`.
 - **Indexes:**
   - `pages`: `(parent_id, created_at)`, `(folder_id, created_at)`, `(folder_id, position)`, `(database_id, position)`, `host_id`, `archived_at`, `archived_with`.
   - `folders`: `(parent_id, name)`.

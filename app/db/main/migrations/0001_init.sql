@@ -118,7 +118,20 @@ CREATE TABLE comments (
 
 CREATE INDEX comments_thread_idx ON comments (thread_id, created_at);
 
+-- Tokens for the API (`/api/…`), each acting as the person who made it.
+-- `scope` is 'read' or 'write'. As with sessions, only a hash is stored.
+CREATE TABLE api_tokens (
+	id TEXT PRIMARY KEY NOT NULL,
+	name TEXT NOT NULL,
+	token_hash TEXT NOT NULL UNIQUE,
+	scope TEXT NOT NULL,
+	created_at INTEGER NOT NULL,
+	created_by TEXT NOT NULL,
+	last_used_at INTEGER
+);
+
 -- down
+DROP TABLE api_tokens;
 DROP TABLE comments;
 DROP TABLE comment_threads;
 DROP TABLE synced_blocks;

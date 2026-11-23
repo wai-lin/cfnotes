@@ -1,11 +1,13 @@
 /** Cookie sessions, in the `sessions` table. */
 import { Clock, Effect, Option } from "effect";
+import { HttpServerRequest } from "effect/http";
 import { redirect, sessionAuth } from "spacefn";
 
 import Env from "#configs/env.ts";
 import MainDb from "#space/db/main.ts";
 
 import { emails, isAllowed } from "./access.ts";
+import * as Tokens from "./tokens.ts";
 
 export const COOKIE = "session";
 
@@ -43,8 +45,16 @@ export const secureCookies = Effect.map(Env, (env) => env.ORIGIN.startsWith("htt
 
 const auth = Effect.map(secureCookies, (secure) => (secure ? overHttps : onLocalhost));
 
-/** Who is signed in, if anyone. */
-export const user = Effect.flatMap(auth, (it) => it.user);
+/**
+ * Who is signed in, if anyone. On the API that's whoever made the request's
+ * token, and a session cookie counts for nothing there.
+ */
+export const user = Effect.gen(function* () {
+	const request = yield* HttpServerRequest.HttpServerRequest;
+	if (Tokens.isApiPath(request.url.split("?")[0]!))
+		return Option.map(yield* Tokens.caller, (it) => ({ email: it.email }));
+	return yield* (yield* auth).user;
+});
 
 /** The signed-in email, to record who changed something; `null` when no one is. */
 export const editor = Effect.map(user, (found) =>

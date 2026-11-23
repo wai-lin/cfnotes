@@ -84,6 +84,12 @@ export function shell(options: {
 							>
 								${svg("trash")}<span>Trash</span>
 							</a>
+							<a
+								class="new-page tokens-link${options.activeId === "tokens" ? " is-active" : ""}"
+								href="/tokens"
+							>
+								${svg("key")}<span>API tokens</span>
+							</a>
 							${accountView(options.user)}
 						</div>
 					</aside>
