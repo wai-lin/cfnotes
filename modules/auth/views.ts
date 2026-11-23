@@ -29,6 +29,10 @@ export function loginPage({ href, error }: { href: string; error?: string }): Ht
 				<meta name="viewport" content="width=device-width, initial-scale=1" />
 				<title>Sign in · cfnotes</title>
 				<link rel="icon" href="/favicon.svg" />
+				<link rel="manifest" href="/manifest.webmanifest" />
+				<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+				<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+				<meta name="theme-color" content="#191919" media="(prefers-color-scheme: dark)" />
 				${assets("site")}
 			</head>
 			<body>
