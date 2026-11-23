@@ -3,6 +3,7 @@ import { action, Datastar, Input, page, redirect } from "spacefn";
 
 import { json } from "#lib/responses.ts";
 import { pageLabel } from "#lib/titles.ts";
+import * as Sessions from "#modules/auth/sessions.ts";
 import * as Database from "#modules/database/database.ts";
 import * as Pages from "#modules/pages/pages.ts";
 import { pageView } from "#modules/pages/views.ts";
@@ -18,7 +19,7 @@ export default page({
 	loader: Effect.gen(function* () {
 		const view = yield* Pages.view(yield* id);
 		if (!view) return redirect("/trash", 302);
-		return { ...view, ...(yield* Sidebar.workspace) };
+		return { ...view, user: yield* Sessions.requireUser, ...(yield* Sidebar.workspace) };
 	}),
 	actions: {
 		...sidebarActions,
@@ -82,6 +83,7 @@ export default page({
 	render: ({ data, actions }) =>
 		shell({
 			title: pageLabel(data.page.title),
+			user: data.user,
 			pages: data.pages,
 			folders: data.folders,
 			index: data.index,

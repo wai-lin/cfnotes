@@ -2,6 +2,7 @@ import { html, raw, type Html } from "spacefn";
 import { assets } from "spacefn/assets";
 
 import { icon, type IconName } from "#lib/icons.ts";
+import { accountView } from "#modules/auth/views.ts";
 import type { FolderRow, PageRow } from "#modules/sidebar/tree.ts";
 import { navItems } from "#modules/sidebar/views.ts";
 
@@ -10,6 +11,7 @@ const svg = (name: IconName, size?: number) => raw(icon(name, size));
 /** The whole document: the sidebar, and a page's body beside it. */
 export function shell(options: {
 	title: string;
+	user: { email: string };
 	pages: readonly PageRow[];
 	folders: readonly FolderRow[];
 	activeId?: string;
@@ -82,6 +84,7 @@ export function shell(options: {
 							>
 								${svg("trash")}<span>Trash</span>
 							</a>
+							${accountView(options.user)}
 						</div>
 					</aside>
 					<script>

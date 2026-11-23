@@ -31,8 +31,13 @@ import {
 
 /** What other scripts can call on the element. */
 export interface NotesEditorElement extends HTMLElement {
-	/** Saves now if there's an edit the debounced save may not have sent yet. */
-	flush?: (keepalive?: boolean) => Promise<void>;
+	/**
+	 * Saves now if there's an edit the debounced save may not have sent yet.
+	 * `false` when that didn't work.
+	 */
+	flush?: (keepalive?: boolean) => Promise<boolean>;
+	/** Reports the edits again, so the page saves them, as after saves that failed. */
+	resave?: () => void;
 }
 
 interface Edits {
@@ -61,20 +66,29 @@ export const defineNotesEditor = () =>
 			 * page; browsers cap that at 64 KB.
 			 */
 			const flush = async (keepalive = false) => {
-				if (!props.savePath || Date.now() - edits.changedAt > 3000) return;
+				if (!props.savePath || Date.now() - edits.changedAt > 3000) return true;
+				const { changedAt } = edits;
 				edits.changedAt = 0;
 				const body = JSON.stringify({ doc: edits.doc });
 				try {
-					await fetch(location.pathname + props.savePath, {
+					const res = await fetch(location.pathname + props.savePath, {
 						method: "POST",
 						headers: { "content-type": "application/json" },
 						body,
 						keepalive: keepalive && new Blob([body]).size <= 60_000,
 					});
+					if (res.ok) return true;
 				} catch (error) {
 					console.warn("[notes-editor] save on leave failed", error);
 				}
+				// Still pending, unless there has been a newer edit since.
+				edits.changedAt ||= changedAt;
+				return false;
 			};
+
+			// Not Rocket's `emit`: it reads a string detail as a second event's name.
+			const report = () =>
+				host.dispatchEvent(new CustomEvent("notes-change", { bubbles: true, detail: edits.doc }));
 
 			const editor = mountEditor(host, {
 				namespace: "cfnotes",
@@ -107,13 +121,17 @@ export const defineNotesEditor = () =>
 				onChange(doc) {
 					edits.doc = doc;
 					edits.changedAt = Date.now();
-					// Not Rocket's `emit`: it reads a string detail as a second event's name.
-					host.dispatchEvent(new CustomEvent("notes-change", { bubbles: true, detail: doc }));
+					report();
 				},
 				onError: (error) => console.error("[notes-editor]", error),
 			});
 
 			defineHostProp("flush", { value: flush });
+			defineHostProp("resave", {
+				value: () => {
+					if (edits.doc !== props.state) report();
+				},
+			});
 			defineHostProp("focus", { value: () => editor.focus() });
 
 			// Leaving the page (a sidebar link, a reload, closing the tab): save what's pending.

@@ -1,6 +1,7 @@
 import { Effect, Schema } from "effect";
 import { action, Input, page, redirect } from "spacefn";
 
+import * as Sessions from "#modules/auth/sessions.ts";
 import { sidebarActions, sidebarUrls } from "#modules/sidebar/actions.ts";
 import * as Sidebar from "#modules/sidebar/sidebar.ts";
 import * as Trash from "#modules/trash/trash.ts";
@@ -12,7 +13,12 @@ export default page({
 		const { notice } = yield* Input.query(
 			Schema.Struct({ notice: Schema.optional(Schema.String) }),
 		);
-		return { notice, ...(yield* Sidebar.workspace), ...(yield* Trash.list) };
+		return {
+			notice,
+			user: yield* Sessions.requireUser,
+			...(yield* Sidebar.workspace),
+			...(yield* Trash.list),
+		};
 	}),
 	actions: {
 		...sidebarActions,
@@ -35,6 +41,7 @@ export default page({
 	render: ({ data, actions }) =>
 		shell({
 			title: "Trash",
+			user: data.user,
 			pages: data.pages,
 			folders: data.folders,
 			index: data.index,
