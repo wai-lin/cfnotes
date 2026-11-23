@@ -6,6 +6,7 @@
 import { Clock, Effect, Option, Schema } from "effect";
 
 import { Id } from "#lib/ids.ts";
+import * as Comments from "#modules/comments/comments.ts";
 import MainDb from "#space/db/main.ts";
 
 export const TRASH_DAYS = 30;
@@ -80,6 +81,7 @@ export const purge = Effect.fn("Trash.purge")(function* (roots: readonly string[
 	const ids = JSON.stringify(found.map((row) => row.id));
 	yield* MainDb.forgetPagesLinks({ ids });
 	yield* MainDb.forgetPagesRelations({ ids });
+	yield* Comments.forget(ids);
 	yield* MainDb.deletePages({ ids });
 });
 

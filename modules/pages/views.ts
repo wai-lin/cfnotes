@@ -2,10 +2,11 @@ import { html, raw, type Html } from "spacefn";
 
 import { icon } from "#lib/icons.ts";
 import { pageLabel } from "#lib/titles.ts";
+import type { Thread } from "#modules/comments/comments.ts";
 import type { DatabaseState } from "#modules/database/columns.ts";
 
 type PageUrls = Record<
-	"save" | "title" | "linkPage" | "dbOp" | "synced" | "icon" | "cover" | "remove",
+	"save" | "title" | "linkPage" | "dbOp" | "synced" | "comments" | "icon" | "cover" | "remove",
 	string
 >;
 
@@ -15,6 +16,7 @@ export function pageView({
 	parent,
 	table,
 	backlinks,
+	comments,
 	urls,
 }: {
 	page: {
@@ -28,6 +30,8 @@ export function pageView({
 	parent: { id: string; title: string } | null;
 	table: DatabaseState | null;
 	backlinks: readonly { id: string; title: string }[];
+	/** The page's threads, and who is reading (`null`: no one signed in). */
+	comments: { threads: readonly Thread[]; me: string | null };
 	urls: PageUrls;
 }): Html {
 	const signals = JSON.stringify({ title: page.title, doc: "", _saving: false });
@@ -96,6 +100,12 @@ export function pageView({
 						: ""
 				}
 				<span class="status" data-text="$_saving ? 'Saving…' : 'Saved'">Saved</span>
+				<cf-comments
+					data-ignore
+					data-path="${urls.comments}"
+					data-me="${comments.me ?? ""}"
+					data-state="${JSON.stringify(comments.threads)}"
+				></cf-comments>
 				<button class="ghost page-export" type="button" title="Export as PDF">Export PDF</button>
 				<form method="post" action="${urls.remove}">
 					<button class="ghost" type="submit">Delete</button>

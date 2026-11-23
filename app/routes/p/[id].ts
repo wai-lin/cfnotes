@@ -4,6 +4,7 @@ import { action, Datastar, Input, page, redirect } from "spacefn";
 import { json } from "#lib/responses.ts";
 import { pageLabel } from "#lib/titles.ts";
 import * as Sessions from "#modules/auth/sessions.ts";
+import * as Comments from "#modules/comments/comments.ts";
 import * as Database from "#modules/database/database.ts";
 import * as Pages from "#modules/pages/pages.ts";
 import { pageView } from "#modules/pages/views.ts";
@@ -20,7 +21,13 @@ export default page({
 	loader: Effect.gen(function* () {
 		const view = yield* Pages.view(yield* id);
 		if (!view) return redirect("/trash", 302);
-		return { ...view, user: yield* Sessions.requireUser, ...(yield* Sidebar.workspace) };
+		return {
+			...view,
+			threads: yield* Comments.threads(view.page.id),
+			me: yield* Sessions.editor,
+			user: yield* Sessions.requireUser,
+			...(yield* Sidebar.workspace),
+		};
 	}),
 	actions: {
 		...sidebarActions,
@@ -78,6 +85,14 @@ export default page({
 			limits: Synced.SYNCED_LIMITS,
 			handler: (op) => Effect.map(Synced.run(op), json),
 		}),
+		// Threads of comments on this page.
+		comments: action({
+			input: Comments.Op,
+			handler: (op) =>
+				Effect.gen(function* () {
+					return json(yield* Comments.run(yield* id, op));
+				}),
+		}),
 		dbOp: action({
 			input: Database.Op,
 			limits: Database.OP_LIMITS,
@@ -101,12 +116,14 @@ export default page({
 				parent: data.parent,
 				table: data.table,
 				backlinks: data.backlinks,
+				comments: { threads: data.threads, me: data.me },
 				urls: {
 					save: actions.save.url,
 					title: actions.title.url,
 					linkPage: actions.linkPage.url,
 					dbOp: actions.dbOp.url,
 					synced: actions.synced.url,
+					comments: actions.comments.url,
 					icon: actions.icon.url,
 					cover: actions.cover.url,
 					remove: actions.remove.url,

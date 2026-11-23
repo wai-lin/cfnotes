@@ -91,7 +91,36 @@ CREATE TABLE synced_blocks (
 	updated_by TEXT
 ) WITHOUT ROWID;
 
+-- Comments. A thread is on a page: on some of its text (`quote` is that text,
+-- and the page's content marks it with the thread's id) or on the whole page
+-- (`quote` is null). Its comments are in order of `created_at`; a thread with
+-- none left is deleted. People are emails, as in sessions.
+CREATE TABLE comment_threads (
+	id TEXT PRIMARY KEY NOT NULL,
+	page_id TEXT NOT NULL,
+	quote TEXT,
+	created_at INTEGER NOT NULL,
+	created_by TEXT,
+	resolved_at INTEGER,
+	resolved_by TEXT
+);
+
+CREATE INDEX comment_threads_page_idx ON comment_threads (page_id, created_at);
+
+CREATE TABLE comments (
+	id TEXT PRIMARY KEY NOT NULL,
+	thread_id TEXT NOT NULL REFERENCES comment_threads (id) ON DELETE CASCADE,
+	body TEXT NOT NULL,
+	author TEXT,
+	created_at INTEGER NOT NULL,
+	edited_at INTEGER
+);
+
+CREATE INDEX comments_thread_idx ON comments (thread_id, created_at);
+
 -- down
+DROP TABLE comments;
+DROP TABLE comment_threads;
 DROP TABLE synced_blocks;
 DROP TABLE sessions;
 DROP TABLE row_relations;

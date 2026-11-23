@@ -14,6 +14,8 @@ erDiagram
 	pages ||--o{ page_links : "to_id (cascade)"
 	pages ||--o{ row_relations : "from_id (row)"
 	pages ||--o{ row_relations : "to_id (row)"
+	pages ||--o{ comment_threads : "page_id"
+	comment_threads ||--o{ comments : "thread_id (cascade)"
 
 	folders {
 		TEXT id PK
@@ -58,6 +60,25 @@ erDiagram
 		TEXT updated_by "email"
 	}
 
+	comment_threads {
+		TEXT id PK "also on the marks in page content, for a thread on text"
+		TEXT page_id FK "pages.id (logical)"
+		TEXT quote "the commented text, null = on the whole page"
+		INTEGER created_at
+		TEXT created_by "email"
+		INTEGER resolved_at "null while open"
+		TEXT resolved_by "email"
+	}
+
+	comments {
+		TEXT id PK
+		TEXT thread_id FK "comment_threads.id, ON DELETE CASCADE"
+		TEXT body "plain text"
+		TEXT author "email; only the author may edit or delete"
+		INTEGER created_at
+		INTEGER edited_at
+	}
+
 	sessions {
 		TEXT token_hash PK "SHA-256 of the cookie's token"
 		TEXT email "who signed in"
@@ -82,16 +103,18 @@ erDiagram
   - Rows and inline databases don't appear in the sidebar.
 - **Real foreign keys vs. logical ones.**
   - Declared in SQL: `pages.parent_id` (cascades), `pages.folder_id`, `folders.parent_id` and both `page_links` columns (cascade).
-  - Kept only by the app: `database_id`, `host_id`, `archived_with` and both `row_relations` page columns. Nothing in SQL enforces these; the app cleans them up itself.
+  - Kept only by the app: `database_id`, `host_id`, `archived_with`, `comment_threads.page_id` and both `row_relations` page columns. Nothing in SQL enforces these; the app cleans them up itself.
 - **Trash.**
   - Every page removed in one delete gets the same `archived_with`: a database plus its rows, or a page plus its inline databases.
   - The removed page itself is the Trash item, the row where `archived_with = id`.
   - Restore and purge act on the whole group.
 - **`row_relations.column_id`** points into the `columns` JSON of the `from_id` row's database, not to a table. A two-way relation's other side reads the same links from `to_id`.
 - **`page_links`** records which pages link to which. It's rebuilt from `content` on save.
+- **Comments.** A thread on text is tied to it by Lexical mark nodes in the page's `content` that carry the thread's id. Resolving a thread leaves the marks, which then aren't highlighted. A thread goes when its last comment is deleted, and every thread goes when its page is deleted for good.
 - **`sessions`** is who's signed in. There is no users table: the workspace is shared by the emails in `ALLOWED_EMAILS`, which is checked on every request. A daily cron deletes ended sessions.
 - **Indexes:**
   - `pages`: `(parent_id, created_at)`, `(folder_id, created_at)`, `(folder_id, position)`, `(database_id, position)`, `host_id`, `archived_at`, `archived_with`.
   - `folders`: `(parent_id, name)`.
   - `page_links`: `to_id`.
   - `row_relations`: `from_id`, `to_id`.
+  - `comment_threads`: `(page_id, created_at)`. `comments`: `(thread_id, created_at)`.
