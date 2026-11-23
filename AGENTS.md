@@ -17,4 +17,7 @@ cfnotes is a spacefn app, on Effect 4. spacefn's docs (`content/`) and example a
 - Action bodies default to 1 MiB; a bigger one needs `limits` on the action.
 - `<notes-editor>` is a light-DOM Rocket element with no `render`: Lexical owns its children. Keep `ignoredByMorph: "children"` and `data-ignore`.
 - Rocket's `emit(name, detail)` takes a string `detail` for another event's name. Dispatch a `CustomEvent` for those.
+- Every request needs a session, through `app/routes/_middleware.ts`: a new route is private. Only a path in `modules/auth/guard.ts`'s list is public. Never send `cache-control: public` for what's private.
+- spacefn 0.11.1's `variables()` can't see `.env` files: Alchemy loads them into Config, not `process.env`. `configs/infra.ts` passes it what Config has, so keep that second argument.
+- In tests, `cfnotes()` from `lib/testing.ts` is signed in; use its `anonymous` for signed-out requests.
 - Browser behavior (saving, Rocket, Datastar) isn't covered by `pnpm test`: try it in a browser.
