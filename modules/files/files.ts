@@ -44,7 +44,7 @@ export const serve = Effect.fn("Files.serve")(function* (key: string, name = "")
 
 	const headers: Record<string, string> = {
 		"x-content-type-options": "nosniff",
-		"cache-control": "public, max-age=31536000, immutable",
+		"cache-control": "private, max-age=31536000, immutable",
 	};
 	if (attachment) {
 		const safe = name.replace(/[^\w .()[\]-]+/g, "_").slice(0, 120) || "download";

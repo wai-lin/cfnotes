@@ -71,6 +71,6 @@ export const unfurl = Effect.fn("Unfurl.unfurl")(function* (query: typeof Query.
 		return yield* new BadRequest({ message: "That link can't be previewed" });
 	const { url, html } = yield* Effect.promise((signal) => fetchHead(start, signal));
 	return HttpServerResponse.jsonUnsafe(parsePreview(html, url), {
-		headers: { "cache-control": html ? "public, max-age=86400" : "no-store" },
+		headers: { "cache-control": html ? "private, max-age=86400" : "no-store" },
 	});
 });
