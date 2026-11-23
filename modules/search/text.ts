@@ -5,7 +5,7 @@
  */
 
 /** Lexical node types that flow inside a line (joined without a space). */
-const INLINE = new Set(["text", "link", "autolink", "page-link", "code-highlight", "tab"]);
+const INLINE = new Set(["text", "link", "autolink", "page-link", "code-highlight", "tab", "mark"]);
 
 /** Longest body text stored per page; enough for search and snippets. */
 export const MAX_BODY_TEXT = 100_000;

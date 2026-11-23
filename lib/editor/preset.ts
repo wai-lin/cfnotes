@@ -4,6 +4,7 @@ import { blockSelectExtension, type BlockSelectOptions } from "./extensions/bloc
 import { calloutExtension } from "./extensions/callout/index.ts";
 import { codeExtension, type CodeOptions } from "./extensions/code/index.ts";
 import { columnsExtension } from "./extensions/columns/index.ts";
+import { commentsExtension, type CommentsOptions } from "./extensions/comments/index.ts";
 import { databaseExtension, type DatabaseOptions } from "./extensions/database/index.ts";
 import { dividerExtension } from "./extensions/divider/index.ts";
 import { embedExtension } from "./extensions/embed/index.ts";
@@ -43,6 +44,8 @@ export interface NotionLikeOptions {
 	database?: DatabaseOptions;
 	/** Where synced blocks' content is kept; left out, there are none. */
 	synced?: SyncedStore;
+	/** Comments on text; left out, there are none. */
+	comments?: CommentsOptions;
 	/** Titles and images for bookmarks. */
 	fetchPreview?: PreviewFetcher;
 	code?: CodeOptions;
@@ -91,6 +94,7 @@ export function notionLikeExtensions(options: NotionLikeOptions): EditorExtensio
 		embedExtension({ fetchPreview: options.fetchPreview }),
 		tocExtension(),
 		...(options.synced ? [syncedExtension({ store: options.synced })] : []),
+		...(options.comments ? [commentsExtension(options.comments)] : []),
 		dividerExtension(),
 		trailingLineExtension(),
 		globalUndoExtension({ ignore: options.undoIgnore }),

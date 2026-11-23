@@ -15,6 +15,8 @@ export const theme: EditorThemeClasses = {
 		nested: { listitem: "ne-li-nested" },
 	},
 	code: "ne-code",
+	mark: "ne-mark",
+	markOverlap: "ne-mark-overlap",
 	table: "ne-table",
 	tableScrollableWrapper: "ne-table-wrap",
 	tableRow: "ne-tr",

@@ -20,6 +20,7 @@ import gripVertical from "@tabler/icons/outline/grip-vertical.svg?raw";
 import italic from "@tabler/icons/outline/italic.svg?raw";
 import link from "@tabler/icons/outline/link.svg?raw";
 import listTree from "@tabler/icons/outline/list-tree.svg?raw";
+import messagePlus from "@tabler/icons/outline/message-plus.svg?raw";
 import music from "@tabler/icons/outline/music.svg?raw";
 import paperclip from "@tabler/icons/outline/paperclip.svg?raw";
 import plus from "@tabler/icons/outline/plus.svg?raw";
@@ -32,6 +33,7 @@ import world from "@tabler/icons/outline/world.svg?raw";
 import x from "@tabler/icons/outline/x.svg?raw";
 
 const SOURCES = {
+	messagePlus,
 	listTree,
 	unlink,
 	video,

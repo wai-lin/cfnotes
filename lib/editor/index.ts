@@ -44,6 +44,11 @@ export { calloutExtension } from "./extensions/callout/index.ts";
 export { codeExtension, type CodeOptions } from "./extensions/code/index.ts";
 export { columnsExtension } from "./extensions/columns/index.ts";
 export {
+	commentsExtension,
+	type CommentMarks,
+	type CommentsOptions,
+} from "./extensions/comments/index.ts";
+export {
 	databaseExtension,
 	INSERT_DATABASE_COMMAND,
 	type DatabaseOptions,

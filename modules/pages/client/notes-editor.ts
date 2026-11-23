@@ -14,6 +14,7 @@
  */
 import { rocket } from "#lib/datastar/index.ts";
 import { mountEditor, notionLikeExtensions } from "#lib/editor/index.ts";
+import { editorComments } from "#modules/comments/client/comments.ts";
 import {
 	pageDirectory,
 	pageHref,
@@ -117,6 +118,7 @@ export const defineNotesEditor = () =>
 					},
 					fetchPreview,
 					synced: syncedStore(props.syncedPath),
+					comments: editorComments(),
 					blockSelect: {
 						marqueeArea: ".main",
 						marqueeIgnore:

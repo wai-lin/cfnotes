@@ -22,6 +22,7 @@
 @import "./extensions/media/styles.css";
 @import "./extensions/toc/styles.css";
 @import "./extensions/synced/styles.css";
+@import "./extensions/comments/styles.css";
 @import "./extensions/block-select/styles.css";
 @import "./extensions/columns/styles.css";
 @import "./extensions/equation/styles.css";
