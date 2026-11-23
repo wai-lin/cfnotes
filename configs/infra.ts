@@ -1,7 +1,7 @@
 // The app's infrastructure: a plain Alchemy stack. `space deploy` runs `alchemy deploy configs/infra.ts`.
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Alchemy from "alchemy";
-import { Effect } from "effect";
+import { Config, Effect, Option } from "effect";
 import { variables } from "spacefn/infra";
 
 import env from "#configs/env.ts";
@@ -17,6 +17,17 @@ export default Alchemy.Stack(
 	},
 	Effect.gen(function* () {
 		const stage = yield* Alchemy.Stage;
+		// Through Config: Alchemy reads .env and .env.<stage> into that, and not into process.env,
+		// which is all that variables() looks at by itself.
+		const environment: Record<string, string> = {};
+		const optional = ["OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_HEADERS"];
+		for (const db of app.databases)
+			if (db.driver === "libsql") optional.push(`${db.binding}_URL`, `${db.binding}_AUTH_TOKEN`);
+		for (const name of [...Object.keys(env.fields), ...optional]) {
+			const value = yield* Config.String(name).pipe(Config.option);
+			if (Option.isSome(value)) environment[name] = value.value;
+		}
+
 		const bindings: Record<string, any> = {
 			// Kv and Blob. R2 must be enabled on the account; remove BLOB if the app doesn't use Blob.
 			KV: yield* Cloudflare.KV.Namespace("KV"),
@@ -25,8 +36,11 @@ export default Alchemy.Stack(
 			SPACE_BUS: Cloudflare.DurableObject("SpaceBus"),
 			SPACE_RATE_LIMITER: Cloudflare.DurableObject("SpaceRateLimiter"),
 			// configs/env.ts's variables, from .env.<stage> or the environment; Env.secret ones as secrets.
-			...variables(env),
-			...variables({ OTEL_EXPORTER_OTLP_ENDPOINT: "plain", OTEL_EXPORTER_OTLP_HEADERS: "secret" }),
+			...variables(env, environment),
+			...variables(
+				{ OTEL_EXPORTER_OTLP_ENDPOINT: "plain", OTEL_EXPORTER_OTLP_HEADERS: "secret" },
+				environment,
+			),
 		};
 
 		// app/db/<name>/: D1 here; a libSQL database reads DB_<NAME>_URL and DB_<NAME>_AUTH_TOKEN.
@@ -35,7 +49,10 @@ export default Alchemy.Stack(
 			else if (db.driver === "libsql")
 				Object.assign(
 					bindings,
-					variables({ [`${db.binding}_URL`]: "plain", [`${db.binding}_AUTH_TOKEN`]: "secret" }),
+					variables(
+						{ [`${db.binding}_URL`]: "plain", [`${db.binding}_AUTH_TOKEN`]: "secret" },
+						environment,
+					),
 				);
 
 		// app/queues/<name>.ts: queue names are unique per account, so they carry the app and stage.
