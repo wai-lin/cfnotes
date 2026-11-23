@@ -5,7 +5,7 @@ import { redirect, sessionAuth } from "spacefn";
 import Env from "#configs/env.ts";
 import MainDb from "#space/db/main.ts";
 
-import { isAllowed } from "./access.ts";
+import { emails, isAllowed } from "./access.ts";
 
 export const COOKIE = "session";
 
@@ -45,6 +45,14 @@ const auth = Effect.map(secureCookies, (secure) => (secure ? overHttps : onLocal
 
 /** Who is signed in, if anyone. */
 export const user = Effect.flatMap(auth, (it) => it.user);
+
+/** The signed-in email, to record who changed something; `null` when no one is. */
+export const editor = Effect.map(user, (found) =>
+	Option.match(found, { onNone: () => null, onSome: (it) => it.email }),
+);
+
+/** Everyone who may sign in: the choices for a Person property. */
+export const people = Effect.map(Env, (env) => emails(env.ALLOWED_EMAILS));
 
 /** Who is signed in, or a 401. */
 export const requireUser = Effect.flatMap(auth, (it) => it.requireUser);

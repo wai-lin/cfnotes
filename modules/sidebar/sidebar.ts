@@ -4,6 +4,7 @@ import { BadRequest, Conflict } from "spacefn";
 
 import { Id } from "#lib/ids.ts";
 import { placeBefore } from "#lib/order.ts";
+import * as Sessions from "#modules/auth/sessions.ts";
 import { newDatabase } from "#modules/database/database.ts";
 import * as Trash from "#modules/trash/trash.ts";
 import MainDb from "#space/db/main.ts";
@@ -71,14 +72,18 @@ export const createPage = Effect.fn("Sidebar.createPage")(function* ({
 	const id = crypto.randomUUID();
 	const folderId = yield* folderOrTop(folder);
 	const now = yield* Clock.currentTimeMillis;
-	yield* MainDb.createPage({ id, folderId, title: "", now });
+	yield* MainDb.createPage({ id, folderId, title: "", now, by: yield* Sessions.editor });
 	return id;
 });
 
 export const createDatabase = Effect.fn("Sidebar.createDatabase")(function* ({
 	folder,
 }: typeof NewItem.Type) {
-	return yield* newDatabase({ folderId: yield* folderOrTop(folder), hostId: null });
+	return yield* newDatabase({
+		folderId: yield* folderOrTop(folder),
+		hostId: null,
+		by: yield* Sessions.editor,
+	});
 });
 
 /** `/` opens the first page, creating one in a fresh workspace. */
@@ -87,7 +92,13 @@ export const firstPage = Effect.gen(function* () {
 	if (first) return first.id;
 	const id = crypto.randomUUID();
 	const now = yield* Clock.currentTimeMillis;
-	yield* MainDb.createPage({ id, folderId: null, title: "Getting started", now });
+	yield* MainDb.createPage({
+		id,
+		folderId: null,
+		title: "Getting started",
+		now,
+		by: yield* Sessions.editor,
+	});
 	return id;
 });
 

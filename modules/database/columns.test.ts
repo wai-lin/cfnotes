@@ -163,3 +163,46 @@ describe("relations", () => {
 		expect(readCell(rel, "junk")).toEqual([]);
 	});
 });
+
+describe("newer property types", () => {
+	it("keeps a select's options, in To-do, when it becomes a status", () => {
+		const select = col("select", { options: [{ id: "x", name: "Draft", color: "gray" }] });
+		const [status] = unwrap(setColumnType([select], "select", "status"));
+		expect(status!.options).toEqual([{ id: "x", name: "Draft", color: "gray", group: "todo" }]);
+		const [back] = unwrap(setColumnType([status!], "select", "select"));
+		expect(back!.options).toEqual([{ id: "x", name: "Draft", color: "gray" }]);
+	});
+
+	it("gives an unknown status group To-do when reading", () => {
+		const [, status] = parseColumns(
+			JSON.stringify([
+				{ id: "s", name: "S", type: "status", options: [{ id: "o", name: "O", group: "bogus" }] },
+			]),
+		);
+		expect(status!.options![0]!.group).toBe("todo");
+	});
+
+	it("cleans emails, phones and people", () => {
+		expect(unwrap(cleanCell(col("email"), "  a@b.co ")).value).toBe("a@b.co");
+		expect(unwrap(cleanCell(col("phone"), "+1 555 0100")).value).toBe("+1 555 0100");
+		expect(unwrap(cleanCell(col("person"), ["A@B.co", "a@b.co"])).value).toEqual(["a@b.co"]);
+		expect(cleanCell(col("person"), ["not an email"]).ok).toBe(false);
+		expect(cleanCell(col("person"), "x@y.z, w@v.u").ok).toBe(false);
+	});
+
+	it("reads only well-formed files", () => {
+		const good = { key: "img/0b2c5a6e-1111-4222-8333-444455556666.png", name: "a.png" };
+		const raw = [good, { key: "elsewhere/x", name: "x" }, { key: good.key }, "junk"];
+		expect(readCell(col("files"), raw)).toEqual([good]);
+	});
+
+	it("never stores automatic values", () => {
+		for (const type of [
+			"created_time",
+			"created_by",
+			"last_edited_time",
+			"last_edited_by",
+		] as const)
+			expect(cleanCell(col(type), "x")).toEqual({ ok: false, error: "computed" });
+	});
+});

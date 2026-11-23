@@ -42,6 +42,8 @@ erDiagram
 		TEXT archived_with FK "pages.id (logical): equals id on the Trash item itself"
 		INTEGER created_at
 		INTEGER updated_at
+		TEXT created_by "email of who made it, null = unknown"
+		TEXT updated_by "email of who last changed it"
 	}
 
 	page_links {

@@ -15,6 +15,7 @@ import {
 	readCell,
 	type Cells,
 	type Column,
+	type FileRef,
 	type DatabaseState,
 	type Row,
 	type SelectOption,
@@ -148,13 +149,24 @@ export function scriptValue(column: Column, row: Row, titles: Record<string, str
 	const value = readCell(column, raw);
 	switch (column.type) {
 		case "select":
+		case "status":
 			return (value as SelectOption | null)?.name ?? null;
+		case "files":
+			return (value as FileRef[]).map((f) => f.name);
+		case "created_time":
+		case "last_edited_time":
+			return typeof value === "number" ? new Date(value).toISOString() : null;
+		case "created_by":
+		case "last_edited_by":
+			return (value as string[])[0] ?? null;
 		case "multi_select":
 			return (value as SelectOption[]).map((o) => o.name);
 		case "relation":
 			return (value as string[]).map((id) => (titles[id] ?? "").trim() || "Untitled");
 		case "text":
 		case "url":
+		case "email":
+		case "phone":
 			return (value as string | null) || null;
 		default:
 			return value ?? null;

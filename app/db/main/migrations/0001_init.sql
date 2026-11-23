@@ -40,7 +40,9 @@ CREATE TABLE pages (
 	archived_with TEXT,
 	icon TEXT,
 	cover TEXT,
-	body_text TEXT
+	body_text TEXT,
+	created_by TEXT,
+	updated_by TEXT
 );
 
 CREATE INDEX pages_parent_idx ON pages (parent_id, created_at);

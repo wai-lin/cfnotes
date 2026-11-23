@@ -21,12 +21,21 @@ export const COLUMN_TYPES = [
 	"number",
 	"select",
 	"multi_select",
+	"status",
 	"date",
+	"person",
+	"files",
 	"checkbox",
 	"url",
+	"email",
+	"phone",
 	"relation",
 	"rollup",
 	"script",
+	"created_time",
+	"created_by",
+	"last_edited_time",
+	"last_edited_by",
 ] as const;
 export type ColumnType = (typeof COLUMN_TYPES)[number] | "title";
 
@@ -36,13 +45,45 @@ export const TYPE_LABELS: Record<ColumnType, string> = {
 	number: "Number",
 	select: "Select",
 	multi_select: "Multi-select",
+	status: "Status",
 	date: "Date",
+	person: "Person",
+	files: "Files & media",
 	checkbox: "Checkbox",
 	url: "URL",
+	email: "Email",
+	phone: "Phone",
 	relation: "Relation",
 	rollup: "Rollup",
 	script: "Script",
+	created_time: "Created time",
+	created_by: "Created by",
+	last_edited_time: "Last edited time",
+	last_edited_by: "Last edited by",
 };
+
+/** Properties the app fills in from the row page itself; they can't be edited. */
+export const AUTO_TYPES = new Set<ColumnType>([
+	"created_time",
+	"created_by",
+	"last_edited_time",
+	"last_edited_by",
+]);
+
+/** Properties whose values are worked out, never stored in a row's cells. */
+export const isComputed = (type: ColumnType) =>
+	type === "relation" || type === "rollup" || type === "script" || AUTO_TYPES.has(type);
+
+/** A status option's group, which says how far along a row is. */
+export const STATUS_GROUPS = [
+	{ id: "todo", name: "To-do" },
+	{ id: "in_progress", name: "In progress" },
+	{ id: "complete", name: "Complete" },
+] as const;
+export type StatusGroup = (typeof STATUS_GROUPS)[number]["id"];
+
+const isStatusGroup = (value: unknown): value is StatusGroup =>
+	STATUS_GROUPS.some((g) => g.id === value);
 
 export const COLORS = [
 	"gray",
@@ -74,13 +115,28 @@ export interface SelectOption {
 	id: string;
 	name: string;
 	color: Color;
+	/** Status only. */
+	group?: StatusGroup;
 }
+
+/** A file in a Files & media cell: its key in Blob (see `modules/files`) and its name. */
+export interface FileRef {
+	key: string;
+	name: string;
+}
+
+export const MAX_FILES = 20;
+export const MAX_PEOPLE = 50;
+/** The keys `modules/files` makes: images always have their type's extension. */
+const FILE_KEY =
+	/^(img\/[0-9a-f-]{36}\.(png|jpg|gif|webp)|file\/[0-9a-f-]{36}(\.(png|jpg|gif|webp|pdf))?)$/;
+const EMAIL = /^[^\s@,]+@[^\s@,]+$/;
 
 export interface Column {
 	id: string;
 	name: string;
 	type: ColumnType;
-	/** Select and multi-select only. */
+	/** Select, multi-select and status only. */
 	options?: SelectOption[];
 	/** Relation only. */
 	relation?: Relation;
@@ -134,6 +190,30 @@ export interface Row {
 	cover?: string | null;
 }
 
+/** When a row page was made and last changed, and by whom (emails; `null` = unknown). */
+export interface RowMeta {
+	createdAt: number;
+	updatedAt: number;
+	createdBy: string | null;
+	updatedBy: string | null;
+}
+
+/** An automatic property's value for a row, as it's put in the row's cells. */
+export function autoValue(type: ColumnType, meta: RowMeta): number | string | undefined {
+	switch (type) {
+		case "created_time":
+			return meta.createdAt;
+		case "last_edited_time":
+			return meta.updatedAt;
+		case "created_by":
+			return meta.createdBy ?? undefined;
+		case "last_edited_by":
+			return meta.updatedBy ?? undefined;
+		default:
+			return undefined;
+	}
+}
+
 export interface DatabaseState {
 	/** Titles of rows that relation cells link to (they may be in other databases). */
 	titles: Record<string, string>;
@@ -145,11 +225,21 @@ export interface DatabaseState {
 	hostId: string | null;
 	columns: Column[];
 	rows: Row[];
+	/** Who a Person property can name: everyone who may sign in. */
+	people: string[];
 }
 
 export const shortId = () => crypto.randomUUID().replaceAll("-", "").slice(0, 10);
 
-const hasOptions = (type: ColumnType) => type === "select" || type === "multi_select";
+const hasOptions = (type: ColumnType) =>
+	type === "select" || type === "multi_select" || type === "status";
+
+/** A new Status property's options, one per group, like Notion's. */
+export const defaultStatusOptions = (): SelectOption[] => [
+	{ id: shortId(), name: "Not started", color: "gray", group: "todo" },
+	{ id: shortId(), name: "In progress", color: "blue", group: "in_progress" },
+	{ id: shortId(), name: "Done", color: "green", group: "complete" },
+];
 
 export function isColumnType(value: unknown): value is Exclude<ColumnType, "title"> {
 	return typeof value === "string" && (COLUMN_TYPES as readonly string[]).includes(value);
@@ -193,7 +283,7 @@ export function parseColumns(json: string | null | undefined): Column[] {
 			name: cleanName(name) ?? (isTitle ? "Name" : "Column"),
 			type: isTitle ? "title" : (type as ColumnType),
 		};
-		if (hasOptions(column.type)) column.options = parseOptions(options);
+		if (hasOptions(column.type)) column.options = parseOptions(options, column.type === "status");
 		if (typeof width === "number" && width >= MIN_WIDTH && width <= MAX_WIDTH) {
 			column.width = Math.round(width);
 		}
@@ -230,19 +320,21 @@ function parseRelation(value: unknown): Relation | null {
 	return relation;
 }
 
-function parseOptions(value: unknown): SelectOption[] {
+function parseOptions(value: unknown, status = false): SelectOption[] {
 	if (!Array.isArray(value)) return [];
 	const options: SelectOption[] = [];
 	for (const item of value) {
 		if (!item || typeof item !== "object") continue;
-		const { id, name, color } = item as Record<string, unknown>;
+		const { id, name, color, group } = item as Record<string, unknown>;
 		const clean = cleanName(name);
 		if (typeof id !== "string" || !clean) continue;
-		options.push({
+		const option: SelectOption = {
 			id,
 			name: clean,
 			color: (COLORS as readonly unknown[]).includes(color) ? (color as Color) : "gray",
-		});
+		};
+		if (status) option.group = isStatusGroup(group) ? group : "todo";
+		options.push(option);
 	}
 	return options;
 }
@@ -285,7 +377,7 @@ export function addColumn(
 		name: freeName(columns, cleanName(name) ?? TYPE_LABELS[type]),
 		type,
 	};
-	if (hasOptions(type)) column.options = [];
+	if (hasOptions(type)) column.options = type === "status" ? defaultStatusOptions() : [];
 	if (relation) column.relation = relation;
 	if (rollup) column.rollup = rollup;
 	if (script) column.script = script;
@@ -321,7 +413,16 @@ export function setColumnType(columns: Column[], id: unknown, type: unknown): Re
 		// So is a script.
 		if (c.type === "script" || type === "script") return "script_type";
 		const next: Column = { id: c.id, name: c.name, type };
-		if (hasOptions(type)) next.options = c.options ?? [];
+		if (type === "status") {
+			// Keeps a select's options, each starting in To-do; a new status gets the usual three.
+			const kept = (c.options ?? []).map((o) => ({ ...o, group: o.group ?? ("todo" as const) }));
+			next.options = kept.length > 0 ? kept : defaultStatusOptions();
+		} else if (hasOptions(type)) {
+			next.options = (c.options ?? []).map((o) => {
+				const { group: _, ...option } = o;
+				return option;
+			});
+		}
 		return next;
 	});
 }
@@ -356,6 +457,12 @@ export function moveColumn(columns: Column[], id: unknown, beforeId: unknown): R
 	return { ok: true, value: rest.toSpliced(index, 0, column) };
 }
 
+/** A local date as `YYYY-MM-DD`. */
+export function dayKey(date: Date): string {
+	const pad = (n: number) => String(n).padStart(2, "0");
+	return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function validDate(value: string): boolean {
@@ -381,7 +488,41 @@ export function cleanCell(
 			return fail("title_column");
 		case "rollup":
 		case "script":
+		case "created_time":
+		case "created_by":
+		case "last_edited_time":
+		case "last_edited_by":
 			return fail("computed");
+		case "email":
+		case "phone": {
+			if (typeof raw !== "string") return fail("invalid_value");
+			const text = raw.trim().slice(0, column.type === "email" ? 320 : 50);
+			return ok(text || undefined);
+		}
+		case "person": {
+			const list = Array.isArray(raw) ? raw : [raw];
+			if (
+				list.length > MAX_PEOPLE ||
+				!list.every((e) => typeof e === "string" && e.length <= 320 && EMAIL.test(e))
+			) {
+				return fail("invalid_value");
+			}
+			// A-Z only, as sign-in compares emails (see `modules/auth/access.ts`).
+			const fold = (e: string) => e.replace(/[A-Z]/g, (c) => c.toLowerCase());
+			const emails = [...new Set((list as string[]).map(fold))];
+			return ok(emails.length > 0 ? emails : undefined);
+		}
+		case "files": {
+			if (!Array.isArray(raw) || raw.length > MAX_FILES) return fail("invalid_value");
+			const files: FileRef[] = [];
+			for (const item of raw) {
+				const { key, name } = (item ?? {}) as Record<string, unknown>;
+				const clean = cleanName(name, 200);
+				if (typeof key !== "string" || !FILE_KEY.test(key) || !clean) return fail("invalid_value");
+				if (!files.some((f) => f.key === key)) files.push({ key, name: clean });
+			}
+			return ok(files.length > 0 ? files : undefined);
+		}
 		case "relation": {
 			if (!Array.isArray(raw)) return fail("invalid_value");
 			const ids = [...new Set(raw)];
@@ -407,6 +548,7 @@ export function cleanCell(
 		case "date":
 			return typeof raw === "string" && validDate(raw) ? ok(raw) : fail("invalid_value");
 		case "select":
+		case "status":
 		case "multi_select": {
 			const options = [...(column.options ?? [])];
 			const pick = (item: unknown): string | null => {
@@ -417,16 +559,17 @@ export function cleanCell(
 				const found = options.find((o) => o.name.toLowerCase() === name.toLowerCase());
 				if (found) return found.id;
 				if (options.length >= MAX_OPTIONS) return null;
-				const option = {
+				const option: SelectOption = {
 					id: shortId(),
 					name,
 					color: NEW_OPTION_COLORS[options.length % NEW_OPTION_COLORS.length]!,
 				};
+				if (column.type === "status") option.group = "todo";
 				options.push(option);
 				return option.id;
 			};
 			const next = () => ({ ...column, options });
-			if (column.type === "select") {
+			if (column.type !== "multi_select") {
 				const id = pick(raw);
 				return id ? ok(id, next()) : fail("invalid_value");
 			}
@@ -464,7 +607,29 @@ export function readCell(column: Column, raw: unknown): unknown {
 			return Array.isArray(raw) ? raw.map(String) : null;
 		case "text":
 		case "url":
+		case "email":
+		case "phone":
 			return typeof raw === "string" ? raw : typeof raw === "number" ? String(raw) : null;
+		case "person":
+		case "created_by":
+		case "last_edited_by": {
+			const list = Array.isArray(raw) ? raw : [raw];
+			return list.filter((e): e is string => typeof e === "string" && EMAIL.test(e));
+		}
+		case "files":
+			return Array.isArray(raw)
+				? raw.filter(
+						(f): f is FileRef =>
+							!!f &&
+							typeof f === "object" &&
+							typeof (f as FileRef).key === "string" &&
+							FILE_KEY.test((f as FileRef).key) &&
+							typeof (f as FileRef).name === "string",
+					)
+				: [];
+		case "created_time":
+		case "last_edited_time":
+			return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
 		case "number": {
 			const n = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
 			return typeof raw !== "boolean" && raw !== "" && Number.isFinite(n) ? n : null;
@@ -473,7 +638,8 @@ export function readCell(column: Column, raw: unknown): unknown {
 			return raw === true;
 		case "date":
 			return typeof raw === "string" && DATE.test(raw) ? raw : null;
-		case "select": {
+		case "select":
+		case "status": {
 			const id = Array.isArray(raw) ? raw[0] : raw;
 			return column.options?.find((o) => o.id === id) ?? null;
 		}

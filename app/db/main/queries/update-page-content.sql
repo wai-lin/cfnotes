@@ -2,4 +2,5 @@
 -- @param content string
 -- @param bodyText string
 -- @param now number
-UPDATE pages SET content = :content, body_text = :bodyText, updated_at = :now WHERE id = :id;
+-- @param by string?
+UPDATE pages SET content = :content, body_text = :bodyText, updated_at = :now, updated_by = :by WHERE id = :id;

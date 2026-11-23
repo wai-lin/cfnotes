@@ -5,19 +5,23 @@
  */
 import { Clock, Effect, Option, Schema } from "effect";
 import type { SqlError } from "effect/sql";
-import { BadRequest, NotFound } from "spacefn";
+import { BadRequest, NotFound, type AppEnvId } from "spacefn";
 
 import { isId } from "#lib/ids.ts";
 import { placeBefore } from "#lib/order.ts";
 import { cleanTitle } from "#lib/titles.ts";
+import * as Sessions from "#modules/auth/sessions.ts";
 import * as Trash from "#modules/trash/trash.ts";
 import MainDb from "#space/db/main.ts";
 
 import {
 	addColumn,
+	AUTO_TYPES,
+	autoValue,
 	cleanCell,
 	cleanName,
 	defaultColumns,
+	isComputed,
 	linkOwner,
 	moveColumn,
 	parseCells,
@@ -43,7 +47,15 @@ import {
 	takeFormulas,
 	type ScriptConfig,
 } from "./script/script.ts";
-import { cleanView, cleanViews, isLayout, MAX_VIEWS, newView, type View } from "./view.ts";
+import {
+	canGroup,
+	cleanView,
+	cleanViews,
+	isLayout,
+	MAX_VIEWS,
+	newView,
+	type View,
+} from "./view.ts";
 
 /** Rows a new database starts with, so there's somewhere to type. */
 const STARTER_ROWS = 3;
@@ -108,76 +120,90 @@ const findDatabase = (id: string) => Effect.map(MainDb.findDatabase({ id }), Opt
 export const databaseState: (
 	id: string,
 	options?: { rollups?: boolean; scripts?: boolean },
-) => Effect.Effect<DatabaseState | null, SqlError.SqlError, MainDb> = Effect.fn("Database.state")(
-	function* (id, { rollups = true, scripts = rollups } = {}) {
-		const found = yield* findDatabase(id);
-		if (!found) return null;
-		const stored = yield* MainDb.listRows({ databaseId: id });
-		const columns = parseColumns(found.columns);
-		const rows = stored.map((row) => {
-			const cells = parseCells(row.cells);
-			const formulas = takeFormulas(cells);
-			return {
-				id: row.id,
-				title: row.title,
-				cells,
-				...(formulas ? { formulas } : {}),
-				icon: row.icon ?? null,
-				cover: row.cover ?? null,
-			};
-		});
-		const titles: Record<string, string> = {};
+) => Effect.Effect<DatabaseState | null, SqlError.SqlError, MainDb | AppEnvId> = Effect.fn(
+	"Database.state",
+)(function* (id, { rollups = true, scripts = rollups } = {}) {
+	const found = yield* findDatabase(id);
+	if (!found) return null;
+	const stored = yield* MainDb.listRows({ databaseId: id });
+	const columns = parseColumns(found.columns);
+	const autoColumns = columns.filter((c) => AUTO_TYPES.has(c.type));
+	const rows = stored.map((row) => {
+		const cells = parseCells(row.cells);
+		const formulas = takeFormulas(cells);
+		// Automatic properties come from the row page itself.
+		const meta = {
+			createdAt: row.created_at,
+			updatedAt: row.updated_at,
+			createdBy: row.created_by,
+			updatedBy: row.updated_by,
+		};
+		for (const column of autoColumns) {
+			const value = autoValue(column.type, meta);
+			if (value === undefined) delete cells[column.id];
+			else cells[column.id] = value;
+		}
+		return {
+			id: row.id,
+			title: row.title,
+			cells,
+			...(formulas ? { formulas } : {}),
+			icon: row.icon ?? null,
+			cover: row.cover ?? null,
+		};
+	});
+	const titles: Record<string, string> = {};
 
-		// Relation cells come from `row_relations`, read from whichever side this column is on.
-		const relationColumns = columns.filter((c) => c.type === "relation");
-		if (relationColumns.length > 0) {
-			const links = yield* MainDb.listRelations({ databaseId: id });
-			const byRow = new Map(rows.map((row) => [row.id, row]));
-			for (const row of rows) for (const column of relationColumns) delete row.cells[column.id];
-			const linked = new Set<string>();
-			for (const column of relationColumns) {
-				const owner = linkOwner(column);
-				const backwards = Boolean(column.relation?.sourceColumnId);
-				for (const link of links) {
-					if (link.column_id !== owner) continue;
-					const row = byRow.get(backwards ? link.to_id : link.from_id);
-					if (!row) continue;
-					const other = backwards ? link.from_id : link.to_id;
-					((row.cells[column.id] as string[] | undefined) ??= []).push(other);
-					linked.add(other);
-				}
-			}
-			if (linked.size > 0) {
-				for (const page of yield* MainDb.listTitles({ ids: JSON.stringify([...linked]) })) {
-					titles[page.id] = page.title;
-				}
-			}
-			// Links to archived rows stay stored (restoring brings them back) but don't show.
-			for (const row of rows) {
-				for (const column of relationColumns) {
-					const ids = row.cells[column.id] as string[] | undefined;
-					if (!ids) continue;
-					const shown = ids.filter((other) => other in titles);
-					if (shown.length > 0) row.cells[column.id] = shown;
-					else delete row.cells[column.id];
-				}
+	// Relation cells come from `row_relations`, read from whichever side this column is on.
+	const relationColumns = columns.filter((c) => c.type === "relation");
+	if (relationColumns.length > 0) {
+		const links = yield* MainDb.listRelations({ databaseId: id });
+		const byRow = new Map(rows.map((row) => [row.id, row]));
+		for (const row of rows) for (const column of relationColumns) delete row.cells[column.id];
+		const linked = new Set<string>();
+		for (const column of relationColumns) {
+			const owner = linkOwner(column);
+			const backwards = Boolean(column.relation?.sourceColumnId);
+			for (const link of links) {
+				if (link.column_id !== owner) continue;
+				const row = byRow.get(backwards ? link.to_id : link.from_id);
+				if (!row) continue;
+				const other = backwards ? link.from_id : link.to_id;
+				((row.cells[column.id] as string[] | undefined) ??= []).push(other);
+				linked.add(other);
 			}
 		}
+		if (linked.size > 0) {
+			for (const page of yield* MainDb.listTitles({ ids: JSON.stringify([...linked]) })) {
+				titles[page.id] = page.title;
+			}
+		}
+		// Links to archived rows stay stored (restoring brings them back) but don't show.
+		for (const row of rows) {
+			for (const column of relationColumns) {
+				const ids = row.cells[column.id] as string[] | undefined;
+				if (!ids) continue;
+				const shown = ids.filter((other) => other in titles);
+				if (shown.length > 0) row.cells[column.id] = shown;
+				else delete row.cells[column.id];
+			}
+		}
+	}
 
-		const state: DatabaseState = {
-			id,
-			title: found.title,
-			hostId: found.host_id,
-			columns,
-			views: cleanViews(found.view, columns),
-			rows,
-			titles,
-		};
-		if (rollups) yield* addRollups(state);
-		if (scripts) yield* addScripts(state);
-		return state;
-	},
-);
+	const state: DatabaseState = {
+		id,
+		title: found.title,
+		hostId: found.host_id,
+		columns,
+		views: cleanViews(found.view, columns),
+		rows,
+		titles,
+		people: yield* Sessions.people,
+	};
+	if (rollups) yield* addRollups(state);
+	if (scripts) yield* addScripts(state);
+	return state;
+});
 
 /**
  * Fills in script cells and formula cells. They're worked out together (so
@@ -339,9 +365,12 @@ export const newDatabase = Effect.fn("Database.create")(function* (options: {
 	folderId: string | null;
 	hostId: string | null;
 	title?: string;
+	/** Who makes it: their email, recorded as the creator of it and its rows. */
+	by?: string | null;
 }) {
 	const id = crypto.randomUUID();
 	const now = yield* Clock.currentTimeMillis;
+	const by = options.by ?? null;
 	yield* MainDb.createDatabase({
 		id,
 		folderId: options.folderId,
@@ -349,9 +378,16 @@ export const newDatabase = Effect.fn("Database.create")(function* (options: {
 		title: options.title ?? "",
 		columns: JSON.stringify(defaultColumns()),
 		now,
+		by,
 	});
 	for (let i = 0; i < STARTER_ROWS; i++) {
-		yield* MainDb.createRow({ id: crypto.randomUUID(), databaseId: id, title: "", now: now + i });
+		yield* MainDb.createRow({
+			id: crypto.randomUUID(),
+			databaseId: id,
+			title: "",
+			now: now + i,
+			by,
+		});
 	}
 	return id;
 });
@@ -359,11 +395,12 @@ export const newDatabase = Effect.fn("Database.create")(function* (options: {
 /** Runs one table change. `pageId` is the page the request came from (it hosts new inline databases). */
 export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body: typeof Op.Type) {
 	const now = yield* Clock.currentTimeMillis;
+	const by = yield* Sessions.editor;
 
 	if (body.op === "create") {
 		const host = Option.getOrUndefined(yield* MainDb.findPage({ id: pageId }));
 		if (!host || host.kind === "database") return yield* bad("invalid_host");
-		const id = yield* newDatabase({ folderId: null, hostId: pageId });
+		const id = yield* newDatabase({ folderId: null, hostId: pageId, by });
 		return { state: yield* databaseState(id) };
 	}
 
@@ -389,6 +426,9 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 		});
 	const row =
 		typeof body.rowId === "string" ? state.rows.find((r) => r.id === body.rowId) : undefined;
+	/** Whether a Person value names only people who may sign in. */
+	const onlyPeople = (value: unknown) =>
+		value === undefined || (value as string[]).every((email) => state.people.includes(email));
 	const reply = (extra: Record<string, unknown> = {}) =>
 		Effect.map(databaseState(databaseId), (next) => ({ state: next, ...extra }));
 
@@ -408,6 +448,8 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 		} else {
 			const result = cleanCell(column, value);
 			if (!result.ok) return yield* bad(result.error);
+			if (column.type === "person" && !onlyPeople(result.value.value))
+				return yield* bad("invalid_person");
 			if (result.value.column !== column) {
 				yield* saveColumns(
 					state.columns.map((c) => (c.id === column.id ? result.value.column : c)),
@@ -420,11 +462,9 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 		for (const [id, config] of Object.entries(row.formulas ?? {})) {
 			if (id !== column.id) cells[id] = { $formula: config };
 		}
-		// Relation, rollup and script values are worked out on load, never stored.
-		for (const c of state.columns) {
-			if (c.type === "relation" || c.type === "rollup" || c.type === "script") delete cells[c.id];
-		}
-		yield* MainDb.updateRowCells({ id: row.id, cells: JSON.stringify(cells), now });
+		// Relation, rollup, script and automatic values are worked out on load, never stored.
+		for (const c of state.columns) if (isComputed(c.type)) delete cells[c.id];
+		yield* MainDb.updateRowCells({ id: row.id, cells: JSON.stringify(cells), now, by });
 	});
 
 	/** Replaces the rows a relation cell links to. */
@@ -510,13 +550,13 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 			return { state: null };
 
 		case "rename":
-			yield* MainDb.updatePageTitle({ id: databaseId, title: cleanTitle(body.title), now });
+			yield* MainDb.updatePageTitle({ id: databaseId, title: cleanTitle(body.title), now, by });
 			return yield* reply();
 
 		case "addRow": {
 			if (state.rows.length >= MAX_ROWS) return yield* bad("too_many_rows");
 			const id = crypto.randomUUID();
-			yield* MainDb.createRow({ id, databaseId, title: cleanTitle(body.title), now });
+			yield* MainDb.createRow({ id, databaseId, title: cleanTitle(body.title), now, by });
 			// Values that make the row match the current filters (bad ones are skipped).
 			if (body.cells && typeof body.cells === "object") {
 				let columns = state.columns;
@@ -526,11 +566,12 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 					if (!column || column.id === TITLE_COLUMN) continue;
 					const result = cleanCell(column, value);
 					if (!result.ok || result.value.value === undefined) continue;
+					if (column.type === "person" && !onlyPeople(result.value.value)) continue;
 					cells[columnId] = result.value.value;
 					columns = columns.map((c) => (c.id === columnId ? result.value.column : c));
 				}
 				if (Object.keys(cells).length > 0) {
-					yield* MainDb.updateRowCells({ id, cells: JSON.stringify(cells), now });
+					yield* MainDb.updateRowCells({ id, cells: JSON.stringify(cells), now, by });
 				}
 			}
 			return yield* reply({ rowId: id });
@@ -543,7 +584,7 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 
 		case "setTitle":
 			if (!row) return yield* bad("invalid_row");
-			yield* MainDb.updatePageTitle({ id: row.id, title: cleanTitle(body.title), now });
+			yield* MainDb.updatePageTitle({ id: row.id, title: cleanTitle(body.title), now, by });
 			return yield* reply();
 
 		case "setCell": {
@@ -560,7 +601,7 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 			// optionally to a new place in the stored order (just before `beforeId`, or last).
 			if (!row) return yield* bad("invalid_row");
 			if (body.columnId !== undefined) {
-				const column = state.columns.find((c) => c.id === body.columnId && c.type === "select");
+				const column = state.columns.find((c) => c.id === body.columnId && canGroup(c));
 				if (!column) return yield* bad("invalid_column");
 				yield* writeCell(row, column, body.value);
 			}
@@ -615,7 +656,9 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 		case "addOption": {
 			// A new group on a board: an option of its select column.
 			const column = state.columns.find(
-				(c) => c.id === body.columnId && (c.type === "select" || c.type === "multi_select"),
+				(c) =>
+					c.id === body.columnId &&
+					(c.type === "select" || c.type === "multi_select" || c.type === "status"),
 			);
 			const name = cleanName(body.name);
 			if (!column || !name) return yield* bad("invalid_option");

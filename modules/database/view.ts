@@ -7,6 +7,8 @@
  */
 import {
 	cleanName,
+	dayKey,
+	type FileRef,
 	readCell,
 	shortId,
 	type Column,
@@ -90,11 +92,33 @@ const TEXT_OPS = [
 	...EMPTY,
 ];
 
+const DATE_OPS = [
+	op("is", "is"),
+	op("before", "is before"),
+	op("after", "is after"),
+	op("on_or_before", "is on or before"),
+	op("on_or_after", "is on or after"),
+	...EMPTY,
+];
+// The value is an email.
+const PERSON_OPS = [op("contains", "contains"), op("not_contains", "does not contain"), ...EMPTY];
+const SELECT_OPS = [op("is", "is"), op("is_not", "is not"), ...EMPTY];
+
 /** The filter operators each column type offers; the first is the default. */
 export const FILTER_OPS: Record<ColumnType, FilterOp[]> = {
 	title: TEXT_OPS,
 	text: TEXT_OPS,
 	url: TEXT_OPS,
+	email: TEXT_OPS,
+	phone: TEXT_OPS,
+	status: SELECT_OPS,
+	person: PERSON_OPS,
+	// Matched against the files' names.
+	files: TEXT_OPS,
+	created_time: DATE_OPS,
+	last_edited_time: DATE_OPS,
+	created_by: PERSON_OPS,
+	last_edited_by: PERSON_OPS,
 	number: [
 		op("eq", "="),
 		op("neq", "≠"),
@@ -104,16 +128,9 @@ export const FILTER_OPS: Record<ColumnType, FilterOp[]> = {
 		op("lte", "≤"),
 		...EMPTY,
 	],
-	select: [op("is", "is"), op("is_not", "is not"), ...EMPTY],
+	select: SELECT_OPS,
 	multi_select: [op("contains", "contains"), op("not_contains", "does not contain"), ...EMPTY],
-	date: [
-		op("is", "is"),
-		op("before", "is before"),
-		op("after", "is after"),
-		op("on_or_before", "is on or before"),
-		op("on_or_after", "is on or after"),
-		...EMPTY,
-	],
+	date: DATE_OPS,
 	checkbox: [op("checked", "is checked", false), op("unchecked", "is not checked", false)],
 	// Matched against the titles of the linked rows.
 	relation: [op("contains", "contains"), op("not_contains", "does not contain"), ...EMPTY],
@@ -128,6 +145,8 @@ export const FILTER_OPS: Record<ColumnType, FilterOp[]> = {
  */
 export function filterType(column: Column): ColumnType {
 	if (column.type === "script") return column.script?.kind ?? "text";
+	if (column.type === "created_time" || column.type === "last_edited_time") return "date";
+	if (column.type === "created_by" || column.type === "last_edited_by") return "person";
 	if (column.type !== "rollup") return column.type;
 	const kind = rollupKind(column);
 	return kind === "date" ? "date" : kind === "list" ? "text" : "number";
@@ -136,17 +155,38 @@ export function filterType(column: Column): ColumnType {
 /** The filter operators offered for `column`; the first is the default. */
 export const opsFor = (column: Column): FilterOp[] => FILTER_OPS[filterType(column)];
 
-/** A rollup or script as a plain column and row of the type it acts like, for matching and sorting. */
+/** Whether `column` matches and sorts as another type (see `asPlain`). */
+const actsAsOther = (column: Column) =>
+	column.type === "rollup" ||
+	column.type === "script" ||
+	column.type === "created_time" ||
+	column.type === "last_edited_time" ||
+	column.type === "created_by" ||
+	column.type === "last_edited_by";
+
+/**
+ * A rollup, script or automatic property as a plain column and row of the type
+ * it acts like, for matching and sorting. Times match by their (local) day.
+ */
 function asPlain(column: Column, row: Row): { column: Column; row: Row } {
 	const read = readCell(column, row.cells[column.id]);
 	const value = isScriptError(read) ? null : read;
 	const type = filterType(column);
-	const plain = Array.isArray(value) ? value.join(", ") : value;
+	const plain =
+		typeof value === "number" && type === "date"
+			? dayKey(new Date(value))
+			: Array.isArray(value) && type !== "person"
+				? value.join(", ")
+				: value;
 	return {
 		column: { id: column.id, name: column.name, type },
 		row: { ...row, cells: { [column.id]: plain } },
 	};
 }
+
+/** Whether a board can group by `column`: by its options. */
+export const canGroup = (column: Column | undefined) =>
+	column?.type === "select" || column?.type === "status";
 
 export const emptyView = (): View => ({
 	id: "table",
@@ -166,7 +206,7 @@ export function newView(views: View[], layout: Layout, columns: Column[]): View 
 	let name = base;
 	for (let n = 2; taken.has(name.toLowerCase()); n++) name = `${base} ${n}`;
 	const view: View = { id: shortId(), name, layout, sorts: [], filters: [] };
-	const select = columns.find((c) => c.type === "select");
+	const select = columns.find((c) => canGroup(c));
 	if (layout === "board" && select) view.groupBy = select.id;
 	const date = columns.find((c) => c.type === "date");
 	if (layout === "calendar" && date) view.dateBy = date.id;
@@ -218,9 +258,17 @@ function cleanValue(column: Column, value: unknown): string | number | undefined
 		case "date":
 			return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
 		case "select":
+		case "status":
 		case "multi_select":
 			return typeof value === "string" && column.options?.some((o) => o.id === value)
 				? value
+				: undefined;
+		case "person":
+			return typeof value === "string"
+				? value
+						.trim()
+						.replace(/[A-Z]/g, (c) => c.toLowerCase())
+						.slice(0, 320)
 				: undefined;
 		default:
 			return typeof value === "string" ? value.slice(0, MAX_FILTER_TEXT) : undefined;
@@ -247,11 +295,7 @@ export function cleanView(raw: unknown, columns: Column[]): View {
 	if (typeof id === "string" && /^[\w-]{1,20}$/.test(id)) view.id = id;
 	if (isLayout(layout)) view.layout = layout;
 	view.name = cleanName(name, 60) ?? LAYOUT_NAMES[view.layout];
-	if (
-		view.layout === "board" &&
-		typeof groupBy === "string" &&
-		byId.get(groupBy)?.type === "select"
-	) {
+	if (view.layout === "board" && typeof groupBy === "string" && canGroup(byId.get(groupBy))) {
 		view.groupBy = groupBy;
 	}
 	if (view.layout === "calendar" && typeof dateBy === "string" && byId.get(dateBy)?.type === "date")
@@ -290,6 +334,7 @@ export function isIdle(column: Column, filter: Filter): boolean {
 function text(column: Column, row: Row): string {
 	if (column.type === "title") return row.title;
 	const value = readCell(column, row.cells[column.id]);
+	if (column.type === "files") return (value as FileRef[]).map((f) => f.name).join(", ");
 	return typeof value === "string" ? value : "";
 }
 
@@ -303,7 +348,7 @@ const related = (column: Column, row: Row, titles: Titles) =>
 
 export function matches(column: Column, row: Row, filter: Filter, titles: Titles = {}): boolean {
 	if (isIdle(column, filter)) return true;
-	if (column.type === "rollup" || column.type === "script") {
+	if (actsAsOther(column)) {
 		const plain = asPlain(column, row);
 		return matches(plain.column, plain.row, filter, titles);
 	}
@@ -311,7 +356,10 @@ export function matches(column: Column, row: Row, filter: Filter, titles: Titles
 	switch (column.type) {
 		case "title":
 		case "text":
-		case "url": {
+		case "url":
+		case "email":
+		case "phone":
+		case "files": {
 			const s = text(column, row).trim().toLowerCase();
 			const q = String(v ?? "").toLowerCase();
 			switch (filter.op) {
@@ -350,7 +398,15 @@ export function matches(column: Column, row: Row, filter: Filter, titles: Titles
 							? n >= v
 							: n <= v;
 		}
-		case "select": {
+		case "person": {
+			const emails = (readCell(column, row.cells[column.id]) as string[] | null) ?? [];
+			if (filter.op === "empty") return emails.length === 0;
+			if (filter.op === "not_empty") return emails.length > 0;
+			const has = emails.includes(String(v ?? ""));
+			return filter.op === "contains" ? has : !has;
+		}
+		case "select":
+		case "status": {
 			const option = readCell(column, row.cells[column.id]) as SelectOption | null;
 			if (filter.op === "empty") return option === null;
 			if (filter.op === "not_empty") return option !== null;
@@ -391,23 +447,32 @@ export function matches(column: Column, row: Row, filter: Filter, titles: Titles
 			return filter.op === "contains" ? has : !has;
 		}
 	}
+	return true;
 }
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
 /** A comparable key for sorting, or `null` for an empty cell (empties always sort last). */
 function sortKey(column: Column, row: Row, titles: Titles): string | number | null {
-	if (column.type === "rollup" || column.type === "script") {
+	// Times sort to the millisecond, not by day.
+	if (column.type === "created_time" || column.type === "last_edited_time")
+		return readCell(column, row.cells[column.id]) as number | null;
+	if (actsAsOther(column)) {
 		const plain = asPlain(column, row);
 		return sortKey(plain.column, plain.row, titles);
 	}
 	switch (column.type) {
 		case "title":
 		case "text":
-		case "url": {
+		case "url":
+		case "email":
+		case "phone":
+		case "files": {
 			const s = text(column, row).trim();
 			return s || null;
 		}
+		case "person":
+			return ((readCell(column, row.cells[column.id]) as string[] | null) ?? [])[0] ?? null;
 		case "number":
 			return readCell(column, row.cells[column.id]) as number | null;
 		case "date":
@@ -417,6 +482,7 @@ function sortKey(column: Column, row: Row, titles: Titles): string | number | nu
 		case "relation":
 			return related(column, row, titles)[0] ?? null;
 		case "select":
+		case "status":
 		case "multi_select": {
 			// By the options' own order, like Notion.
 			const value = readCell(column, row.cells[column.id]);
@@ -426,6 +492,7 @@ function sortKey(column: Column, row: Row, titles: Titles): string | number | nu
 			return index < 0 ? null : index;
 		}
 	}
+	return null;
 }
 
 /** The rows to show: filtered, then sorted (stable, so ties keep their stored order). */
@@ -495,7 +562,7 @@ export function prefill(
 		} else if (column.type === "title") {
 			if (filter.op === "is" || filter.op === "contains" || filter.op === "starts_with")
 				out.title = String(v);
-		} else if (column.type === "multi_select") {
+		} else if (column.type === "multi_select" || column.type === "person") {
 			if (filter.op === "contains") {
 				const list = (out.cells[column.id] as string[] | undefined) ?? [];
 				out.cells[column.id] = [...list, v];

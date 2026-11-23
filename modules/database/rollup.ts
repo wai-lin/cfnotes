@@ -3,7 +3,15 @@
  * property of the related rows and calculates something (show them, count,
  * sum, earliest date, …). Computed by the server when it loads a database.
  */
-import { readCell, type Column, type ColumnType, type Row, type SelectOption } from "./columns.ts";
+import {
+	dayKey,
+	readCell,
+	type Column,
+	type ColumnType,
+	type FileRef,
+	type Row,
+	type SelectOption,
+} from "./columns.ts";
 
 export interface RollupConfig {
 	/** A relation column in the same database. */
@@ -23,6 +31,8 @@ interface FnInfo {
 	types?: ColumnType[];
 }
 
+const DATES: ColumnType[] = ["date", "created_time", "last_edited_time"];
+
 export const ROLLUP_FNS = {
 	show_original: { label: "Show original", kind: "list" },
 	count_all: { label: "Count all", kind: "number" },
@@ -38,9 +48,9 @@ export const ROLLUP_FNS = {
 	min: { label: "Min", kind: "number", types: ["number"] },
 	max: { label: "Max", kind: "number", types: ["number"] },
 	range: { label: "Range", kind: "number", types: ["number"] },
-	earliest: { label: "Earliest date", kind: "date", types: ["date"] },
-	latest: { label: "Latest date", kind: "date", types: ["date"] },
-	date_range: { label: "Date range (days)", kind: "number", types: ["date"] },
+	earliest: { label: "Earliest date", kind: "date", types: DATES },
+	latest: { label: "Latest date", kind: "date", types: DATES },
+	date_range: { label: "Date range (days)", kind: "number", types: DATES },
 	checked: { label: "Checked", kind: "number", types: ["checkbox"] },
 	unchecked: { label: "Unchecked", kind: "number", types: ["checkbox"] },
 	percent_checked: { label: "Percent checked", kind: "percent", types: ["checkbox"] },
@@ -82,13 +92,25 @@ function valuesOf(
 	switch (column.type) {
 		case "text":
 		case "url":
+		case "email":
+		case "phone":
 		case "date":
 			return typeof value === "string" && value ? [value] : [];
+		case "created_time":
+		case "last_edited_time":
+			return typeof value === "number" ? [dayKey(new Date(value))] : [];
+		case "person":
+		case "created_by":
+		case "last_edited_by":
+			return value as string[];
+		case "files":
+			return (value as FileRef[]).map((f) => f.name);
 		case "number":
 			return typeof value === "number" ? [value] : [];
 		case "checkbox":
 			return [value === true];
 		case "select":
+		case "status":
 			return value ? [(value as SelectOption).name] : [];
 		case "multi_select":
 			return (value as SelectOption[]).map((o) => o.name);

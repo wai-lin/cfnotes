@@ -4,6 +4,7 @@ import { BadRequest, NotFound, PayloadTooLarge } from "spacefn";
 
 import { Id } from "#lib/ids.ts";
 import { cleanTitle } from "#lib/titles.ts";
+import * as Sessions from "#modules/auth/sessions.ts";
 import { databaseState } from "#modules/database/database.ts";
 import { plainText } from "#modules/search/text.ts";
 import * as Trash from "#modules/trash/trash.ts";
@@ -63,7 +64,13 @@ export const createLinked = Effect.fn("Pages.createLinked")(function* (
 	const pages = yield* MainDb.listPages();
 	const folderId = pages.find((row) => row.id === from)?.folder_id ?? null;
 	const id = crypto.randomUUID();
-	yield* MainDb.createPage({ id, folderId, title, now: yield* Clock.currentTimeMillis });
+	yield* MainDb.createPage({
+		id,
+		folderId,
+		title,
+		now: yield* Clock.currentTimeMillis,
+		by: yield* Sessions.editor,
+	});
 	return { id, title };
 });
 
@@ -80,14 +87,24 @@ const navEntry = (page: {
 export const rename = Effect.fn("Pages.rename")(function* (id: string, input: typeof Title.Type) {
 	const page = yield* live(id);
 	const title = cleanTitle(input.title);
-	yield* MainDb.updatePageTitle({ id, title, now: yield* Clock.currentTimeMillis });
+	yield* MainDb.updatePageTitle({
+		id,
+		title,
+		now: yield* Clock.currentTimeMillis,
+		by: yield* Sessions.editor,
+	});
 	return navEntry({ ...page, title });
 });
 
 export const setIcon = Effect.fn("Pages.setIcon")(function* (id: string, input: typeof Icon.Type) {
 	const page = yield* live(id);
 	const icon = input.icon.trim().slice(0, 32) || null;
-	yield* MainDb.setPageIcon({ id, icon, now: yield* Clock.currentTimeMillis });
+	yield* MainDb.setPageIcon({
+		id,
+		icon,
+		now: yield* Clock.currentTimeMillis,
+		by: yield* Sessions.editor,
+	});
 	return navEntry({ ...page, icon });
 });
 
@@ -97,7 +114,12 @@ export const setCover = Effect.fn("Pages.setCover")(function* (
 ) {
 	yield* live(id);
 	const cover = input.cover || null;
-	yield* MainDb.setPageCover({ id, cover, now: yield* Clock.currentTimeMillis });
+	yield* MainDb.setPageCover({
+		id,
+		cover,
+		now: yield* Clock.currentTimeMillis,
+		by: yield* Sessions.editor,
+	});
 	return cover;
 });
 
@@ -111,7 +133,13 @@ export const save = Effect.fn("Pages.save")(function* (id: string, { doc }: type
 	if (!state || typeof state !== "object" || !("root" in state)) return yield* invalid();
 
 	const now = yield* Clock.currentTimeMillis;
-	yield* MainDb.updatePageContent({ id, content: doc, bodyText: plainText(state), now });
+	yield* MainDb.updatePageContent({
+		id,
+		content: doc,
+		bodyText: plainText(state),
+		now,
+		by: yield* Sessions.editor,
+	});
 	yield* MainDb.clearPageLinks({ id });
 	const links = pageLinksIn(state, id);
 	if (links.length > 0) yield* MainDb.addPageLinks({ id, ids: JSON.stringify(links) });

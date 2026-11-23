@@ -16,6 +16,8 @@ import chevronLeft from "@tabler/icons/outline/chevron-left.svg?raw";
 import chevronRight from "@tabler/icons/outline/chevron-right.svg?raw";
 import chevronsLeft from "@tabler/icons/outline/chevrons-left.svg?raw";
 import circleChevronDown from "@tabler/icons/outline/circle-chevron-down.svg?raw";
+import clockEdit from "@tabler/icons/outline/clock-edit.svg?raw";
+import clock from "@tabler/icons/outline/clock.svg?raw";
 import code from "@tabler/icons/outline/code.svg?raw";
 import copy from "@tabler/icons/outline/copy.svg?raw";
 import dots from "@tabler/icons/outline/dots.svg?raw";
@@ -37,13 +39,16 @@ import layoutKanban from "@tabler/icons/outline/layout-kanban.svg?raw";
 import letterCase from "@tabler/icons/outline/letter-case.svg?raw";
 import link from "@tabler/icons/outline/link.svg?raw";
 import list from "@tabler/icons/outline/list.svg?raw";
+import mail from "@tabler/icons/outline/mail.svg?raw";
 import mathFunction from "@tabler/icons/outline/math-function.svg?raw";
 import menu from "@tabler/icons/outline/menu-2.svg?raw";
 import moodSmile from "@tabler/icons/outline/mood-smile.svg?raw";
 import paperclip from "@tabler/icons/outline/paperclip.svg?raw";
+import phone from "@tabler/icons/outline/phone.svg?raw";
 import photo from "@tabler/icons/outline/photo.svg?raw";
 import plus from "@tabler/icons/outline/plus.svg?raw";
 import printer from "@tabler/icons/outline/printer.svg?raw";
+import progress from "@tabler/icons/outline/progress.svg?raw";
 import search from "@tabler/icons/outline/search.svg?raw";
 import squareCheck from "@tabler/icons/outline/square-check.svg?raw";
 import squareRoot from "@tabler/icons/outline/square-root.svg?raw";
@@ -55,6 +60,8 @@ import strikethrough from "@tabler/icons/outline/strikethrough.svg?raw";
 import table from "@tabler/icons/outline/table.svg?raw";
 import trash from "@tabler/icons/outline/trash.svg?raw";
 import underline from "@tabler/icons/outline/underline.svg?raw";
+import userEdit from "@tabler/icons/outline/user-edit.svg?raw";
+import user from "@tabler/icons/outline/user.svg?raw";
 import world from "@tabler/icons/outline/world.svg?raw";
 import x from "@tabler/icons/outline/x.svg?raw";
 
@@ -114,6 +121,13 @@ const SOURCES = {
 	printer,
 	squareRoot,
 	world,
+	mail,
+	phone,
+	user,
+	progress,
+	clock,
+	clockEdit,
+	userEdit,
 } as const;
 
 export type IconName = keyof typeof SOURCES;

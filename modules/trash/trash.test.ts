@@ -20,7 +20,7 @@ const inSidebar = (id: string) =>
 
 const hostWithDatabase = Effect.gen(function* () {
 	const host = crypto.randomUUID();
-	yield* MainDb.createPage({ id: host, folderId: null, title: "Host", now: 0 });
+	yield* MainDb.createPage({ id: host, folderId: null, title: "Host", now: 0, by: null });
 	return { host, inline: yield* newDatabase({ folderId: null, hostId: host }) };
 });
 

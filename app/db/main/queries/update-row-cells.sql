@@ -1,4 +1,5 @@
 -- @param id string
 -- @param cells string
 -- @param now number
-UPDATE pages SET cells = :cells, updated_at = :now WHERE id = :id;
+-- @param by string?
+UPDATE pages SET cells = :cells, updated_at = :now, updated_by = :by WHERE id = :id;

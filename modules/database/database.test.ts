@@ -52,6 +52,108 @@ describe("database", () => {
 		expect(other.rows[1]!.cells[back.id]).toEqual([task]);
 	});
 
+	it("fills in who made and last edited a row, and when", async () => {
+		const { app, op, create } = await setup();
+		await using _ = app;
+		const db = await create();
+		const databaseId = db.id;
+		const ids: Record<string, string> = {};
+		for (const type of ["created_time", "created_by", "last_edited_time", "last_edited_by"]) {
+			ids[type] = (await op({ op: "addColumn", databaseId, type })).columnId!;
+		}
+		const { columnId: notes } = await op({ op: "addColumn", databaseId, type: "text" });
+		const rowId = db.rows[0]!.id;
+		const before = (await op({ op: "get", databaseId })).state.rows[0]!.cells;
+		expect(before[ids.created_by!]).toBe("owner@example.com");
+		expect(before[ids.created_time!]).toBeTypeOf("number");
+
+		await new Promise((resolve) => setTimeout(resolve, 5));
+		const { state } = await op({ op: "setCell", databaseId, rowId, columnId: notes, value: "hi" });
+		const after = state.rows[0]!.cells;
+		expect(after[ids.last_edited_by!]).toBe("owner@example.com");
+		expect(after[ids.last_edited_time!] as number).toBeGreaterThan(
+			before[ids.last_edited_time!] as number,
+		);
+		expect(after[ids.created_time!]).toBe(before[ids.created_time!]);
+	});
+
+	it("doesn't store automatic values, and refuses to set them", async () => {
+		const { app, op, status, create } = await setup();
+		await using _ = app;
+		const db = await create();
+		const databaseId = db.id;
+		const { columnId } = await op({ op: "addColumn", databaseId, type: "created_by" });
+		const rowId = db.rows[0]!.id;
+		expect(
+			await status({ op: "setCell", databaseId, rowId, columnId, value: "someone@example.com" }),
+		).toBe(400);
+		// Turned into text, the column shows nothing: the email was never stored under it.
+		const { state } = await op({ op: "setColumnType", databaseId, columnId, type: "text" });
+		expect(state.rows[0]!.cells[columnId!]).toBeUndefined();
+	});
+
+	it("names only people who may sign in in a Person property", async () => {
+		const { app, op, status, create } = await setup();
+		await using _ = app;
+		const db = await create();
+		const databaseId = db.id;
+		expect(db.people).toEqual(["owner@example.com"]);
+		const { columnId } = await op({ op: "addColumn", databaseId, type: "person" });
+		const rowId = db.rows[0]!.id;
+		const value = ["Owner@Example.com"];
+		const { state } = await op({ op: "setCell", databaseId, rowId, columnId, value });
+		expect(state.rows[0]!.cells[columnId!]).toEqual(["owner@example.com"]);
+		const stranger = ["stranger@example.com"];
+		expect(await status({ op: "setCell", databaseId, rowId, columnId, value: stranger })).toBe(400);
+	});
+
+	it("starts a Status property with a group for each stage, and boards group by it", async () => {
+		const { app, op, create } = await setup();
+		await using _ = app;
+		const db = await create();
+		const databaseId = db.id;
+		const { state, columnId } = await op({ op: "addColumn", databaseId, type: "status" });
+		const column = state.columns.find((c) => c.id === columnId)!;
+		expect(column.options!.map((o) => [o.name, o.group])).toEqual([
+			["Not started", "todo"],
+			["In progress", "in_progress"],
+			["Done", "complete"],
+		]);
+		const done = column.options![2]!.id;
+		const rowId = db.rows[0]!.id;
+		const moved = await op({ op: "moveRow", databaseId, rowId, columnId, value: done });
+		expect(moved.state.rows[0]!.cells[columnId!]).toBe(done);
+		const named = await op({
+			op: "setCell",
+			databaseId,
+			rowId,
+			columnId,
+			value: { name: "Review" },
+		});
+		const review = named.state.columns.find((c) => c.id === columnId)!.options!.at(-1)!;
+		expect([review.name, review.group]).toEqual(["Review", "todo"]);
+	});
+
+	it("keeps only our own uploads in a Files & media property", async () => {
+		const { app, op, status, create } = await setup();
+		await using _ = app;
+		const db = await create();
+		const databaseId = db.id;
+		const { columnId } = await op({ op: "addColumn", databaseId, type: "files" });
+		const rowId = db.rows[0]!.id;
+		const file = { key: `file/${crypto.randomUUID()}.pdf`, name: "Draft.pdf" };
+		const { state } = await op({ op: "setCell", databaseId, rowId, columnId, value: [file] });
+		expect(state.rows[0]!.cells[columnId!]).toEqual([file]);
+		for (const key of [
+			"https://evil.example/x.png",
+			"../secret",
+			`img/${crypto.randomUUID()}.exe`,
+		]) {
+			const value = [{ key, name: "x" }];
+			expect(await status({ op: "setCell", databaseId, rowId, columnId, value })).toBe(400);
+		}
+	});
+
 	it("refuses bad changes with a status the table understands", async () => {
 		const { app, status, create } = await setup();
 		await using _ = app;

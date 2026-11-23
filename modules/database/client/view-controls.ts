@@ -77,8 +77,8 @@ function filterLabel(column: Column, filter: Filter): HTMLElement {
 	const op = findOp(column, filter.op);
 	let value = "";
 	if (op?.needsValue) {
-		if (column.type === "select" || column.type === "multi_select") {
-			value = column.options?.find((o) => o.id === filter.value)?.name ?? "";
+		if (column.options) {
+			value = column.options.find((o) => o.id === filter.value)?.name ?? "";
 		} else if (filterType(column) === "date" && typeof filter.value === "string") {
 			const date = new Date(`${filter.value}T00:00:00`);
 			value = date.toLocaleDateString(undefined, {
@@ -197,12 +197,20 @@ function filterPanel(ctx: ViewContext, anchor: HTMLElement, filterId: string) {
 
 		if (findOp(column, filter.op)?.needsValue) {
 			let input: HTMLInputElement | HTMLSelectElement;
-			if (column.type === "select" || column.type === "multi_select") {
+			const choices = column.options
+				? column.options.map((o) => ({ value: o.id, label: o.name }))
+				: filterType(column) === "person"
+					? state.people.map((email) => ({ value: email, label: email }))
+					: null;
+			if (choices) {
 				input = select(
 					"Value",
 					[
-						{ value: "", label: "Choose an option…" },
-						...(column.options ?? []).map((o) => ({ value: o.id, label: o.name })),
+						{
+							value: "",
+							label: filterType(column) === "person" ? "Choose a person…" : "Choose an option…",
+						},
+						...choices,
 					],
 					typeof filter.value === "string" ? filter.value : "",
 				);

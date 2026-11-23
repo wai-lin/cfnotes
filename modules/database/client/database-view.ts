@@ -25,13 +25,16 @@ import {
 	type Column,
 	type ColumnType,
 	type DatabaseState,
+	type FileRef,
 	type Row,
 	type SelectOption,
+	STATUS_GROUPS,
 } from "../columns.ts";
 import { fnsFor, ROLLUP_FNS, rollupKind } from "../rollup.ts";
 import { canHoldFormula, isScriptError, scriptText } from "../script/script.ts";
 import {
 	applyView,
+	canGroup,
 	emptyView,
 	LAYOUT_NAMES,
 	LAYOUTS,
@@ -54,6 +57,15 @@ const TYPE_ICONS: Record<ColumnType, IconName> = {
 	relation: "arrowUpRight",
 	rollup: "mathFunction",
 	script: "code",
+	status: "progress",
+	person: "user",
+	files: "paperclip",
+	email: "mail",
+	phone: "phone",
+	created_time: "clock",
+	created_by: "user",
+	last_edited_time: "clockEdit",
+	last_edited_by: "userEdit",
 };
 
 /** Width of the last column (the "+" header and the rows' ⋯ buttons). */
@@ -129,6 +141,66 @@ export function pill(option: SelectOption): HTMLElement {
 function safeHref(url: string): string | null {
 	const href = /^[a-z][a-z0-9+.-]*:/i.test(url) ? url : `https://${url}`;
 	return /^(https?|mailto):/i.test(href) ? href : null;
+}
+
+function formatTime(ms: number): string {
+	return new Date(ms).toLocaleString(undefined, {
+		year: "numeric",
+		month: "short",
+		day: "numeric",
+		hour: "numeric",
+		minute: "2-digit",
+	});
+}
+
+/** A person: their initial in a circle, and their email. */
+export function personChip(email: string): HTMLElement {
+	const chip = h("span", "db-person");
+	chip.title = email;
+	chip.append(h("span", "db-avatar", (email[0] ?? "?").toUpperCase()), h("span", "", email));
+	return chip;
+}
+
+/** Where a file in a Files & media cell is served: images inline, the rest downloaded by name. */
+const fileHref = (file: FileRef) =>
+	file.key.startsWith("img/")
+		? `/files/${file.key}`
+		: `/files/${file.key}?name=${encodeURIComponent(file.name)}`;
+
+function fileChip(file: FileRef): HTMLElement {
+	const link = h("a", "db-file");
+	link.href = fileHref(file);
+	link.target = "_blank";
+	link.rel = "noopener";
+	link.title = file.name;
+	if (file.key.startsWith("img/")) {
+		const img = h("img", "db-file-thumb");
+		img.src = link.href;
+		img.alt = "";
+		img.loading = "lazy";
+		link.append(img);
+	} else {
+		link.insertAdjacentHTML("beforeend", icon("paperclip", 13));
+	}
+	link.append(h("span", "", file.name));
+	return link;
+}
+
+/** Uploads a file for a Files & media cell: an image if it's one we show, else an attachment. */
+async function uploadFile(file: File): Promise<FileRef | null> {
+	const image = ["image/png", "image/jpeg", "image/gif", "image/webp"].includes(file.type);
+	const body = new FormData();
+	body.append("file", file);
+	try {
+		const res = await fetch(image ? "/files" : "/files/attach", { method: "POST", body });
+		if (!res.ok) throw new Error(`upload failed: ${res.status}`);
+		const { key } = (await res.json()) as { key: string };
+		return { key, name: file.name.slice(0, 200) || "file" };
+	} catch (error) {
+		console.warn("[upload]", error);
+		void alertDialog(`Couldn't upload “${file.name}”`, "Check your connection and try again.");
+		return null;
+	}
 }
 
 function formatDate(value: string): string {
@@ -753,6 +825,27 @@ export class DatabaseView extends HTMLElement {
 					cell.append(h("span", "db-text", String(value)));
 				}
 				break;
+			case "email":
+			case "phone":
+				if (typeof value === "string" && value) {
+					const link = h("a", "db-text db-url", value);
+					link.href =
+						column.type === "email" ? `mailto:${value}` : `tel:${value.replace(/[^\d+]/g, "")}`;
+					cell.append(link);
+				}
+				break;
+			case "person":
+			case "created_by":
+			case "last_edited_by":
+				for (const email of value as string[]) cell.append(personChip(email));
+				break;
+			case "files":
+				for (const file of value as FileRef[]) cell.append(fileChip(file));
+				break;
+			case "created_time":
+			case "last_edited_time":
+				if (typeof value === "number") cell.append(h("span", "db-text", formatTime(value)));
+				break;
 			case "url":
 				if (typeof value === "string") {
 					const href = safeHref(value);
@@ -777,6 +870,7 @@ export class DatabaseView extends HTMLElement {
 				break;
 			}
 			case "select":
+			case "status":
 				if (value) cell.append(pill(value as SelectOption));
 				break;
 			case "multi_select":
@@ -899,12 +993,21 @@ export class DatabaseView extends HTMLElement {
 				});
 				return;
 			case "select":
+			case "status":
 			case "multi_select":
 				return this.#selectMenu(row.id, column.id, cell);
+			case "person":
+				return this.#personMenu(row.id, column.id, cell);
+			case "files":
+				return this.#filesMenu(row.id, column.id, cell);
 			case "relation":
 				return this.#relationMenu(row.id, column.id, cell);
 			case "rollup":
 			case "script":
+			case "created_time":
+			case "created_by":
+			case "last_edited_time":
+			case "last_edited_by":
 				return; // computed
 			default:
 				return this.#editText(cell, row, column);
@@ -927,6 +1030,8 @@ export class DatabaseView extends HTMLElement {
 		if (column.type === "date") input.type = "date";
 		if (column.type === "number" && !formula) input.inputMode = "decimal";
 		if (column.type === "url") input.type = "url";
+		if (column.type === "email") input.type = "email";
+		if (column.type === "phone") input.type = "tel";
 		input.maxLength = column.type === "title" ? 200 : 2000;
 		input.setAttribute("aria-label", column.name);
 		input.spellcheck = !formula;
@@ -934,7 +1039,9 @@ export class DatabaseView extends HTMLElement {
 		cell.classList.add("is-editing");
 		this.#editing = true;
 		input.focus();
-		if (column.type !== "date") input.setSelectionRange(initial.length, initial.length);
+		// Date and email inputs have no caret to place.
+		if (input.type !== "date" && input.type !== "email")
+			input.setSelectionRange(initial.length, initial.length);
 		const pointing = formulas ? this.#formulaMode(cell, input, row, column) : null;
 
 		let done = false;
@@ -1222,10 +1329,12 @@ export class DatabaseView extends HTMLElement {
 		button.type = "button";
 		button.addEventListener("click", () => {
 			this.#pop.open(button, (panel) => {
-				const selects = state.columns.filter((c) => c.type === "select");
+				const selects = state.columns.filter((c) => canGroup(c));
 				panel.append(
 					this.#pop.menu([
-						{ heading: selects.length ? "Group by" : "Add a Select property to group by" },
+						{
+							heading: selects.length ? "Group by" : "Add a Select or Status property to group by",
+						},
 						...selects.map((c) => ({
 							label: c.name,
 							icon: TYPE_ICONS[c.type],
@@ -1546,7 +1655,7 @@ export class DatabaseView extends HTMLElement {
 
 	#board(state: DatabaseState): HTMLElement {
 		const view = this.#view;
-		const group = state.columns.find((c) => c.id === view.groupBy && c.type === "select");
+		const group = state.columns.find((c) => c.id === view.groupBy && canGroup(c));
 		if (!group) return this.#boardSetup(state);
 
 		const rows = applyView(state.columns, state.rows, view, this.#keep, state.titles);
@@ -1605,10 +1714,14 @@ export class DatabaseView extends HTMLElement {
 	/** A board with nothing to group by yet: pick a select, or make a Status one. */
 	#boardSetup(state: DatabaseState): HTMLElement {
 		const box = h("div", "db-board-setup");
-		const selects = state.columns.filter((c) => c.type === "select");
-		box.append(h("p", "", "A board groups cards by a Select property."));
+		const selects = state.columns.filter((c) => canGroup(c));
+		box.append(h("p", "", "A board groups cards by a Select or Status property."));
 		for (const column of selects) {
-			const pick = withIcon(h("button", "db-chip"), TYPE_ICONS.select, `Group by ${column.name}`);
+			const pick = withIcon(
+				h("button", "db-chip"),
+				TYPE_ICONS[column.type],
+				`Group by ${column.name}`,
+			);
 			pick.type = "button";
 			pick.addEventListener("click", () => this.#setView({ ...this.#view, groupBy: column.id }));
 			box.append(pick);
@@ -1616,12 +1729,7 @@ export class DatabaseView extends HTMLElement {
 		const make = withIcon(h("button", "db-chip db-board-status"), "plus", "Add a Status property");
 		make.type = "button";
 		make.addEventListener("click", async () => {
-			const reply = await this.op({
-				op: "addColumn",
-				type: "select",
-				name: "Status",
-				options: ["Not started", "In progress", "Done"],
-			});
+			const reply = await this.op({ op: "addColumn", type: "status", name: "Status" });
 			if (typeof reply?.columnId === "string") {
 				this.#setView({ ...this.#view, groupBy: reply.columnId });
 			}
@@ -1851,7 +1959,7 @@ export class DatabaseView extends HTMLElement {
 			if (!found) return null;
 			const value = readCell(found.column, found.row.cells[columnId]);
 			const selected =
-				found.column.type === "select"
+				found.column.type !== "multi_select"
 					? value
 						? [value as SelectOption]
 						: []
@@ -1895,7 +2003,12 @@ export class DatabaseView extends HTMLElement {
 			chips.append(input);
 
 			const q = query.trim().toLowerCase();
-			const options = (column.options ?? []).filter((o) => o.name.toLowerCase().includes(q));
+			const status = column.type === "status";
+			// A status lists its options by group: To-do, In progress, Complete.
+			const ordered = status
+				? STATUS_GROUPS.flatMap((g) => (column.options ?? []).filter((o) => o.group === g.id))
+				: (column.options ?? []);
+			const options = ordered.filter((o) => o.name.toLowerCase().includes(q));
 			const exact = (column.options ?? []).some((o) => o.name.toLowerCase() === q);
 			type Choice = { option?: SelectOption; create?: string };
 			const choices: Choice[] = options.map((option) => ({ option }));
@@ -1919,7 +2032,13 @@ export class DatabaseView extends HTMLElement {
 					set(multi ? (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]) : [id]);
 				}
 			};
+			let lastGroup: string | undefined;
 			choices.forEach((choice, index) => {
+				const group = status ? (choice.option?.group ?? "todo") : undefined;
+				if (group && group !== lastGroup) {
+					lastGroup = group;
+					list.append(h("div", "db-pop-label", STATUS_GROUPS.find((g) => g.id === group)!.name));
+				}
 				const item = h("button", `db-pop-item${index === active ? " is-active" : ""}`);
 				item.type = "button";
 				if (choice.create) item.append(h("span", "db-pop-create", "Create"));
@@ -2303,6 +2422,133 @@ export class DatabaseView extends HTMLElement {
 	}
 
 	/** Link a row to rows of the related database: search, toggle, or create one. */
+	/** Picks people for a Person cell, from everyone who may sign in. */
+	#personMenu(rowId: string, columnId: string, cell: HTMLElement) {
+		let query = "";
+		let active = 0;
+		const current = () => {
+			const found = this.#find(rowId, columnId);
+			return found ? (readCell(found.column, found.row.cells[columnId]) as string[]) : [];
+		};
+		const set = (emails: string[]) =>
+			void this.op({ op: "setCell", rowId, columnId, value: emails }).then(() =>
+				this.#pop.refresh(),
+			);
+
+		this.#pop.open(cell, (panel, refocus) => {
+			const chosen = current();
+			const chips = h("div", "db-pop-chips");
+			for (const email of chosen) {
+				const chip = personChip(email);
+				const remove = h("button", "db-pill-x");
+				remove.type = "button";
+				remove.setAttribute("aria-label", `Remove ${email}`);
+				remove.innerHTML = icon("x", 12);
+				remove.addEventListener("click", () => set(chosen.filter((e) => e !== email)));
+				chip.append(remove);
+				chips.append(chip);
+			}
+			const input = h("input", "db-pop-input");
+			input.placeholder = chosen.length ? "" : "Search for a person";
+			input.value = query;
+			input.setAttribute("aria-label", "Search people");
+			chips.append(input);
+
+			const q = query.trim().toLowerCase();
+			const people = (this.#state?.people ?? []).filter((e) => e.includes(q));
+			active = Math.min(active, Math.max(0, people.length - 1));
+			const list = h("div", "db-pop-list");
+			list.append(
+				h("div", "db-pop-label", people.length ? "Select people" : "No one by that address"),
+			);
+			const toggle = (email: string) =>
+				set(chosen.includes(email) ? chosen.filter((e) => e !== email) : [...chosen, email]);
+			people.forEach((email, index) => {
+				const item = h("button", `db-pop-item${index === active ? " is-active" : ""}`);
+				item.type = "button";
+				item.append(personChip(email));
+				if (chosen.includes(email)) item.insertAdjacentHTML("beforeend", icon("check", 14));
+				item.addEventListener("click", () => toggle(email));
+				list.append(item);
+			});
+			input.addEventListener("input", () => {
+				query = input.value;
+				active = 0;
+				this.#pop.refresh();
+			});
+			input.addEventListener("keydown", (e) => {
+				if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+					e.preventDefault();
+					if (!people.length) return;
+					active = (active + (e.key === "ArrowDown" ? 1 : -1) + people.length) % people.length;
+					this.#pop.refresh();
+				} else if (e.key === "Enter") {
+					e.preventDefault();
+					const email = people[active];
+					if (email) toggle(email);
+				} else if (e.key === "Backspace" && !input.value && chosen.length) {
+					set(chosen.slice(0, -1));
+				}
+			});
+			panel.append(chips, list);
+			refocus(input);
+		});
+	}
+
+	/** A Files & media cell's files: open, remove, or upload more. */
+	#filesMenu(rowId: string, columnId: string, cell: HTMLElement) {
+		let uploading = 0;
+		const current = () => {
+			const found = this.#find(rowId, columnId);
+			return found ? (readCell(found.column, found.row.cells[columnId]) as FileRef[]) : [];
+		};
+		const set = (files: FileRef[]) =>
+			this.op({ op: "setCell", rowId, columnId, value: files }).then(() => this.#pop.refresh());
+		const add = async (picked: File[]) => {
+			uploading += picked.length;
+			this.#pop.refresh();
+			const made: FileRef[] = [];
+			for (const file of picked) {
+				const ref = await uploadFile(file);
+				if (ref) made.push(ref);
+				uploading--;
+			}
+			// Read the cell again: it may have changed while the files went up.
+			if (made.length) await set([...current(), ...made]);
+			else this.#pop.refresh();
+		};
+
+		this.#pop.open(cell, (panel) => {
+			const files = current();
+			const list = h("div", "db-pop-list db-files");
+			if (!files.length && !uploading) list.append(h("div", "db-pop-label", "No files yet"));
+			for (const file of files) {
+				const item = h("div", "db-file-row");
+				const remove = h("button", "db-pill-x");
+				remove.type = "button";
+				remove.setAttribute("aria-label", `Remove ${file.name}`);
+				remove.innerHTML = icon("x", 12);
+				remove.addEventListener("click", () => void set(files.filter((f) => f.key !== file.key)));
+				item.append(fileChip(file), remove);
+				list.append(item);
+			}
+			if (uploading) list.append(h("div", "db-pop-label", `Uploading ${uploading}…`));
+			const picker = h("input");
+			picker.type = "file";
+			picker.multiple = true;
+			picker.hidden = true;
+			picker.addEventListener("change", () => {
+				const picked = [...(picker.files ?? [])];
+				if (picked.length) void add(picked);
+			});
+			const upload = withIcon(h("button", "db-pop-item db-files-add"), "plus", "Upload a file");
+			upload.type = "button";
+			upload.addEventListener("click", () => picker.click());
+			panel.append(list, upload, picker);
+			upload.focus();
+		});
+	}
+
 	#relationMenu(rowId: string, columnId: string, cell: HTMLElement) {
 		const column = this.#state?.columns.find((c) => c.id === columnId);
 		const targetId = column?.relation?.databaseId;

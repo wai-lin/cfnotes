@@ -1458,6 +1458,96 @@ a.db-url {
 	font-size: 13px;
 }
 
+/* ---------- person and files cells ---------- */
+
+.db-person,
+.db-file {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	max-width: 100%;
+	margin: 0 6px 2px 0;
+	color: inherit;
+	font-size: 14px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.db-person > span:last-child,
+.db-file > span {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.db-avatar {
+	flex: none;
+	display: inline-grid;
+	place-items: center;
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	background: var(--pill-gray);
+	color: var(--pill-text);
+	font-size: 11px;
+	font-weight: 600;
+}
+
+.db-file {
+	padding: 0 6px;
+	border-radius: 3px;
+	background: var(--pill-gray);
+	text-decoration: none;
+	font-size: 13px;
+	line-height: 22px;
+}
+
+.db-file:hover {
+	text-decoration: underline;
+}
+
+.db-file .icon {
+	flex: none;
+	color: var(--muted);
+}
+
+.db-file-thumb {
+	flex: none;
+	width: 18px;
+	height: 18px;
+	border-radius: 2px;
+	object-fit: cover;
+}
+
+.db-file-row {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 8px;
+}
+
+.db-file-row .db-file {
+	flex: 1;
+	min-width: 0;
+}
+
+.db-files-add {
+	width: 100%;
+}
+
+.db-pop-chips .db-person {
+	padding: 0 4px;
+	border-radius: 3px;
+	background: var(--bg);
+}
+
+.db-type-person,
+.db-type-files,
+.db-type-status {
+	cursor: pointer;
+	white-space: nowrap;
+}
+
 /* ---------- relation cells ---------- */
 
 .db-rel {

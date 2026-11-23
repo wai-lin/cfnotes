@@ -208,3 +208,60 @@ describe("layouts", () => {
 		expect(newView([], "calendar", noDate).dateBy).toBeUndefined();
 	});
 });
+
+describe("automatic, person and status properties", () => {
+	const created: Column = { id: "ct", name: "Created", type: "created_time" };
+	const author: Column = { id: "cb", name: "Author", type: "created_by" };
+	const who: Column = { id: "p", name: "Who", type: "person" };
+	const status: Column = {
+		id: "st",
+		name: "Stage",
+		type: "status",
+		options: [
+			{ id: "draft", name: "Draft", color: "gray", group: "todo" },
+			{ id: "live", name: "Published", color: "green", group: "complete" },
+		],
+	};
+	const at = (y: number, m: number, d: number, h = 12) => new Date(y, m - 1, d, h).getTime();
+	const row = (id: string, cells: Row["cells"]): Row => ({ id, title: id, cells });
+	const rows = [
+		row("a", { ct: at(2026, 3, 2, 18), cb: "b@x.io", p: ["b@x.io", "c@x.io"], st: "live" }),
+		row("b", { ct: at(2026, 3, 2, 9), cb: "a@x.io", st: "draft" }),
+		row("c", { ct: at(2026, 4, 1), p: [] }),
+	];
+	const ids = (list: Row[]) => list.map((r) => r.id);
+	const filter = (columnId: string, op: string, value?: string): Filter => ({
+		id: "f",
+		columnId,
+		op,
+		value,
+	});
+	const all = [created, author, who, status];
+
+	it("filters times by their day and sorts them to the millisecond", () => {
+		const view = { sorts: [], filters: [filter("ct", "is", "2026-03-02")] };
+		expect(ids(applyView(all, rows, view))).toEqual(["a", "b"]);
+		const sorted = { sorts: [{ columnId: "ct", direction: "asc" as const }], filters: [] };
+		expect(ids(applyView(all, rows, sorted))).toEqual(["b", "a", "c"]);
+	});
+
+	it("filters people by email, for Person and Created by alike", () => {
+		expect(matches(who, rows[0]!, filter("p", "contains", "c@x.io"))).toBe(true);
+		expect(matches(who, rows[2]!, filter("p", "empty"))).toBe(true);
+		expect(matches(author, rows[1]!, filter("cb", "contains", "a@x.io"))).toBe(true);
+		expect(matches(author, rows[2]!, filter("cb", "not_empty"))).toBe(false);
+	});
+
+	it("filters a status by option, and groups a board by it", () => {
+		const view = { sorts: [], filters: [filter("st", "is", "live")] };
+		expect(ids(applyView(all, rows, view))).toEqual(["a"]);
+		expect(newView([], "board", all).groupBy).toBe("st");
+		expect(cleanView({ layout: "board", groupBy: "st" }, all).groupBy).toBe("st");
+		expect(cleanView({ layout: "board", groupBy: "cb" }, all).groupBy).toBeUndefined();
+	});
+
+	it("prefills a person a filter asks for", () => {
+		const view = { sorts: [], filters: [filter("p", "contains", "b@x.io")] };
+		expect(prefill(all, view).cells).toEqual({ p: ["b@x.io"] });
+	});
+});
