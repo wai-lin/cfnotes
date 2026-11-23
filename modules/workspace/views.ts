@@ -2,6 +2,7 @@ import { html, raw, type Html } from "spacefn";
 import { assets } from "spacefn/assets";
 
 import { icon, type IconName } from "#lib/icons.ts";
+import { appearanceHead } from "#modules/appearance/views.ts";
 import { accountView } from "#modules/auth/views.ts";
 import type { FolderRow, PageRow } from "#modules/sidebar/tree.ts";
 import { navItems } from "#modules/sidebar/views.ts";
@@ -30,9 +31,7 @@ export function shell(options: {
 				<link rel="icon" href="/favicon.svg" />
 				<link rel="manifest" href="/manifest.webmanifest" />
 				<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-				<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-				<meta name="theme-color" content="#191919" media="(prefers-color-scheme: dark)" />
-				${assets("site", "main")}
+				${appearanceHead()} ${assets("site", "main")}
 				<script>
 					// Apply the saved collapsed state before first paint.
 					try {

@@ -174,9 +174,10 @@
 	background: var(--highlight);
 }
 
-/* Shiki tokens carry both theme colours; switch to the dark one in dark mode. */
-@media (prefers-color-scheme: dark) {
-	.ne-code [style*="--shiki-dark"] {
+/* Shiki tokens carry both theme colours; switch to the dark one in dark mode
+   (`data-scheme` on the root, set by the app; printing stays light). */
+@media screen {
+	:root[data-scheme="dark"] .ne-code [style*="--shiki-dark"] {
 		color: var(--shiki-dark) !important;
 	}
 }

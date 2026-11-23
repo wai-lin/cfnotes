@@ -1,5 +1,7 @@
 /* The editor's own styles; the tokens below (`--text`, `--accent`…) theme them. */
 @import "#lib/editor/styles.css";
+/* Paper and Dusk, and the reading fonts. */
+@import "./themes.css";
 
 :root {
 	--bg: #ffffff;
@@ -21,31 +23,36 @@
 		0 0 0 1px rgba(15, 15, 15, 0.05), 0 3px 6px rgba(15, 15, 15, 0.1),
 		0 9px 24px rgba(15, 15, 15, 0.2);
 	--side-shadow: 0 1px 2px rgba(15, 15, 15, 0.04), 0 4px 16px rgba(15, 15, 15, 0.06);
+	--font-sans:
+		ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial,
+		"Noto Sans Myanmar", sans-serif;
 	--icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5l10 -10'/%3E%3C/svg%3E");
-	color-scheme: light dark;
+	color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-	:root {
-		--bg: #191919;
-		--bg-side: #202020;
-		--bg-hover: rgba(255, 255, 255, 0.055);
-		--bg-active: rgba(255, 255, 255, 0.09);
-		--text: rgba(255, 255, 255, 0.86);
-		--muted: rgba(255, 255, 255, 0.5);
-		--faint: rgba(255, 255, 255, 0.3);
-		--border: rgba(255, 255, 255, 0.1);
-		--code-bg: rgba(135, 131, 120, 0.15);
-		--code-text: #ff7369;
-		--highlight: #4d4325;
-		--table-border: rgba(255, 255, 255, 0.14);
-		--cell-selected: rgba(35, 131, 226, 0.28);
-		--danger: #ff7369;
-		--shadow:
-			0 0 0 1px rgba(255, 255, 255, 0.08), 0 3px 6px rgba(0, 0, 0, 0.4),
-			0 9px 24px rgba(0, 0, 0, 0.5);
-		--side-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.35);
-	}
+/*
+ * The theme is chosen before the first paint (modules/appearance/views.ts):
+ * `data-theme` is light, dark, paper or dusk, and `data-scheme` light or dark.
+ */
+:root[data-scheme="dark"] {
+	color-scheme: dark;
+	--bg: #191919;
+	--bg-side: #202020;
+	--bg-hover: rgba(255, 255, 255, 0.055);
+	--bg-active: rgba(255, 255, 255, 0.09);
+	--text: rgba(255, 255, 255, 0.86);
+	--muted: rgba(255, 255, 255, 0.5);
+	--faint: rgba(255, 255, 255, 0.3);
+	--border: rgba(255, 255, 255, 0.1);
+	--code-bg: rgba(135, 131, 120, 0.15);
+	--code-text: #ff7369;
+	--highlight: #4d4325;
+	--table-border: rgba(255, 255, 255, 0.14);
+	--cell-selected: rgba(35, 131, 226, 0.28);
+	--danger: #ff7369;
+	--shadow:
+		0 0 0 1px rgba(255, 255, 255, 0.08), 0 3px 6px rgba(0, 0, 0, 0.4), 0 9px 24px rgba(0, 0, 0, 0.5);
+	--side-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
 * {
@@ -61,8 +68,7 @@ body {
 body {
 	background: var(--bg);
 	color: var(--text);
-	font-family:
-		ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+	font-family: var(--font-sans);
 	font-size: 16px;
 	line-height: 1.5;
 	-webkit-font-smoothing: antialiased;
@@ -753,19 +759,17 @@ notes-editor {
 	--pill-red: #ffe2dd;
 }
 
-@media (prefers-color-scheme: dark) {
-	:root {
-		--pill-text: rgba(255, 255, 255, 0.86);
-		--pill-gray: #373737;
-		--pill-brown: #4a3228;
-		--pill-orange: #5c3b23;
-		--pill-yellow: #564328;
-		--pill-green: #243d30;
-		--pill-blue: #143a4e;
-		--pill-purple: #3c2d49;
-		--pill-pink: #4e2c3c;
-		--pill-red: #522e2a;
-	}
+:root[data-scheme="dark"] {
+	--pill-text: rgba(255, 255, 255, 0.86);
+	--pill-gray: #373737;
+	--pill-brown: #4a3228;
+	--pill-orange: #5c3b23;
+	--pill-yellow: #564328;
+	--pill-green: #243d30;
+	--pill-blue: #143a4e;
+	--pill-purple: #3c2d49;
+	--pill-pink: #4e2c3c;
+	--pill-red: #522e2a;
 }
 
 .crumb {
@@ -3363,8 +3367,8 @@ a.db-rel:hover {
 }
 
 @media print {
-	/* Always the light palette on paper. */
-	:root {
+	/* Always the light palette on paper, whatever the theme. */
+	html:root[data-theme][data-scheme] {
 		--bg: #ffffff;
 		--bg-side: #f7f7f5;
 		--bg-hover: rgba(55, 53, 47, 0.06);
@@ -3377,6 +3381,9 @@ a.db-rel:hover {
 		--code-text: #eb5757;
 		--highlight: #fbf3db;
 		--table-border: rgba(55, 53, 47, 0.2);
+		--accent: #2383e2;
+		--danger: #eb5757;
+		--cell-selected: rgba(35, 131, 226, 0.14);
 		color-scheme: light;
 	}
 

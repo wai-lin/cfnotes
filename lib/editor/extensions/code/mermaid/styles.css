@@ -80,8 +80,8 @@
 }
 
 /* Diagrams are drawn in Mermaid's light theme; in dark mode, inverted (hue kept). */
-@media screen and (prefers-color-scheme: dark) {
-	.ne-code[data-mermaid][data-mermaid-state="ok"]::after {
+@media screen {
+	:root[data-scheme="dark"] .ne-code[data-mermaid][data-mermaid-state="ok"]::after {
 		filter: invert(0.88) hue-rotate(180deg);
 	}
 }

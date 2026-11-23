@@ -2,6 +2,7 @@ import { html, raw, type Html } from "spacefn";
 
 import { icon } from "#lib/icons.ts";
 import { pageLabel } from "#lib/titles.ts";
+import { hasMyanmar } from "#modules/appearance/appearance.ts";
 import type { Thread } from "#modules/comments/comments.ts";
 import type { DatabaseState } from "#modules/database/columns.ts";
 
@@ -86,7 +87,7 @@ export function pageView({
 
 	return html`${cover}
 		<article
-			class="page${isDatabase ? " page-database" : ""}${page.icon ? " has-icon" : ""}${page.cover ? " has-cover" : ""}"
+			class="page${isDatabase ? " page-database" : ""}${page.icon ? " has-icon" : ""}${page.cover ? " has-cover" : ""}${hasMyanmar(page.title, page.content) ? " has-myanmar" : ""}"
 			data-db-path="${urls.dbOp}"
 			data-signals="${signals}"
 			data-effect="document.title = ($title.trim() || 'Untitled') + ' · cfnotes'"
@@ -110,6 +111,14 @@ export function pageView({
 					data-me="${comments.me ?? ""}"
 					data-state="${JSON.stringify(comments.threads)}"
 				></cf-comments>
+				<button
+					class="ghost page-appearance"
+					type="button"
+					title="Theme and font"
+					aria-label="Theme and font"
+				>
+					Aa
+				</button>
 				<button class="ghost page-export" type="button" title="Export as PDF">Export PDF</button>
 				<form method="post" action="${urls.remove}">
 					<button class="ghost" type="submit">Delete</button>

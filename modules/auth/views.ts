@@ -1,6 +1,8 @@
 import { html, raw, type Html } from "spacefn";
 import { assets } from "spacefn/assets";
 
+import { appearanceHead } from "#modules/appearance/views.ts";
+
 const PROBLEMS = {
 	cancelled: "Sign-in was cancelled.",
 	expired: "That sign-in expired. Try again.",
@@ -31,9 +33,7 @@ export function loginPage({ href, error }: { href: string; error?: string }): Ht
 				<link rel="icon" href="/favicon.svg" />
 				<link rel="manifest" href="/manifest.webmanifest" />
 				<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-				<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-				<meta name="theme-color" content="#191919" media="(prefers-color-scheme: dark)" />
-				${assets("site")}
+				${appearanceHead()} ${assets("site")}
 			</head>
 			<body>
 				<main class="login">

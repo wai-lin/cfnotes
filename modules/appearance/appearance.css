@@ -1,0 +1,27 @@
+/* The page bar's "Aa" button and its theme and font picker. */
+
+.page-appearance {
+	font-family: var(--font-serif);
+	font-size: 15px;
+	letter-spacing: 0.02em;
+}
+
+.appearance-pop {
+	min-width: 200px;
+}
+
+.appearance-swatch {
+	flex: none;
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.appearance-item [data-font="serif"] {
+	font-family: var(--font-serif);
+}
+
+.appearance-item [data-font="typewriter"] {
+	font-family: var(--font-typewriter);
+}

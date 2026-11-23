@@ -1,0 +1,106 @@
+/*
+ * Reading themes and fonts, on top of the light and dark tokens in app.css.
+ * The choice is made before the first paint (modules/appearance/views.ts),
+ * which sets `data-theme`, `data-scheme` and `data-font` on the root.
+ */
+
+/* Typewriter: Courier Prime, made for reading at length. */
+@import "@fontsource/courier-prime/400.css";
+@import "@fontsource/courier-prime/400-italic.css";
+@import "@fontsource/courier-prime/700.css";
+@import "@fontsource/courier-prime/700-italic.css";
+/* Myanmar script only (the files' unicode-range): fetched once a page has some. */
+@import "@fontsource/noto-sans-myanmar/myanmar-400.css";
+@import "@fontsource/noto-sans-myanmar/myanmar-600.css";
+@import "@fontsource/noto-sans-myanmar/myanmar-700.css";
+
+:root {
+	--font-serif:
+		ui-serif, "New York", "Iowan Old Style", Georgia, "Times New Roman", "Noto Sans Myanmar", serif;
+	--font-typewriter: "Courier Prime", "Courier New", Courier, "Noto Sans Myanmar", monospace;
+	--reading-font: var(--font-sans);
+}
+
+:root[data-font="serif"] {
+	--reading-font: var(--font-serif);
+}
+
+:root[data-font="typewriter"] {
+	--reading-font: var(--font-typewriter);
+}
+
+/* A page's words; the app around them, tables and code keep their own fonts. */
+:root :is(.ne-content, .page-title, .print-title) {
+	font-family: var(--reading-font);
+}
+
+:root .ne-content cf-database {
+	font-family: var(--font-sans);
+}
+
+/* Old newsprint: warm, yellowed paper and brown-black ink. */
+:root[data-theme="paper"] {
+	--bg: #f4ecd8;
+	--bg-side: #ece2c8;
+	--bg-hover: rgba(84, 62, 28, 0.07);
+	--bg-active: rgba(84, 62, 28, 0.12);
+	--text: #3b3124;
+	--muted: rgba(59, 49, 36, 0.62);
+	--faint: rgba(59, 49, 36, 0.4);
+	--border: rgba(59, 49, 36, 0.15);
+	--accent: #8c4f1f;
+	--code-bg: rgba(120, 90, 40, 0.12);
+	--code-text: #a63f26;
+	--highlight: #ead58f;
+	--table-border: rgba(59, 49, 36, 0.2);
+	--cell-selected: rgba(140, 79, 31, 0.16);
+	--danger: #b3362a;
+	--shadow:
+		0 0 0 1px rgba(60, 40, 10, 0.07), 0 3px 6px rgba(60, 40, 10, 0.1),
+		0 9px 24px rgba(60, 40, 10, 0.18);
+	--side-shadow: 0 1px 2px rgba(60, 40, 10, 0.05), 0 4px 16px rgba(60, 40, 10, 0.08);
+	--pill-text: #3b3124;
+	--pill-gray: #e2d9c4;
+	--pill-brown: #e8d6c4;
+	--pill-orange: #f2d6b8;
+	--pill-yellow: #f1e0a8;
+	--pill-green: #d6e2c4;
+	--pill-blue: #cfdcdc;
+	--pill-purple: #dfd2dc;
+	--pill-pink: #eed4d2;
+	--pill-red: #f2cfc2;
+}
+
+/*
+ * Dusk: a dark theme for reading. Warm charcoal rather than black, and
+ * off-white text that doesn't glare. On top of the dark tokens (the pills,
+ * shadows, Shiki's and Mermaid's dark colours), hence the second attribute.
+ */
+:root[data-theme="dusk"][data-scheme] {
+	--bg: #2b2a28;
+	--bg-side: #33312e;
+	--bg-hover: rgba(255, 244, 226, 0.06);
+	--bg-active: rgba(255, 244, 226, 0.1);
+	--text: #ddd5c6;
+	--muted: rgba(221, 213, 198, 0.6);
+	--faint: rgba(221, 213, 198, 0.36);
+	--border: rgba(221, 213, 198, 0.12);
+	--code-bg: rgba(200, 180, 150, 0.12);
+	--code-text: #eb9a82;
+	--highlight: #5a4a2c;
+	--table-border: rgba(221, 213, 198, 0.15);
+	--danger: #ee8a76;
+}
+
+/*
+ * Myanmar's stacked consonants and vowel marks reach far above and below the
+ * line: give pages with Myanmar text (`has-myanmar`, see
+ * modules/appearance) taller lines.
+ */
+.has-myanmar :is(.ne-content, .print-title) {
+	line-height: 1.85;
+}
+
+.has-myanmar :is(.page-title, .ne-h1, .ne-h2, .ne-h3) {
+	line-height: 1.6;
+}
