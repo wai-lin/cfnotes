@@ -15,6 +15,7 @@
 import { rocket } from "#lib/datastar/index.ts";
 import { mountEditor, notionLikeExtensions } from "#lib/editor/index.ts";
 import { editorComments } from "#modules/comments/client/comments.ts";
+import { isQueued, queued } from "#modules/offline/client/queue.ts";
 import {
 	pageDirectory,
 	pageHref,
@@ -66,7 +67,12 @@ export const defineNotesEditor = () =>
 		onFirstRender({ host, props, cleanup, defineHostProp }) {
 			const edits = editsOf.get(host) ?? { doc: props.state, changedAt: 0 };
 			editsOf.set(host, edits);
-
+			let gone = false;
+			let stop = () => {};
+			cleanup(() => {
+				gone = true;
+				stop();
+			});
 			/**
 			 * Saves if there was an edit in the last few seconds; saving the same
 			 * state twice is harmless. `keepalive` lets the request outlive the
@@ -97,58 +103,75 @@ export const defineNotesEditor = () =>
 			const report = () =>
 				host.dispatchEvent(new CustomEvent("notes-change", { bubbles: true, detail: edits.doc }));
 
-			const editor = mountEditor(host, {
-				namespace: "cfnotes",
-				extensions: notionLikeExtensions({
-					upload,
-					localImageSource: isUploadedImage,
-					pages: {
-						directory: pageDirectory,
-						href: pageHref,
-						parseUrl: pageIdFromUrl,
-						// Save any last edits before leaving for the linked page.
-						open: (href) => void flush().finally(() => location.assign(href)),
-						createPage: pageCreator(props.linkPath),
-					},
-					database: {
-						element: "cf-database",
-						create: databaseCreator(host),
-						deletedEvent: "cf-database-deleted",
-						onDeleted: databaseDeleted,
-					},
-					fetchPreview,
-					synced: syncedStore(props.syncedPath),
-					comments: editorComments(),
-					blockSelect: {
-						marqueeArea: ".main",
-						marqueeIgnore:
-							".page-head, .page-title, .page-bar, .page-cover, .backlinks, cf-database",
-					},
-					undoIgnore: "cf-database, .db-pop",
-				}),
-				state: edits.doc,
-				onChange(doc) {
-					edits.doc = doc;
-					edits.changedAt = Date.now();
-					report();
-				},
-				onError: (error) => console.error("[notes-editor]", error),
-			});
+			// Typed offline and not sent yet: start from that, not from the page's copy.
+			const path = location.pathname;
+			if (edits.doc === props.state && isQueued(path, "save")) {
+				void queued(path, "save").then((body) => {
+					if (gone) return;
+					if (typeof body?.doc === "string") {
+						edits.doc = body.doc;
+						edits.changedAt = Date.now();
+					}
+					stop = start();
+					// The page saves it, as it does after a failed save.
+					if (typeof body?.doc === "string") report();
+				});
+			} else stop = start();
 
-			defineHostProp("flush", { value: flush });
-			defineHostProp("resave", {
-				value: () => {
-					if (edits.doc !== props.state) report();
-				},
-			});
-			defineHostProp("focus", { value: () => editor.focus() });
+			function start() {
+				const editor = mountEditor(host, {
+					namespace: "cfnotes",
+					extensions: notionLikeExtensions({
+						upload,
+						localImageSource: isUploadedImage,
+						pages: {
+							directory: pageDirectory,
+							href: pageHref,
+							parseUrl: pageIdFromUrl,
+							// Save any last edits before leaving for the linked page.
+							open: (href) => void flush().finally(() => location.assign(href)),
+							createPage: pageCreator(props.linkPath),
+						},
+						database: {
+							element: "cf-database",
+							create: databaseCreator(host),
+							deletedEvent: "cf-database-deleted",
+							onDeleted: databaseDeleted,
+						},
+						fetchPreview,
+						synced: syncedStore(props.syncedPath),
+						comments: editorComments(),
+						blockSelect: {
+							marqueeArea: ".main",
+							marqueeIgnore:
+								".page-head, .page-title, .page-bar, .page-cover, .backlinks, cf-database",
+						},
+						undoIgnore: "cf-database, .db-pop",
+					}),
+					state: edits.doc,
+					onChange(doc) {
+						edits.doc = doc;
+						edits.changedAt = Date.now();
+						report();
+					},
+					onError: (error) => console.error("[notes-editor]", error),
+				});
 
-			// Leaving the page (a sidebar link, a reload, closing the tab): save what's pending.
-			const onLeave = () => void flush(true);
-			addEventListener("pagehide", onLeave);
-			cleanup(() => {
-				removeEventListener("pagehide", onLeave);
-				editor.destroy();
-			});
+				defineHostProp("flush", { value: flush });
+				defineHostProp("resave", {
+					value: () => {
+						if (edits.doc !== props.state) report();
+					},
+				});
+				defineHostProp("focus", { value: () => editor.focus() });
+
+				// Leaving the page (a sidebar link, a reload, closing the tab): save what's pending.
+				const onLeave = () => void flush(true);
+				addEventListener("pagehide", onLeave);
+				return () => {
+					removeEventListener("pagehide", onLeave);
+					editor.destroy();
+				};
+			}
 		},
 	});

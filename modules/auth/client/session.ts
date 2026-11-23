@@ -6,6 +6,7 @@
  */
 import { alertDialog } from "#lib/ui/dialog.ts";
 import { toast, type ToastHandle } from "#lib/ui/toast.ts";
+import { signOutOffline } from "#modules/offline/client/offline.ts";
 import type { NotesEditorElement } from "#modules/pages/client/notes-editor.ts";
 
 let signedOut = false;
@@ -80,6 +81,13 @@ document.addEventListener("submit", async (event) => {
 		await new Promise((done) => setTimeout(done, TITLE_SAVE_MS));
 	const saved =
 		(await document.querySelector<NotesEditorElement>("notes-editor")?.flush?.()) ?? true;
-	if (saved || signedOut) form.submit();
-	else void alertDialog("Couldn't save your last edits", "You're still signed in. Try again.");
+	if (!saved && !signedOut)
+		return void alertDialog("Couldn't save your last edits", "You're still signed in. Try again.");
+	// Pages kept for offline reading go with the session; edits typed offline must be sent first.
+	if (!signedOut && !(await signOutOffline()))
+		return void alertDialog(
+			"Some edits made offline aren't saved yet",
+			"Connect to the internet, then sign out again.",
+		);
+	form.submit();
 });

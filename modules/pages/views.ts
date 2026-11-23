@@ -34,7 +34,7 @@ export function pageView({
 	comments: { threads: readonly Thread[]; me: string | null };
 	urls: PageUrls;
 }): Html {
-	const signals = JSON.stringify({ title: page.title, doc: "", _saving: false });
+	const signals = JSON.stringify({ title: page.title, doc: "", _saving: false, _offline: false });
 	const saveDoc = `$doc = evt.detail; @post('${urls.save}', {filterSignals: {include: /^doc$/}})`;
 	const saveTitle = `@post('${urls.title}', {filterSignals: {include: /^title$/}})`;
 	const isDatabase = page.kind === "database";
@@ -99,7 +99,11 @@ export function pageView({
 							>`
 						: ""
 				}
-				<span class="status" data-text="$_saving ? 'Saving…' : 'Saved'">Saved</span>
+				<span
+					class="status"
+					data-text="$_saving ? 'Saving…' : $_offline ? 'Saved offline' : 'Saved'"
+					>Saved</span
+				>
 				<cf-comments
 					data-ignore
 					data-path="${urls.comments}"
