@@ -583,6 +583,190 @@ a.new-page {
 	text-decoration: none;
 }
 
+/* ---------- buttons and fields: the controls every page shares ---------- */
+
+/* A plain-page's lead paragraph, its "nothing here" line and its notices (Trash, API tokens). */
+.page-intro {
+	margin: 0 0 24px;
+	color: var(--muted);
+	font-size: 14px;
+	line-height: 1.6;
+}
+
+.page-empty {
+	margin: 0;
+	color: var(--muted);
+	font-size: 14px;
+}
+
+.notice {
+	margin: 0 0 16px;
+	padding: 8px 12px;
+	border-radius: 6px;
+	background: color-mix(in srgb, var(--danger) 12%, transparent);
+	color: var(--text);
+	font-size: 14px;
+}
+
+/* A bordered button; `is-primary` fills it with the accent, `is-danger` makes it red. */
+.btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	min-height: 32px;
+	padding: 5px 12px;
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	background: none;
+	color: var(--text);
+	font-size: 14px;
+	font-weight: 500;
+	line-height: 20px;
+	white-space: nowrap;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.btn:hover {
+	background: var(--bg-hover);
+}
+
+.btn.is-danger {
+	color: var(--danger);
+}
+
+.btn.is-primary {
+	border-color: transparent;
+	background: var(--accent);
+	color: #fff;
+}
+
+.btn.is-primary.is-danger {
+	background: var(--danger);
+}
+
+.btn.is-primary:hover {
+	filter: brightness(0.95);
+}
+
+.btn:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.btn:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+.btn > .icon {
+	flex: none;
+}
+
+/* A labelled text field: `.field` holds a `.field-label` and an `.input`. */
+.field {
+	display: grid;
+	gap: 6px;
+	min-width: 0;
+}
+
+.field-label {
+	color: var(--muted);
+	font-size: 13px;
+	font-weight: 500;
+}
+
+.input {
+	width: 100%;
+	min-width: 0;
+	height: 32px;
+	padding: 5px 10px;
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	background: var(--bg-hover);
+	color: var(--text);
+	font: inherit;
+	font-size: 14px;
+	outline: none;
+}
+
+.input::placeholder {
+	color: var(--faint);
+}
+
+.input:focus {
+	border-color: var(--accent);
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* Radio buttons drawn as cards: `.choice` holds the input, a `.choice-title` and a `.choice-text`. */
+.choices {
+	display: grid;
+	gap: 8px;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	min-width: 0;
+}
+
+.choices > legend {
+	margin-bottom: 6px;
+	padding: 0;
+}
+
+.choice {
+	display: flex;
+	align-items: flex-start;
+	gap: 10px;
+	padding: 10px 12px;
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	cursor: pointer;
+}
+
+.choice:hover {
+	background: var(--bg-hover);
+}
+
+.choice:has(:checked) {
+	border-color: var(--accent);
+	background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.choice > input {
+	appearance: none;
+	flex: none;
+	width: 16px;
+	height: 16px;
+	margin: 2px 0 0;
+	border: 1.5px solid var(--muted);
+	border-radius: 50%;
+	background: var(--bg);
+	cursor: pointer;
+}
+
+.choice > input:checked {
+	border: 5px solid var(--accent);
+}
+
+.choice > input:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+.choice-title {
+	display: block;
+	font-size: 14px;
+	font-weight: 500;
+}
+
+.choice-text {
+	display: block;
+	color: var(--muted);
+	font-size: 13px;
+}
+
 .trash-link.is-active {
 	background: var(--bg-active);
 	color: var(--text);
@@ -1603,21 +1787,6 @@ a.db-rel:hover {
 
 /* ---------- trash ---------- */
 
-.trash-intro {
-	margin: 0 0 20px;
-	color: var(--muted);
-	font-size: 14px;
-}
-
-.trash-notice {
-	margin: 0 0 16px;
-	padding: 8px 12px;
-	border-radius: 6px;
-	background: color-mix(in srgb, var(--danger) 12%, transparent);
-	color: var(--text);
-	font-size: 14px;
-}
-
 .trash-list {
 	margin: 0;
 	padding: 0;
@@ -1679,11 +1848,6 @@ a.db-rel:hover {
 
 .trash-item .ghost.is-danger {
 	color: var(--danger);
-}
-
-.trash-empty {
-	color: var(--muted);
-	font-size: 14px;
 }
 
 .trash-bar {
@@ -3082,41 +3246,8 @@ a.db-rel:hover {
 	margin-top: 20px;
 }
 
-.cf-dialog-actions button {
+.cf-dialog-actions .btn {
 	min-width: 72px;
-	padding: 6px 14px;
-	border-radius: 6px;
-	font-size: 14px;
-	font-weight: 500;
-	cursor: pointer;
-}
-
-.cf-dialog-cancel {
-	border: 1px solid var(--border);
-	background: none;
-}
-
-.cf-dialog-cancel:hover {
-	background: var(--bg-hover);
-}
-
-.cf-dialog-ok {
-	border: 1px solid transparent;
-	background: var(--accent);
-	color: #fff;
-}
-
-.cf-dialog-ok.is-danger {
-	background: var(--danger);
-}
-
-.cf-dialog-ok:hover {
-	filter: brightness(0.95);
-}
-
-.cf-dialog-actions button:focus-visible {
-	outline: 2px solid var(--accent);
-	outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {

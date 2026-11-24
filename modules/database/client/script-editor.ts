@@ -136,9 +136,9 @@ export function openScriptEditor(options: ScriptEditorOptions): Promise<void> {
 		// ---- actions ----
 		const bar = h("div", "cf-dialog-actions");
 		const help = h("span", "script-keys", "⌘↵ to save");
-		const cancel = h("button", "cf-dialog-cancel", "Cancel");
+		const cancel = h("button", "btn cf-dialog-cancel", "Cancel");
 		cancel.type = "button";
-		const ok = h("button", "cf-dialog-ok", "Save");
+		const ok = h("button", "btn is-primary cf-dialog-ok", "Save");
 		ok.type = "button";
 		bar.append(help, cancel, ok);
 

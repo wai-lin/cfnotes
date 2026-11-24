@@ -30,7 +30,7 @@
 }
 
 /* A page's words; the app around them, tables and code keep their own fonts. */
-:root :is(.ne-content, .page-title, .print-title) {
+:root :is(.ne-content, input.page-title, .print-title) {
 	font-family: var(--reading-font);
 }
 

@@ -1,11 +1,7 @@
-/* The API tokens page. Its list borrows Trash's rows. */
-.tokens-intro {
-	margin: 0 0 24px;
-	color: var(--muted);
-	font-size: 14px;
-	line-height: 1.6;
-}
-
+/*
+ * The API tokens page. Its controls are the shared ones (`.btn`, `.input`,
+ * `.choice` in lib/ui/app.css) and its list borrows Trash's rows.
+ */
 .tokens-page h2 {
 	margin: 0 0 12px;
 	font-size: 16px;
@@ -33,10 +29,11 @@
 }
 
 .token-made {
-	margin: 0 0 28px;
+	margin: 0 0 32px;
 	padding: 16px;
 	border: 1px solid var(--accent);
 	border-radius: 8px;
+	background: color-mix(in srgb, var(--accent) 6%, transparent);
 }
 
 .token-made > p {
@@ -52,66 +49,24 @@
 
 .token-value {
 	flex: 1;
-	min-width: 0;
-	padding: 6px 8px;
-	border: 1px solid var(--border);
-	border-radius: 6px;
-	background: var(--bg);
-	color: var(--text);
-	font-family: var(--mono, ui-monospace, monospace);
+	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 	font-size: 13px;
 }
 
 .token-new {
 	display: grid;
-	gap: 12px;
+	gap: 16px;
 	justify-items: start;
-	margin: 0 0 32px;
+	margin: 0 0 40px;
+	padding-bottom: 32px;
+	border-bottom: 1px solid var(--border);
 }
 
-.token-field {
-	display: grid;
-	gap: 4px;
-	width: min(100%, 360px);
-	font-size: 14px;
+.token-new > .field,
+.token-new > .choices {
+	width: min(100%, 420px);
 }
 
-.token-field input {
-	padding: 6px 8px;
-	border: 1px solid var(--border);
-	border-radius: 6px;
-	background: var(--bg);
-	color: var(--text);
-	font: inherit;
-}
-
-.token-scope {
-	display: grid;
-	gap: 6px;
+.token-new > h2 {
 	margin: 0;
-	padding: 0;
-	border: 0;
-	font-size: 14px;
-}
-
-.token-scope legend {
-	margin-bottom: 4px;
-	padding: 0;
-}
-
-.token-new button[type="submit"] {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-}
-
-.token-error {
-	margin: 0;
-	color: var(--danger, #c4320a);
-	font-size: 14px;
-}
-
-.tokens-empty {
-	color: var(--muted);
-	font-size: 14px;
 }

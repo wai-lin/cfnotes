@@ -43,12 +43,12 @@ function open(
 		bar.className = "cf-dialog-actions";
 		const ok = document.createElement("button");
 		ok.type = "button";
-		ok.className = `cf-dialog-ok${opts.danger ? " is-danger" : ""}`;
+		ok.className = `btn is-primary cf-dialog-ok${opts.danger ? " is-danger" : ""}`;
 		ok.textContent = opts.ok;
 		if (opts.cancel) {
 			const cancel = document.createElement("button");
 			cancel.type = "button";
-			cancel.className = "cf-dialog-cancel";
+			cancel.className = "btn cf-dialog-cancel";
 			cancel.textContent = opts.cancel;
 			cancel.addEventListener("click", () => finish(false));
 			bar.append(cancel);

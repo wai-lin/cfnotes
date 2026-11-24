@@ -44,14 +44,14 @@ export function trashView({
 	return html`<article class="page">
 		<header class="page-bar"></header>
 		<h1 class="page-title">Trash</h1>
-		<p class="trash-intro">
+		<p class="page-intro">
 			Deleted pages, databases and rows stay here for ${TRASH_DAYS} days, then they're gone for
 			good.
 		</p>
-		${message ? html`<p class="trash-notice" role="status">${message}</p>` : ""}
+		${message ? html`<p class="notice" role="status">${message}</p>` : ""}
 		${
 			items.length === 0
-				? html`<p class="trash-empty">Trash is empty.</p>`
+				? html`<p class="page-empty">Trash is empty.</p>`
 				: html`<ul class="trash-list">
 							${items.map((item) => {
 								const days = Math.max(0, Math.ceil((item.purgeAt - now) / DAY));

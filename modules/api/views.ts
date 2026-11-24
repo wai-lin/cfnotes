@@ -35,7 +35,7 @@ export function tokensView({
 	return html`<article class="page tokens-page">
 		<header class="page-bar"></header>
 		<h1 class="page-title">API tokens</h1>
-		<p class="tokens-intro">
+		<p class="page-intro">
 			A token lets your website, scripts and AI agents use this workspace through the API at
 			<code>${origin}/api/v1</code> and the MCP server at <code>${mcp}</code>. It acts as the person
 			who made it, so keep it secret like a password. Nothing becomes public.
@@ -48,13 +48,13 @@ export function tokensView({
 						<p>You won't see it again. If you lose it, revoke it and make a new one.</p>
 						<div class="token-copy">
 							<input
-								class="token-value"
+								class="input token-value"
 								readonly
 								value="${made.token}"
 								aria-label="The new token"
 								onfocus="this.select()"
 							/>
-							<button class="ghost" type="button" data-copy="${made.token}">
+							<button class="btn" type="button" data-copy="${made.token}">
 								${raw(icon("copy"))}<span>Copy</span>
 							</button>
 						</div>
@@ -68,26 +68,44 @@ export function tokensView({
 
 		<form class="token-new" method="post" action="${urls.create}">
 			<h2>New token</h2>
-			${error ? html`<p class="token-error" role="alert">${error}</p>` : ""}
-			<label class="token-field">
-				<span>Name</span>
-				<input name="name" required maxlength="80" placeholder="Blog build, Claude…" />
+			${error ? html`<p class="notice" role="alert">${error}</p>` : ""}
+			<label class="field token-name">
+				<span class="field-label">Name</span>
+				<input
+					class="input"
+					name="name"
+					required
+					maxlength="80"
+					placeholder="Blog build, Claude…"
+					autocomplete="off"
+				/>
 			</label>
-			<fieldset class="token-scope">
-				<legend>Access</legend>
-				<label><input type="radio" name="scope" value="read" checked /> Read only</label>
-				<label>
-					<input type="radio" name="scope" value="write" /> Read and write: create and change pages,
-					properties and comments
+			<fieldset class="choices token-scope">
+				<legend class="field-label">Access</legend>
+				<label class="choice">
+					<input type="radio" name="scope" value="read" checked />
+					<span>
+						<span class="choice-title">Read only</span>
+						<span class="choice-text">Read pages, databases and comments.</span>
+					</span>
+				</label>
+				<label class="choice">
+					<input type="radio" name="scope" value="write" />
+					<span>
+						<span class="choice-title">Read and write</span>
+						<span class="choice-text">Also create and change pages, properties and comments.</span>
+					</span>
 				</label>
 			</fieldset>
-			<button type="submit">${raw(icon("key"))}<span>Make token</span></button>
+			<button class="btn is-primary" type="submit">
+				${raw(icon("key"))}<span>Make token</span>
+			</button>
 		</form>
 
 		<h2 class="tokens-heading">Tokens</h2>
 		${
 			tokens.length === 0
-				? html`<p class="tokens-empty">No tokens yet.</p>`
+				? html`<p class="page-empty">No tokens yet.</p>`
 				: html`<ul class="trash-list token-list">
 						${tokens.map(
 							(token) =>

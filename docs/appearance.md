@@ -13,7 +13,7 @@ Printing (Export PDF) always uses the light colours.
 
 ## Fonts
 
-The font applies to a page's title and text. The rest of the app, databases and code keep their own fonts.
+The font applies to a note's title and text. The rest of the app (Trash, API tokens), databases and code keep their own fonts.
 
 - **Default** is the system's sans-serif.
 - **Serif** is the system's serif (New York on Apple devices, Georgia elsewhere).
