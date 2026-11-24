@@ -7,6 +7,7 @@
  *   with relation properties as the related rows themselves;
  * - `rows`: every row of the database, in the same shape;
  * - `db.name`, `db.related("Relation property")`: every row of a linked database.
+ * - `rowIndex` (a global): this row's position, from 0, in the database's own order.
  *
  * Pure: shared by the server (which runs scripts when a database loads) and the
  * browser (which previews them while one is edited).
@@ -65,6 +66,7 @@ export function starterScript(columns: Column[]): string {
 		: `return (row[${JSON.stringify(title?.name ?? "Name")}] ?? "").length;`;
 	return `// row: this row's properties by name, e.g. row["Price"]
 // rows: every row in this database
+// rowIndex: this row's place in rows, from 0 (rowIndex + 1 is its number)
 // db.related("Relation"): every row of a linked database
 // [row:column] cells, e.g. [-1:@] (above), [!:Price] (the whole column)
 // sum, avg, min, max, count, round

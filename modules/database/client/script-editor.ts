@@ -108,6 +108,7 @@ export function openScriptEditor(options: ScriptEditorOptions): Promise<void> {
 		}
 		for (const [text, label] of [
 			["rows", "Every row"],
+			["rowIndex", "Row position, from 0"],
 			["db.name", "Database name"],
 		] as const) {
 			const chip = h("button", "script-chip");

@@ -241,6 +241,12 @@ describe("cell references", () => {
 		).toEqual([{ $error: "The script took too long." }, 81]);
 	});
 
+	it("rowIndex is the row's place in the database, in scripts and formulas", () => {
+		expect(run("return rowIndex + 1;").values).toEqual([1, 2]);
+		expect(run("return rows[rowIndex].$id === row.$id;").values).toEqual([true, true]);
+		expect(costs(withFormulas("rowIndex * 10", "[-1:Cost] + rowIndex"))).toEqual([0, 1]);
+	});
+
 	it("script columns and formulas read each other", () => {
 		const result = run("return (row.Cost ?? 0) + [@:Cost];", withFormulas("[@:Rate] / 10", null));
 		expect(result.values).toEqual([20, 0]);

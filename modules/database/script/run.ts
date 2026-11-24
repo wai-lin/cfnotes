@@ -101,6 +101,13 @@ const __progAt = (r, c) => __cellProg.get(r + ":" + c) || __colProg[c];
 const __memo = new Map();
 const __busy = new Set();
 globalThis.__stack = [];
+// The row being worked out, from 0 in the database's own order: rows[rowIndex] is row.
+Object.defineProperty(globalThis, "rowIndex", {
+	get() {
+		const top = __stack[__stack.length - 1];
+		return top ? Number(top.split(":")[0]) : null;
+	},
+});
 const __label = (r, c) => "row " + (r + 1) + " · " + __cols[c].name;
 const __isErr = (v) => !!v && typeof v === "object" && typeof v.$error === "string";
 function __compute(r, c, prog) {
