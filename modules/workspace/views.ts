@@ -99,7 +99,7 @@ export function shell(options: {
 								aria-haspopup="menu"
 								aria-expanded="false"
 							>
-								${svg("letterCase")}<span>Theme and font</span>
+								${svg("colorSwatch")}<span>Theme and font</span>
 							</button>
 							${accountView(options.user)}
 						</div>

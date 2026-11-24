@@ -20,6 +20,7 @@ import circleChevronDown from "@tabler/icons/outline/circle-chevron-down.svg?raw
 import clockEdit from "@tabler/icons/outline/clock-edit.svg?raw";
 import clock from "@tabler/icons/outline/clock.svg?raw";
 import code from "@tabler/icons/outline/code.svg?raw";
+import colorSwatch from "@tabler/icons/outline/color-swatch.svg?raw";
 import copy from "@tabler/icons/outline/copy.svg?raw";
 import dots from "@tabler/icons/outline/dots.svg?raw";
 import download from "@tabler/icons/outline/download.svg?raw";
@@ -103,6 +104,7 @@ const SOURCES = {
 	chevronRight,
 	chevronsLeft,
 	copy,
+	colorSwatch,
 	dots,
 	fileOff,
 	filePlus,
