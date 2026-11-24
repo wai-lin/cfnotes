@@ -16,9 +16,9 @@
 		"docs": "space docs",
 		"test": "vitest run --config configs/vitest.ts",
 		"typecheck": "tsc --noEmit",
-		"lint": "oxlint -c configs/oxlint.json --ignore-pattern 'legacy/**' --ignore-pattern '**/vendor/**'",
-		"fmt": "oxfmt -c configs/oxfmt.json '!legacy/**' '!**/vendor/**'",
-		"check": "oxfmt -c configs/oxfmt.json --check '!legacy/**' '!**/vendor/**' && pnpm run lint && tsc --noEmit"
+		"lint": "oxlint -c configs/oxlint.json --ignore-pattern '**/vendor/**'",
+		"fmt": "oxfmt -c configs/oxfmt.json '!**/vendor/**'",
+		"check": "oxfmt -c configs/oxfmt.json --check '!**/vendor/**' && pnpm run lint && tsc --noEmit"
 	},
 	"dependencies": {
 		"@fontsource/courier-prime": "^5.3.0",

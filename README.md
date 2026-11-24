@@ -64,5 +64,4 @@ lib/
 ├── datastar/           Datastar with Rocket, vendored and pinned
 └── ui/                 dialogs, toasts, the app's styles
 configs/                env, infra (Alchemy), Vite, Vitest, TypeScript, oxlint, oxfmt
-legacy/                 the spacefn 0.10 app, for reference until it's deleted
 ```

@@ -8,7 +8,6 @@ cfnotes is a spacefn app, on Effect 4. spacefn's docs (`content/`) and example a
 - `configs/env.ts` is imported by deploys, so it may import only `spacefn` and `effect`.
 - Check your work with `pnpm run check` (format, lint and types) and `pnpm test`; `pnpm run fmt` formats; `pnpm exec space doctor` explains setup problems.
 - Commit messages: conventional commits, one line, no body.
-- `legacy/` is the spacefn 0.10 app, kept for reference. Don't edit it, import from it or follow its conventions.
 
 ## Traps
 

@@ -1,6 +1,0 @@
-allowBuilds:
-  workerd: true
-minimumReleaseAgeExclude:
-  - spacefn@0.10.0
-overrides:
-  vite: "npm:@voidzero-dev/vite-plus-core@1.5.1"
