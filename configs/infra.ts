@@ -80,6 +80,9 @@ export default Alchemy.Stack(
 			crons: [...app.crons],
 			env: bindings,
 			dev: devPort ? { port: Number(devPort), strictPort: true } : undefined,
+			// The zone (wailinaung.com) must be in the deploying Cloudflare account. Other stages keep
+			// their workers.dev address. ORIGIN in .env.prod and Google's redirect URI must match it.
+			domain: stage === "prod" ? "notes.wailinaung.com" : undefined,
 			// What a deploy hashes to tell whether to rebuild, from .space/.
 			memo: {
 				include: [
