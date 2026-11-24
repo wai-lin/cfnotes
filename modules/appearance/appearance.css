@@ -1,10 +1,4 @@
-/* The page bar's "Aa" button and its theme and font picker. */
-
-.page-appearance {
-	font-family: var(--font-serif);
-	font-size: 15px;
-	letter-spacing: 0.02em;
-}
+/* The theme and font picker, opened from the sidebar's "Theme and font" button. */
 
 .appearance-pop {
 	min-width: 200px;

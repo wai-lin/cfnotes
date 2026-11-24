@@ -1,5 +1,5 @@
 /**
- * The page bar's "Aa" button: picks the theme and the reading font. The
+ * The sidebar's "Theme and font" button: picks the theme and the reading font. The
  * choice shows at once, is kept on this device, and reaches the other open
  * tabs. With "System", it follows the device's light or dark setting.
  */
@@ -135,12 +135,19 @@ function build(panel: HTMLElement): void {
 }
 
 document.addEventListener("click", (event) => {
-	const button = (event.target as Element).closest<HTMLElement>(".page-appearance");
+	const button = (event.target as Element).closest<HTMLElement>(".side-appearance");
 	if (!button) return;
 	if (popover.isOpen) popover.close();
 	else {
 		chosen = "";
-		popover.open(button, build);
+		// The panel is outside the sidebar: keep a peeking sidebar out while it's open.
+		const side = button.closest(".sidebar");
+		side?.classList.add("is-held");
+		button.setAttribute("aria-expanded", "true");
+		popover.open(button, build, () => {
+			side?.classList.remove("is-held");
+			button.setAttribute("aria-expanded", "false");
+		});
 	}
 });
 

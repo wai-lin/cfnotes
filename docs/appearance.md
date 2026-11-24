@@ -1,6 +1,6 @@
 # Themes and fonts
 
-The "Aa" button in a page's bar picks a theme and a reading font. The choice is kept per device (localStorage), shows at once, and reaches the device's other open tabs.
+"Theme and font" at the foot of the sidebar picks a theme and a reading font. The choice is kept per device (localStorage), shows at once, and reaches the device's other open tabs.
 
 ## Themes
 

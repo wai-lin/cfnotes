@@ -111,14 +111,6 @@ export function pageView({
 					data-me="${comments.me ?? ""}"
 					data-state="${JSON.stringify(comments.threads)}"
 				></cf-comments>
-				<button
-					class="ghost page-appearance"
-					type="button"
-					title="Theme and font"
-					aria-label="Theme and font"
-				>
-					Aa
-				</button>
 				<button class="ghost page-export" type="button" title="Export as PDF">Export PDF</button>
 				<form method="post" action="${urls.remove}">
 					<button class="ghost" type="submit">Delete</button>

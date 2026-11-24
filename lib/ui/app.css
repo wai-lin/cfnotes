@@ -196,7 +196,8 @@ button {
 .side-collapsed .side-peek:hover + .sidebar:not(.is-leaving),
 .side-collapsed .side-show:hover ~ .sidebar:not(.is-leaving),
 .side-collapsed .sidebar:hover:not(.is-leaving),
-.side-collapsed .sidebar:focus-within:not(.is-leaving) {
+.side-collapsed .sidebar:focus-within:not(.is-leaving),
+.side-collapsed .sidebar.is-held {
 	transform: none;
 	box-shadow: var(--shadow);
 }

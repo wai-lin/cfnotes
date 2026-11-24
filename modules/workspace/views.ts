@@ -93,6 +93,14 @@ export function shell(options: {
 							>
 								${svg("key")}<span>API tokens</span>
 							</a>
+							<button
+								class="new-page side-appearance"
+								type="button"
+								aria-haspopup="menu"
+								aria-expanded="false"
+							>
+								${svg("letterCase")}<span>Theme and font</span>
+							</button>
 							${accountView(options.user)}
 						</div>
 					</aside>
@@ -169,7 +177,7 @@ export function shell(options: {
 								if (
 									root.classList.contains("side-open") &&
 									!side.contains(e.target) &&
-									!e.target.closest(".side-show")
+									!e.target.closest(".side-show, .db-pop")
 								)
 									setOpen(false);
 							});
