@@ -142,3 +142,4 @@ A read-only token isn't offered the write tools. A request whose `Origin` isn't 
 - `modules/api/api.ts`: what both the REST API and MCP do, built on the app's own modules (pages, database, comments, search).
 - `modules/api/render.ts` and `markdown.ts`: the editor's saved state to HTML and Markdown, and Markdown back.
 - `modules/api/http.ts` and `mcp.ts`: the request handlers; `app/routes/api/` only wires them.
+- `modules/api/docs.ts`: serves this file publicly at `/docs/api` (HTML) and `/docs/api.md` (Markdown), with the app's `ORIGIN` in the examples and without this section.

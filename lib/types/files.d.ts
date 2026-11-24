@@ -9,3 +9,9 @@ declare module "*?url" {
 	const url: string;
 	export default url;
 }
+
+/** A file imported as its text (Vite). */
+declare module "*?raw" {
+	const text: string;
+	export default text;
+}

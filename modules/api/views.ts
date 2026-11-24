@@ -1,6 +1,8 @@
 import { html, raw, type Html } from "spacefn";
+import { assets } from "spacefn/assets";
 
 import { icon } from "#lib/icons.ts";
+import { appearanceHead } from "#modules/appearance/views.ts";
 import type { TokenInfo } from "#modules/auth/tokens.ts";
 
 const day = (ms: number, now: number) => {
@@ -39,6 +41,7 @@ export function tokensView({
 			A token lets your website, scripts and AI agents use this workspace through the API at
 			<code>${origin}/api/v1</code> and the MCP server at <code>${mcp}</code>. It acts as the person
 			who made it, so keep it secret like a password. Nothing becomes public.
+			<a href="/docs/api">Read the API and MCP docs</a>.
 		</p>
 
 		${
@@ -144,4 +147,27 @@ export function tokensView({
 			});
 		</script>
 	</article>`;
+}
+
+/** The public docs page: `body` is the docs as HTML, drawn from `docs/api.md`. */
+export function docsPage({ title, body }: { title: string; body: string }): Html {
+	return html`<!doctype html>
+		<html lang="en">
+			<head>
+				<meta charset="utf-8" />
+				<meta name="viewport" content="width=device-width, initial-scale=1" />
+				<title>${title} · cfnotes</title>
+				<link rel="icon" href="/favicon.svg" />
+				<link rel="alternate" type="text/markdown" href="/docs/api.md" />
+				${appearanceHead()} ${assets("site")}
+			</head>
+			<body>
+				<main class="docs">
+					<p class="docs-note">
+						For agents, the same docs as Markdown: <a href="/docs/api.md">/docs/api.md</a>
+					</p>
+					${raw(body)}
+				</main>
+			</body>
+		</html>`;
 }

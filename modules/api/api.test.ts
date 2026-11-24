@@ -276,3 +276,30 @@ describe("the MCP server", () => {
 		expect(text).toContain("Typed in the app");
 	});
 });
+
+describe("the docs", () => {
+	it("are public, as HTML and as Markdown, without the notes on the code", async () => {
+		await using app = cfnotes();
+		const page = await app.anonymous("/docs/api");
+		expect(page.status).toBe(200);
+		expect(page.headers.get("content-type")).toContain("text/html");
+		const body = await page.text();
+		expect(body).toContain('<h2 id="mcp-server">MCP server</h2>');
+		expect(body).not.toContain("notes.example.com");
+		expect(body).not.toContain("modules/api/");
+
+		const md = await app.anonymous("/docs/api.md");
+		expect(md.status).toBe(200);
+		expect(md.headers.get("content-type")).toContain("text/markdown");
+		expect(md.headers.get("cache-control")).toBe("public, max-age=300");
+		const text = await md.text();
+		expect(text).toContain("## MCP server");
+		expect(text).not.toContain("## Code");
+	});
+
+	it("open nothing else under /docs", async () => {
+		await using app = cfnotes();
+		expect((await app.anonymous("/docs/secret")).status).not.toBe(200);
+		expect((await app.fetch("/docs/secret")).status).toBe(404);
+	});
+});

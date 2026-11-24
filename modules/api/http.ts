@@ -115,7 +115,7 @@ export const queryRows = Effect.gen(function* () {
 		content: params.get("content") ?? undefined,
 		pageUrl: params.get("pageUrl") ?? undefined,
 		fileUrl: params.get("fileUrl") ?? undefined,
-	}).pipe(Effect.mapError(() => new BadRequest({ message: "Bad query: see docs/api.md" })));
+	}).pipe(Effect.mapError(() => new BadRequest({ message: "Bad query: see /docs/api" })));
 	return yield* Api.queryRows(databaseId, query);
 });
 

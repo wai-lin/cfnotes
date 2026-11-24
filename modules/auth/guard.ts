@@ -3,13 +3,15 @@ import { Effect, Option } from "effect";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
 import { middleware, redirect } from "spacefn";
 
+import { PATHS as DOCS } from "#modules/api/docs.ts";
+
 import { returnPath } from "./access.ts";
 import { PATH as GOOGLE } from "./google.ts";
 import * as Sessions from "./sessions.ts";
 import { isApiPath } from "./tokens.ts";
 
 // Exact paths, so another spelling of one is private rather than public.
-const PUBLIC = new Set(["/login", GOOGLE, "/logout"]);
+const PUBLIC = new Set<string>(["/login", GOOGLE, "/logout", ...DOCS]);
 
 /** Tells `client/session.ts` that a 401 is ours. */
 const SIGNED_OUT = "x-signed-out";
