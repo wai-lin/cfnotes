@@ -122,9 +122,42 @@ export function cfnotes(env: Partial<typeof TEST_ENV> = {}) {
 		return app.fetch(path, { ...init, headers });
 	}
 
+	/** Requests made with `cookie`, as a browser signed in with it sends them. */
+	const withCookie = (cookie: string) => {
+		const as = (path: string, init: RequestInit = {}) => {
+			const headers = new Headers(init.headers);
+			headers.set("cookie", cookie);
+			if (init.method && init.method !== "GET" && !headers.has("origin"))
+				headers.set("origin", "http://app.test");
+			return app.fetch(path, { ...init, headers });
+		};
+		return {
+			cookie,
+			fetch: as,
+			post: (path: string, action: string, body: unknown) =>
+				as(`${path}?__action=${action}`, {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify(body),
+				}),
+		};
+	};
+
 	return {
 		fetch,
 		anonymous: app.fetch,
+		/**
+		 * Someone else, signed in through Google as `email` (a friend a page is
+		 * shared with, say). `signedIn` is false when Google's answer was refused.
+		 */
+		async as(email: string) {
+			const before = google.profile;
+			google.profile = { sub: email, email, email_verified: true };
+			const response = await signIn();
+			google.profile = before;
+			const signedIn = !(response.headers.get("location") ?? "").includes("error=");
+			return { ...withCookie(cookiesOf(response)), signedIn };
+		},
 		google,
 		signIn,
 		/** An API token, made by `email` (the owner by default). */

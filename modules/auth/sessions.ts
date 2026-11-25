@@ -6,7 +6,7 @@ import { redirect, sessionAuth } from "spacefn";
 import Env from "#configs/env.ts";
 import MainDb from "#space/db/main.ts";
 
-import { emails, isAllowed } from "./access.ts";
+import { emails, isAllowed, normalize } from "./access.ts";
 import * as Tokens from "./tokens.ts";
 
 export const COOKIE = "session";
@@ -15,6 +15,24 @@ const DAY = 24 * 60 * 60 * 1000;
 const ABSOLUTE = 30 * DAY;
 const IDLE = 7 * DAY;
 
+/** Whether `email` owns the workspace: it's on ALLOWED_EMAILS. */
+export const isOwner = (email: string) =>
+	Effect.map(Env, (env) => isAllowed(env.ALLOWED_EMAILS, email));
+
+/** Whether `email` may sign in: an owner, or someone with a page or folder shared with them. */
+export const mayEnter = Effect.fn("Sessions.mayEnter")(function* (email: string) {
+	if (yield* isOwner(email)) return true;
+	const found = yield* MainDb.hasShare({ email: normalize(email) });
+	return Option.match(found, { onNone: () => false, onSome: (row) => row.shared === 1 });
+});
+
+/** Whether `email` may edit something shared with them (so upload files for it). */
+export const editsSomething = Effect.fn("Sessions.editsSomething")(function* (email: string) {
+	if (yield* isOwner(email)) return true;
+	const found = yield* MainDb.hasShare({ email: normalize(email) });
+	return Option.match(found, { onNone: () => false, onSome: (row) => row.edits === 1 });
+});
+
 const sessions = (secure: boolean) =>
 	sessionAuth({
 		cookie: COOKIE,
@@ -22,16 +40,14 @@ const sessions = (secure: boolean) =>
 		policy: { absolute: ABSOLUTE, idle: IDLE },
 		lookup: (tokenHash) =>
 			Effect.gen(function* () {
-				const { ALLOWED_EMAILS } = yield* Env;
-				// Checked on every request, so taking an email off the list signs it out.
-				return (yield* MainDb.findSession({ tokenHash })).pipe(
-					Option.filter((row) => isAllowed(ALLOWED_EMAILS, row.email)),
-					Option.map((row) => ({
-						user: { email: row.email },
-						expiresAt: row.expires_at,
-						lastSeenAt: row.last_seen_at,
-					})),
-				);
+				const row = Option.getOrUndefined(yield* MainDb.findSession({ tokenHash }));
+				// Checked on every request, so taking someone off the list, or their last share, signs them out.
+				if (!row || !(yield* mayEnter(row.email))) return Option.none();
+				return Option.some({
+					user: { email: row.email },
+					expiresAt: row.expires_at,
+					lastSeenAt: row.last_seen_at,
+				});
 			}),
 		touch: (tokenHash, now) => MainDb.touchSession({ tokenHash, now }),
 	});

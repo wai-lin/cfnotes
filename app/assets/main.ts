@@ -8,6 +8,7 @@ import { defineDatabaseView } from "#modules/database/client/database-view.ts";
 import { defineNotesEditor } from "#modules/pages/client/notes-editor.ts";
 import "#modules/pages/client/page-chrome.ts";
 import "#modules/search/client/search.ts";
+import "#modules/sharing/client/share.ts";
 import "#modules/sidebar/client/sidebar.ts";
 import "#modules/trash/client/notices.ts";
 

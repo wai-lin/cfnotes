@@ -1,13 +1,16 @@
 /**
  * Comments: threads on a page, either on some of its text (the editor marks
  * that text with the thread's id) or on the whole page. Anyone signed in may
- * comment, reply and resolve; only a comment's author may edit or delete it.
+ * comment, reply and resolve, but a friend only where a page is shared with
+ * them to comment or edit (and only an editor marks text); only a comment's
+ * author may edit or delete it.
  */
 import { Clock, Effect, Option, Schema } from "effect";
 import { BadRequest, Forbidden, NotFound } from "spacefn";
 
 import { isId } from "#lib/ids.ts";
 import * as Sessions from "#modules/auth/sessions.ts";
+import * as Sharing from "#modules/sharing/sharing.ts";
 import MainDb from "#space/db/main.ts";
 
 /** Longest comment, in characters. */
@@ -114,6 +117,14 @@ const ownComment = Effect.fn("Comments.ownComment")(function* (pageId: string, i
 
 /** Runs one op on page `pageId`'s comments; answers `{threads}`. */
 export const run = Effect.fn("Comments.run")(function* (pageId: string, body: typeof Op.Type) {
+	// A comment on some text marks it in the page's content, which takes an editor.
+	const needs =
+		body.op === "list"
+			? "view"
+			: body.op === "start" && cleanQuote(body.quote)
+				? "edit"
+				: "comment";
+	yield* Sharing.requireAccess(pageId, needs);
 	const page = Option.getOrUndefined(yield* MainDb.findPage({ id: pageId }));
 	if (!page || page.archived_at !== null) return yield* new NotFound({ message: "No such page" });
 	const now = yield* Clock.currentTimeMillis;

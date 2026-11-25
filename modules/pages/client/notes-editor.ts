@@ -11,6 +11,8 @@
  * it save on its own when the reader leaves right after an edit, before the
  * page's debounced save has run. `link-path` is the action that creates a page
  * from the `[[` picker, and `synced-path` the one that keeps synced blocks.
+ * `readonly="true"` shows the page to someone who may only view or comment on
+ * it: nothing typed, and nothing saved.
  */
 import { rocket } from "#lib/datastar/index.ts";
 import { mountEditor, notionLikeExtensions } from "#lib/editor/index.ts";
@@ -63,8 +65,10 @@ export const defineNotesEditor = () =>
 			savePath: string,
 			linkPath: string,
 			syncedPath: string,
+			readonly: string,
 		}),
 		onFirstRender({ host, props, cleanup, defineHostProp }) {
+			const readonly = props.readonly === "true";
 			const edits = editsOf.get(host) ?? { doc: props.state, changedAt: 0 };
 			editsOf.set(host, edits);
 			let gone = false;
@@ -79,7 +83,7 @@ export const defineNotesEditor = () =>
 			 * page; browsers cap that at 64 KB.
 			 */
 			const flush = async (keepalive = false) => {
-				if (!props.savePath || Date.now() - edits.changedAt > 3000) return true;
+				if (readonly || !props.savePath || Date.now() - edits.changedAt > 3000) return true;
 				const { changedAt } = edits;
 				edits.changedAt = 0;
 				const body = JSON.stringify({ doc: edits.doc });
@@ -105,7 +109,7 @@ export const defineNotesEditor = () =>
 
 			// Typed offline and not sent yet: start from that, not from the page's copy.
 			const path = location.pathname;
-			if (edits.doc === props.state && isQueued(path, "save")) {
+			if (!readonly && edits.doc === props.state && isQueued(path, "save")) {
 				void queued(path, "save").then((body) => {
 					if (gone) return;
 					if (typeof body?.doc === "string") {
@@ -139,7 +143,7 @@ export const defineNotesEditor = () =>
 							onDeleted: databaseDeleted,
 						},
 						fetchPreview,
-						synced: syncedStore(props.syncedPath),
+						synced: syncedStore(props.syncedPath, { readonly }),
 						comments: editorComments(),
 						blockSelect: {
 							marqueeArea: ".main",
@@ -149,7 +153,10 @@ export const defineNotesEditor = () =>
 						undoIgnore: "cf-database, .db-pop",
 					}),
 					state: edits.doc,
+					editable: !readonly,
 					onChange(doc) {
+						// A checkbox ticked or a toggle opened here is the reader's alone.
+						if (readonly) return;
 						edits.doc = doc;
 						edits.changedAt = Date.now();
 						report();

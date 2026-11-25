@@ -5,6 +5,7 @@ import { pageLabel } from "#lib/titles.ts";
 import { hasMyanmar } from "#modules/appearance/appearance.ts";
 import type { Thread } from "#modules/comments/comments.ts";
 import type { DatabaseState } from "#modules/database/columns.ts";
+import type { Access } from "#modules/sharing/roles.ts";
 
 type PageUrls = Record<
 	"save" | "title" | "linkPage" | "dbOp" | "synced" | "comments" | "icon" | "cover" | "remove",
@@ -17,6 +18,7 @@ export function pageView({
 	parent,
 	table,
 	backlinks,
+	access = "owner",
 	comments,
 	urls,
 }: {
@@ -31,6 +33,8 @@ export function pageView({
 	parent: { id: string; title: string } | null;
 	table: DatabaseState | null;
 	backlinks: readonly { id: string; title: string }[];
+	/** What the reader may do: an owner anything, a friend what the page is shared with them as. */
+	access?: Access;
 	/** The page's threads, and who is reading (`null`: no one signed in). */
 	comments: { threads: readonly Thread[]; me: string | null };
 	urls: PageUrls;
@@ -39,6 +43,7 @@ export function pageView({
 	const saveDoc = `$doc = evt.detail; @post('${urls.save}', {filterSignals: {include: /^doc$/}})`;
 	const saveTitle = `@post('${urls.title}', {filterSignals: {include: /^title$/}})`;
 	const isDatabase = page.kind === "database";
+	const canEdit = access === "owner" || access === "edit";
 	// Delete moves it to Trash, and the next page offers Undo: no question.
 
 	// Below the title: a full-page database's table, or a page's editor (with the
@@ -66,6 +71,7 @@ export function pageView({
 				>
 					<notes-editor
 						data-ignore
+						readonly="${canEdit ? "" : "true"}"
 						state="${page.content ?? ""}"
 						save-path="${urls.save}"
 						link-path="${urls.linkPage}"
@@ -89,6 +95,7 @@ export function pageView({
 		<article
 			class="page${isDatabase ? " page-database" : ""}${page.icon ? " has-icon" : ""}${page.cover ? " has-cover" : ""}${hasMyanmar(page.title, page.content) ? " has-myanmar" : ""}"
 			data-db-path="${urls.dbOp}"
+			data-access="${access}"
 			data-signals="${signals}"
 			data-effect="document.title = ($title.trim() || 'Untitled') + ' · cfnotes'"
 		>
@@ -100,21 +107,39 @@ export function pageView({
 							>`
 						: ""
 				}
-				<span
-					class="status"
-					data-text="$_saving ? 'Saving…' : $_offline ? 'Saved offline' : 'Saved'"
-					>Saved</span
-				>
+				${
+					canEdit
+						? html`<span
+								class="status"
+								data-text="$_saving ? 'Saving…' : $_offline ? 'Saved offline' : 'Saved'"
+								>Saved</span
+							>`
+						: html`<span class="page-access"
+								>${access === "comment" ? "Can comment" : "View only"}</span
+							>`
+				}
 				<cf-comments
 					data-ignore
+					data-can="${access}"
 					data-path="${urls.comments}"
 					data-me="${comments.me ?? ""}"
 					data-state="${JSON.stringify(comments.threads)}"
 				></cf-comments>
+				${
+					access === "owner"
+						? html`<button class="ghost page-share" type="button" data-page-id="${page.id}">
+								Share
+							</button>`
+						: ""
+				}
 				<button class="ghost page-export" type="button" title="Export as PDF">Export PDF</button>
-				<form method="post" action="${urls.remove}">
-					<button class="ghost" type="submit">Delete</button>
-				</form>
+				${
+					access === "owner"
+						? html`<form method="post" action="${urls.remove}">
+								<button class="ghost" type="submit">Delete</button>
+							</form>`
+						: ""
+				}
 			</header>
 			<div
 				class="page-head"
@@ -122,7 +147,13 @@ export function pageView({
 				data-cover-path="${urls.cover}"
 				data-page-id="${page.id}"
 			>
-				<button class="page-icon" type="button" aria-label="Change icon" title="Change icon">
+				<button
+					class="page-icon"
+					type="button"
+					aria-label="Change icon"
+					title="Change icon"
+					${canEdit ? "" : raw("disabled")}
+				>
 					${page.icon ?? ""}
 				</button>
 				<div class="page-adders">
@@ -138,6 +169,7 @@ export function pageView({
 				class="page-title"
 				placeholder="Untitled"
 				maxlength="200"
+				${canEdit ? "" : raw("readonly")}
 				aria-label="${isDatabase ? "Database title" : "Page title"}"
 				data-bind:title
 				data-on:input__debounce.400ms="${saveTitle}"

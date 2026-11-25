@@ -7,7 +7,7 @@ const PROBLEMS = {
 	cancelled: "Sign-in was cancelled.",
 	expired: "That sign-in expired. Try again.",
 	failed: "Couldn't sign in with Google. Try again in a moment.",
-	"not-allowed": "That Google account doesn't have access to this workspace.",
+	"not-allowed": "That account doesn't have access to this workspace.",
 };
 
 /** Why a sign-in didn't work: the `error` in `/login`'s query. */

@@ -7,6 +7,7 @@ import { cleanTitle } from "#lib/titles.ts";
 import * as Sessions from "#modules/auth/sessions.ts";
 import { databaseState } from "#modules/database/database.ts";
 import { plainText } from "#modules/search/text.ts";
+import * as Sharing from "#modules/sharing/sharing.ts";
 import * as Trash from "#modules/trash/trash.ts";
 import MainDb from "#space/db/main.ts";
 
@@ -40,25 +41,34 @@ const live = Effect.fn("Pages.live")(function* (id: string) {
 	return page;
 });
 
-/** What the page shows, or `null` when it's in Trash. */
+/**
+ * What the page shows, with what the reader may do on it, or `null` when it's
+ * in Trash. A 404 for a page that isn't shared with them.
+ */
 export const view = Effect.fn("Pages.view")(function* (id: string) {
+	const access = yield* Sharing.requireAccess(id, "view");
 	const page = Option.getOrUndefined(yield* MainDb.findPage({ id }));
 	if (!page) return yield* notFound();
 	if (page.archived_at !== null) return null;
-	const backlinks = yield* MainDb.listBacklinks({ id });
+	// Only the pages linking here that the reader may open.
+	const backlinks = yield* Sharing.visible(yield* MainDb.listBacklinks({ id }));
 	// A row links back to its database; a full-page database is drawn from its state.
 	const parent = page.database_id
 		? Option.getOrNull(yield* MainDb.findDatabase({ id: page.database_id }))
 		: null;
 	const table = page.kind === "database" ? yield* databaseState(id) : null;
-	return { page, backlinks, parent, table };
+	return { page, backlinks, parent, table, access };
 });
+
+/** Where a page in Trash sends the reader: Trash for an owner, the workspace for a friend. */
+export const goneTo = Effect.map(Sharing.me, (who) => (who?.owner ? "/trash" : "/"));
 
 /** The editor's page picker: a new page next to this one (same folder). */
 export const createLinked = Effect.fn("Pages.createLinked")(function* (
 	from: string,
 	input: typeof NewLinked.Type,
 ) {
+	yield* Sharing.requireAccess(from, "edit");
 	yield* live(from);
 	const title = cleanTitle(input.title);
 	const pages = yield* MainDb.listPages();
@@ -71,6 +81,7 @@ export const createLinked = Effect.fn("Pages.createLinked")(function* (
 		now: yield* Clock.currentTimeMillis,
 		by: yield* Sessions.editor,
 	});
+	yield* Sharing.madeFrom(from, id);
 	return { id, title };
 });
 
@@ -85,6 +96,7 @@ const navEntry = (page: {
 }) => (page.database_id || page.host_id ? null : page);
 
 export const rename = Effect.fn("Pages.rename")(function* (id: string, input: typeof Title.Type) {
+	yield* Sharing.requireAccess(id, "edit");
 	const page = yield* live(id);
 	const title = cleanTitle(input.title);
 	yield* MainDb.updatePageTitle({
@@ -97,6 +109,7 @@ export const rename = Effect.fn("Pages.rename")(function* (id: string, input: ty
 });
 
 export const setIcon = Effect.fn("Pages.setIcon")(function* (id: string, input: typeof Icon.Type) {
+	yield* Sharing.requireAccess(id, "edit");
 	const page = yield* live(id);
 	const icon = input.icon.trim().slice(0, 32) || null;
 	yield* MainDb.setPageIcon({
@@ -112,6 +125,7 @@ export const setCover = Effect.fn("Pages.setCover")(function* (
 	id: string,
 	input: typeof Cover.Type,
 ) {
+	yield* Sharing.requireAccess(id, "edit");
 	yield* live(id);
 	const cover = input.cover || null;
 	yield* MainDb.setPageCover({
@@ -125,6 +139,7 @@ export const setCover = Effect.fn("Pages.setCover")(function* (
 
 /** Stores the serialized editor state, with the search text and backlinks that follow from it. */
 export const save = Effect.fn("Pages.save")(function* (id: string, { doc }: typeof Save.Type) {
+	yield* Sharing.requireAccess(id, "edit");
 	yield* live(id);
 	if (new TextEncoder().encode(doc).byteLength > MAX_CONTENT_BYTES)
 		return yield* new PayloadTooLarge({ limitBytes: MAX_CONTENT_BYTES });
@@ -147,6 +162,7 @@ export const save = Effect.fn("Pages.save")(function* (id: string, { doc }: type
 
 /** To Trash, then where to go: its database, host page or the workspace, which offers Undo. */
 export const remove = Effect.fn("Pages.remove")(function* (id: string) {
+	yield* Sharing.requireOwner;
 	const page = Option.getOrUndefined(yield* MainDb.findPage({ id }));
 	if (!page || page.archived_at !== null) return "/";
 	yield* Trash.remove(id);

@@ -11,6 +11,7 @@ import { isId } from "#lib/ids.ts";
 import { placeBefore } from "#lib/order.ts";
 import { cleanTitle } from "#lib/titles.ts";
 import * as Sessions from "#modules/auth/sessions.ts";
+import * as Sharing from "#modules/sharing/sharing.ts";
 import * as Trash from "#modules/trash/trash.ts";
 import MainDb from "#space/db/main.ts";
 
@@ -404,6 +405,7 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 	const by = yield* Sessions.editor;
 
 	if (body.op === "create") {
+		yield* Sharing.requireAccess(pageId, "edit");
 		const host = Option.getOrUndefined(yield* MainDb.findPage({ id: pageId }));
 		if (!host || host.kind === "database") return yield* bad("invalid_host");
 		const id = yield* newDatabase({ folderId: null, hostId: pageId, by });
@@ -412,13 +414,19 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 
 	if (body.op === "databases") {
 		// For choosing a relation's target.
-		const all = yield* MainDb.listDatabases();
+		const all = yield* Sharing.visible(yield* MainDb.listDatabases());
 		return {
 			databases: all.map((d) => ({ id: d.id, title: d.title, hostId: d.host_id })),
 		};
 	}
 
 	const { databaseId } = body;
+	// Rows and their properties are the database's content; deleting the whole database is an owner's.
+	if (isId(databaseId))
+		yield* Sharing.requireAccess(
+			databaseId,
+			body.op === "get" ? "view" : body.op === "delete" ? "owner" : "edit",
+		);
 	const state = isId(databaseId) ? yield* databaseState(databaseId) : null;
 	if (!databaseId || !state) return yield* new NotFound({ message: "No such database" });
 
@@ -480,6 +488,7 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 		const result = cleanCell(column, value ?? []);
 		if (!result.ok) return yield* bad(result.error);
 		const ids = (result.value.value as string[] | undefined) ?? [];
+		yield* Sharing.requireAccess(relation.databaseId, "view");
 		const allowed = new Set(
 			(yield* MainDb.listRows({ databaseId: relation.databaseId })).map((r) => r.id),
 		);
@@ -502,6 +511,9 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 		const targetId =
 			typeof config.databaseId === "string" && isId(config.databaseId) ? config.databaseId : null;
 		const same = targetId === here.id;
+		// The other side of a two-way relation is a column in the target, so that takes an editor.
+		if (targetId && !same)
+			yield* Sharing.requireAccess(targetId, config.twoWay === true ? "edit" : "view");
 		const target = targetId && !same ? yield* findDatabase(targetId) : null;
 		if (!targetId || (!same && !target)) return yield* bad("invalid_target");
 		const targetTitle = (same ? here.title : target!.title).trim() || "Untitled";

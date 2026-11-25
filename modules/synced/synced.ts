@@ -8,6 +8,7 @@ import { BadRequest } from "spacefn";
 
 import { isId } from "#lib/ids.ts";
 import * as Sessions from "#modules/auth/sessions.ts";
+import * as Sharing from "#modules/sharing/sharing.ts";
 import MainDb from "#space/db/main.ts";
 
 /** Largest content accepted, as JSON (a page holds at most 1 MB in all). */
@@ -28,8 +29,12 @@ export const Op = Schema.Struct({
 
 const bad = (message: string) => new BadRequest({ message });
 
-/** Runs one op; `get` answers `{blocks: {id: content}}` (a missing id isn't saved yet). */
-export const run = Effect.fn("Synced.run")(function* (body: typeof Op.Type) {
+/**
+ * Runs one op from page `pageId`; `get` answers `{blocks: {id: content}}` (a
+ * missing id isn't saved yet). Reading takes a reader of the page, saving an editor.
+ */
+export const run = Effect.fn("Synced.run")(function* (pageId: string, body: typeof Op.Type) {
+	yield* Sharing.requireAccess(pageId, body.op === "get" ? "view" : "edit");
 	if (body.op === "get") {
 		const ids = [...new Set(body.ids ?? [])];
 		if (ids.length > MAX_IDS || !ids.every(isId)) return yield* bad("invalid_ids");

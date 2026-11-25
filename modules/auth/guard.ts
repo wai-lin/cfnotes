@@ -35,12 +35,44 @@ const refuse = (request: HttpServerRequest.HttpServerRequest, path: string) => {
 	);
 };
 
+/**
+ * What a friend (signed in through a share, not on ALLOWED_EMAILS) may reach:
+ * pages, which check what's shared with them action by action, and files.
+ * Uploads and link previews only for someone who may edit something.
+ */
+const GUEST_READS = /^\/(p\/[\w-]+|files\/(img|file|media)\/[\w.-]+|auth\/session)?$/;
+const GUEST_WRITES = /^\/(files|files\/attach|files\/media|unfurl)$/;
+
+const guestMay = Effect.fn("guestMay")(function* (method: string, path: string, email: string) {
+	if (GUEST_READS.test(path))
+		return method === "GET" || method === "HEAD" || path.startsWith("/p/");
+	if (GUEST_WRITES.test(path)) return yield* Sessions.editsSomething(email);
+	return false;
+});
+
+const forbidden = (request: HttpServerRequest.HttpServerRequest) =>
+	request.headers["datastar-request"] !== "true" &&
+	request.headers["accept"]?.startsWith("text/html")
+		? redirect("/")
+		: HttpServerResponse.jsonUnsafe(
+				{ error: "Forbidden", message: "That isn't shared with you" },
+				{ status: 403 },
+			);
+
 export const signedInOnly = middleware((next) =>
 	Effect.gen(function* () {
 		const request = yield* HttpServerRequest.HttpServerRequest;
 		const path = request.url.split("?")[0]!;
-		const allowed = PUBLIC.has(path) || Option.isSome(yield* Sessions.user);
-		const response = allowed ? yield* next : refuse(request, path);
+		const user = Option.getOrUndefined(yield* Sessions.user);
+		let response: HttpServerResponse.HttpServerResponse;
+		if (PUBLIC.has(path)) response = yield* next;
+		else if (!user) response = refuse(request, path);
+		else if (
+			(yield* Sessions.isOwner(user.email)) ||
+			(yield* guestMay(request.method, path, user.email))
+		)
+			response = yield* next;
+		else response = forbidden(request);
 		return response.headers["cache-control"]
 			? response
 			: HttpServerResponse.setHeader(response, "cache-control", "no-store");

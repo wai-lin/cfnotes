@@ -6,6 +6,7 @@ import { Id } from "#lib/ids.ts";
 import { placeBefore } from "#lib/order.ts";
 import * as Sessions from "#modules/auth/sessions.ts";
 import { newDatabase } from "#modules/database/database.ts";
+import * as Sharing from "#modules/sharing/sharing.ts";
 import * as Trash from "#modules/trash/trash.ts";
 import MainDb from "#space/db/main.ts";
 
@@ -86,8 +87,12 @@ export const createDatabase = Effect.fn("Sidebar.createDatabase")(function* ({
 	});
 });
 
-/** `/` opens the first page, creating one in a fresh workspace. */
+/**
+ * `/` opens the first page, creating one in a fresh workspace. A friend gets
+ * the first page shared with them, or `null` while there's none.
+ */
 export const firstPage = Effect.gen(function* () {
+	if (!(yield* Sharing.me)?.owner) return yield* Sharing.firstShared;
 	const [first] = yield* MainDb.listPages();
 	if (first) return first.id;
 	const id = crypto.randomUUID();
@@ -133,6 +138,8 @@ export const deleteFolder = Effect.fn("Sidebar.deleteFolder")(function* ({
 	};
 	yield* MainDb.releaseFolderPages({ id, parentId });
 	yield* MainDb.releaseFolderChildren({ id, parentId });
+	// What was shared through it isn't any more (and Undo doesn't share it again).
+	yield* MainDb.forgetFolderShares({ id });
 	yield* MainDb.deleteFolder({ id });
 	return undo;
 });

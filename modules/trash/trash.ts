@@ -82,6 +82,7 @@ export const purge = Effect.fn("Trash.purge")(function* (roots: readonly string[
 	yield* MainDb.forgetPagesLinks({ ids });
 	yield* MainDb.forgetPagesRelations({ ids });
 	yield* Comments.forget(ids);
+	yield* MainDb.forgetPagesShares({ ids });
 	yield* MainDb.deletePages({ ids });
 });
 

@@ -1,7 +1,8 @@
 /** Who may come in, and where they go once they have. */
 
 // Only A-Z: toLowerCase() also folds other letters into ASCII (the Kelvin sign into "k").
-const normalize = (email: string) => email.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
+export const normalize = (email: string) =>
+	email.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
 
 /** The emails in `list` (separated by commas or spaces), case-folded, without repeats. */
 export const emails = (list: string): string[] => [

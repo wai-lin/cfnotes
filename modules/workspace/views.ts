@@ -9,6 +9,33 @@ import { navItems } from "#modules/sidebar/views.ts";
 
 const svg = (name: IconName, size?: number) => raw(icon(name, size));
 
+/** New page, database and folder, Trash and API tokens: an owner's. */
+function ownerTools(options: {
+	activeId?: string;
+	urls: { create: string; createDatabase: string };
+}): Html {
+	return html`<form id="new-page-form" method="post" action="${options.urls.create}">
+			<button class="new-page" type="submit">${svg("plus")}<span>New page</span></button>
+		</form>
+		<form id="new-db-form" method="post" action="${options.urls.createDatabase}">
+			<button class="new-page new-database" type="submit">
+				${svg("table")}<span>New database</span>
+			</button>
+		</form>
+		<button class="new-page new-folder" type="button">
+			${svg("folderPlus")}<span>New folder</span>
+		</button>
+		<a class="new-page trash-link${options.activeId === "trash" ? " is-active" : ""}" href="/trash">
+			${svg("trash")}<span>Trash</span>
+		</a>
+		<a
+			class="new-page tokens-link${options.activeId === "tokens" ? " is-active" : ""}"
+			href="/tokens"
+		>
+			${svg("key")}<span>API tokens</span>
+		</a>`;
+}
+
 /** The whole document: the sidebar, and a page's body beside it. */
 export function shell(options: {
 	title: string;
@@ -18,10 +45,13 @@ export function shell(options: {
 	activeId?: string;
 	/** Pages outside the sidebar (database rows, inline databases), so links to them show titles. */
 	index: readonly { id: string; title: string }[];
+	/** A friend's: only what's shared with them, with nothing to make, move or search. */
+	guest?: boolean;
 	/** The sidebar's actions on the page being shown. */
 	urls: Record<string, string> & { create: string; createDatabase: string };
 	body: Html;
 }): Html {
+	const guest = options.guest ?? false;
 	return html`<!doctype html>
 		<html lang="en">
 			<head>
@@ -58,41 +88,24 @@ export function shell(options: {
 								${svg("chevronsLeft", 18)}
 							</button>
 						</div>
-						<button class="side-search" type="button">
-							${svg("search")}<span>Search</span><kbd>⌘P</kbd>
-						</button>
+						${
+							guest
+								? html`<p class="side-shared">Shared with you</p>`
+								: html`<button class="side-search" type="button">
+										${svg("search")}<span>Search</span><kbd>⌘P</kbd>
+									</button>`
+						}
 						<nav
 							id="page-nav"
 							class="nav"
 							aria-label="Pages"
 							data-actions="${JSON.stringify(options.urls)}"
+							data-guest="${guest ? "true" : ""}"
 						>
-							${navItems(options.folders, options.pages, options.activeId)}
+							${navItems(options.folders, options.pages, options.activeId, { guest })}
 						</nav>
 						<div class="sidebar-foot">
-							<form id="new-page-form" method="post" action="${options.urls.create}">
-								<button class="new-page" type="submit">${svg("plus")}<span>New page</span></button>
-							</form>
-							<form id="new-db-form" method="post" action="${options.urls.createDatabase}">
-								<button class="new-page new-database" type="submit">
-									${svg("table")}<span>New database</span>
-								</button>
-							</form>
-							<button class="new-page new-folder" type="button">
-								${svg("folderPlus")}<span>New folder</span>
-							</button>
-							<a
-								class="new-page trash-link${options.activeId === "trash" ? " is-active" : ""}"
-								href="/trash"
-							>
-								${svg("trash")}<span>Trash</span>
-							</a>
-							<a
-								class="new-page tokens-link${options.activeId === "tokens" ? " is-active" : ""}"
-								href="/tokens"
-							>
-								${svg("key")}<span>API tokens</span>
-							</a>
+							${guest ? "" : ownerTools(options)}
 							<button
 								class="new-page side-appearance"
 								type="button"

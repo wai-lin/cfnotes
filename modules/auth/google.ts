@@ -1,11 +1,11 @@
-/** Sign in with Google: the code flow with PKCE, for the emails in ALLOWED_EMAILS. */
+/** Sign in with Google: the code flow with PKCE, for owners (ALLOWED_EMAILS) and people with a share. */
 import { Duration, Effect } from "effect";
 import { HttpServerRequest, HttpServerResponse } from "effect/http";
 import { OAuth, OAuthError, redirect } from "spacefn";
 
 import Env from "#configs/env.ts";
 
-import { isAllowed, returnPath } from "./access.ts";
+import { returnPath } from "./access.ts";
 import * as Sessions from "./sessions.ts";
 import type { Problem } from "./views.ts";
 
@@ -52,7 +52,7 @@ export const signIn = Effect.gen(function* () {
 
 	const response = yield* Effect.gen(function* () {
 		const { email, emailVerified } = yield* google.finish.pipe(Effect.timeout("10 seconds"));
-		if (!email || !emailVerified || !isAllowed(env.ALLOWED_EMAILS, email))
+		if (!email || !emailVerified || !(yield* Sessions.mayEnter(email)))
 			return failed("not-allowed");
 		return yield* Sessions.start(email, returnPath(request.cookies[RETURN_COOKIE]));
 	}).pipe(

@@ -310,6 +310,15 @@ export class DatabaseView extends HTMLElement {
 		return this.dataset.id ?? "";
 	}
 
+	/**
+	 * On a page shared to view or comment on (`data-access` on the page): rows
+	 * open and views can be sorted and filtered for this reader, but nothing is saved.
+	 */
+	get #readonly(): boolean {
+		const access = this.closest<HTMLElement>("[data-access]")?.dataset.access;
+		return access !== undefined && access !== "owner" && access !== "edit";
+	}
+
 	connectedCallback(): void {
 		document.addEventListener("cf-database-state", this.#onShared);
 		document.addEventListener("cf-database-dirty", this.#onDirty);
@@ -343,6 +352,10 @@ export class DatabaseView extends HTMLElement {
 		body: Record<string, unknown>,
 		{ share = true, refreshPop = true }: { share?: boolean; refreshPop?: boolean } = {},
 	): Promise<Record<string, unknown> | null> {
+		if (this.#readonly && body.op !== "get" && body.op !== "databases") {
+			this.#render(); // undo whatever was shown ahead of the reply
+			return null;
+		}
 		const run = async () => {
 			const res = await fetch(location.pathname + this.#path, {
 				method: "POST",
@@ -413,6 +426,7 @@ export class DatabaseView extends HTMLElement {
 			views: this.#state.views.map((v) => (v.id === view.id ? view : v)),
 		};
 		this.#render(!typing);
+		if (this.#readonly) return; // this reader's alone
 		clearTimeout(this.#viewTimer);
 		const seq = ++this.#viewSeq;
 		this.#viewTimer = window.setTimeout(
@@ -469,6 +483,13 @@ export class DatabaseView extends HTMLElement {
 		if (!state) return;
 		if (this.dataset.row) this.#renderRecord(state, this.dataset.row);
 		else this.#renderTable(state);
+		const readonly = this.#readonly;
+		this.classList.toggle("is-readonly", readonly);
+		if (readonly) {
+			for (const el of this.querySelectorAll<HTMLElement>("[draggable='true']"))
+				el.draggable = false;
+			for (const input of this.querySelectorAll("input")) input.readOnly = true;
+		}
 		if (refreshPop) this.#pop.refresh();
 	}
 
@@ -1031,7 +1052,7 @@ export class DatabaseView extends HTMLElement {
 		const target = event.target as Element;
 		if (target.closest("a[href]")) return; // Open, URLs
 		const state = this.#state;
-		if (!state) return;
+		if (!state || this.#readonly) return;
 		const header = target.closest<HTMLElement>(".db-th[data-col] .db-th-btn, .db-prop-name");
 		if (header) {
 			const id = header.closest<HTMLElement>("[data-col]")!.dataset.col!;
@@ -1328,9 +1349,10 @@ export class DatabaseView extends HTMLElement {
 			tab.dataset.view = view.id;
 			tab.setAttribute("role", "tab");
 			tab.setAttribute("aria-selected", String(view.id === current.id));
-			tab.addEventListener("click", () =>
-				view.id === current.id ? this.#viewMenu(view, tab) : this.#pickView(view.id),
-			);
+			tab.addEventListener("click", () => {
+				if (view.id !== current.id) this.#pickView(view.id);
+				else if (!this.#readonly) this.#viewMenu(view, tab);
+			});
 			tabs.append(tab);
 		}
 		const add = h("button", "db-icon-btn db-tab-add");

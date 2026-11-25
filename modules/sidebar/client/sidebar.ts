@@ -7,6 +7,7 @@
 import { icon } from "#lib/icons.ts";
 import { alertDialog } from "#lib/ui/dialog.ts";
 import { toast, toastNextPage } from "#lib/ui/toast.ts";
+import { openShareDialog } from "#modules/sharing/client/share.ts";
 import { type FolderUndo, archivedToast, folderToast } from "#modules/trash/client/undo.ts";
 
 const OPEN_KEY = "cfnotes:open-folders";
@@ -27,6 +28,8 @@ function init() {
 	const side = nav?.closest<HTMLElement>(".sidebar");
 	if (!nav || !side) return;
 	const paths = JSON.parse(nav.dataset.actions ?? "{}") as Record<string, string>;
+	/** A friend's tree: it only opens pages and folders. */
+	const guest = nav.dataset.guest === "true";
 
 	// ---------- open folders ----------
 
@@ -387,6 +390,11 @@ function init() {
 			},
 			{ label: "New folder", run: () => newFolder(id) },
 			{ label: "Rename", run: () => rename(id) },
+			{
+				label: "Share…",
+				run: () =>
+					openShareDialog({ kind: "folder", id, title: folderName(id), path: paths.share! }),
+			},
 			{ label: "Move to…", run: () => openMenu(at, "Move to", folderChoices("folder", id)) },
 			{ label: "Delete", danger: true, run: () => void deleteFolder(id) },
 		]);
@@ -412,6 +420,10 @@ function init() {
 		const title =
 			nav!.querySelector(`#nav-${CSS.escape(id)} .nav-label`)?.textContent?.trim() || "Untitled";
 		openMenu(at, title, [
+			{
+				label: "Share…",
+				run: () => openShareDialog({ kind: "page", id, title, path: paths.share! }),
+			},
 			{ label: "Move to…", run: () => openMenu(at, "Move to", folderChoices("page", id)) },
 			{ label: "Delete", danger: true, run: () => void deletePage(id) },
 		]);
@@ -442,6 +454,7 @@ function init() {
 	});
 
 	nav.addEventListener("contextmenu", (e) => {
+		if (guest) return;
 		const target = e.target as Element;
 		const page = target.closest<HTMLElement>(".tree-page");
 		const row = target.closest<HTMLElement>(".folder-row:not(.is-draft)");
@@ -453,6 +466,7 @@ function init() {
 	});
 
 	nav.addEventListener("dblclick", (e) => {
+		if (guest) return;
 		const name = (e.target as Element).closest(".folder-name");
 		if (name) rename(name.closest<HTMLElement>(".tree-folder")!.dataset.folder!);
 	});

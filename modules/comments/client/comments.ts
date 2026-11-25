@@ -144,6 +144,10 @@ interface Typing {
 export class CommentsElement extends HTMLElement {
 	#threads: Thread[] = [];
 	#me: string | null = null;
+	/** Whether the reader may comment (`data-can` is `view` for someone who may only read the page). */
+	#canComment = true;
+	/** Whether they may comment on some of the text, which marks it in the page: an editor's. */
+	#canMark = true;
 	#tab: "open" | "resolved" = "open";
 	#panelOpen = false;
 	/** The thread picked last (its text and card are lit). */
@@ -162,6 +166,9 @@ export class CommentsElement extends HTMLElement {
 	connectedCallback() {
 		if (this.#off.length > 0) return;
 		this.#me = this.dataset.me || null;
+		const can = this.dataset.can ?? "owner";
+		this.#canComment = can !== "view";
+		this.#canMark = can === "owner" || can === "edit";
 		try {
 			this.#threads = JSON.parse(this.dataset.state ?? "[]") as Thread[];
 		} catch {
@@ -337,7 +344,7 @@ export class CommentsElement extends HTMLElement {
 		head.append(tabs, close);
 
 		const body = h("div", "cm-panel-body");
-		if (this.#tab === "open") {
+		if (this.#tab === "open" && this.#canComment) {
 			const page = composer({
 				placeholder: "Comment on this page…",
 				label: "Comment",
@@ -354,9 +361,11 @@ export class CommentsElement extends HTMLElement {
 				h(
 					"p",
 					"cm-empty",
-					this.#tab === "open"
-						? "No open comments. Select text and choose Comment to start one."
-						: "No resolved comments.",
+					this.#tab !== "open"
+						? "No resolved comments."
+						: this.#canMark
+							? "No open comments. Select text and choose Comment to start one."
+							: "No open comments.",
 				),
 			);
 		this.#panel.replaceChildren(head, body);
@@ -479,7 +488,7 @@ export class CommentsElement extends HTMLElement {
 		toggle.addEventListener("click", () => {
 			void this.#call({ op: "resolve", thread: thread.id, resolved: !resolved });
 		});
-		top.append(toggle);
+		if (this.#canComment) top.append(toggle);
 		card.append(top);
 
 		for (const comment of thread.comments) {
@@ -544,7 +553,7 @@ export class CommentsElement extends HTMLElement {
 					`Resolved by ${nameOf(thread.resolvedBy)} · ${when(thread.resolvedAt!)}`,
 				),
 			);
-		} else {
+		} else if (this.#canComment) {
 			const reply = composer({
 				placeholder: "Reply…",
 				label: "Reply",

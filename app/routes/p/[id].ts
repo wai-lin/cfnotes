@@ -8,8 +8,8 @@ import * as Comments from "#modules/comments/comments.ts";
 import * as Database from "#modules/database/database.ts";
 import * as Pages from "#modules/pages/pages.ts";
 import { pageView } from "#modules/pages/views.ts";
+import * as Sharing from "#modules/sharing/sharing.ts";
 import { renderTree, sidebarActions, sidebarUrls } from "#modules/sidebar/actions.ts";
-import * as Sidebar from "#modules/sidebar/sidebar.ts";
 import { navLink } from "#modules/sidebar/views.ts";
 import * as Synced from "#modules/synced/synced.ts";
 import { shell } from "#modules/workspace/views.ts";
@@ -20,13 +20,13 @@ const id = Effect.map(Input.params(Pages.Params), (params) => params.id);
 export default page({
 	loader: Effect.gen(function* () {
 		const view = yield* Pages.view(yield* id);
-		if (!view) return redirect("/trash", 302);
+		if (!view) return redirect(yield* Pages.goneTo, 302);
 		return {
 			...view,
 			threads: yield* Comments.threads(view.page.id),
 			me: yield* Sessions.editor,
 			user: yield* Sessions.requireUser,
-			...(yield* Sidebar.workspace),
+			...(yield* Sharing.workspace),
 		};
 	}),
 	actions: {
@@ -83,7 +83,10 @@ export default page({
 		synced: action({
 			input: Synced.Op,
 			limits: Synced.SYNCED_LIMITS,
-			handler: (op) => Effect.map(Synced.run(op), json),
+			handler: (op) =>
+				Effect.gen(function* () {
+					return json(yield* Synced.run(yield* id, op));
+				}),
 		}),
 		// Threads of comments on this page.
 		comments: action({
@@ -109,6 +112,7 @@ export default page({
 			pages: data.pages,
 			folders: data.folders,
 			index: data.index,
+			guest: data.guest,
 			activeId: data.page.id,
 			urls: sidebarUrls,
 			body: pageView({
@@ -116,6 +120,7 @@ export default page({
 				parent: data.parent,
 				table: data.table,
 				backlinks: data.backlinks,
+				access: data.access,
 				comments: { threads: data.threads, me: data.me },
 				urls: {
 					save: actions.save.url,

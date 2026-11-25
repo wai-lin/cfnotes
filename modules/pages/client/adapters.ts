@@ -139,7 +139,10 @@ export function databaseDeleted(
 }
 
 /** Synced blocks' content, through the page action `path`. */
-export function syncedStore(path: string | undefined): SyncedStore | undefined {
+export function syncedStore(
+	path: string | undefined,
+	{ readonly = false } = {},
+): SyncedStore | undefined {
 	if (!path) return undefined;
 	const call = (body: unknown, keepalive = false) =>
 		fetch(location.pathname + path, {
@@ -155,6 +158,8 @@ export function syncedStore(path: string | undefined): SyncedStore | undefined {
 			return ((await res.json()) as { blocks: Record<string, unknown[]> }).blocks;
 		},
 		async save(id, content, keepalive) {
+			// Someone who may only read the page keeps what they see.
+			if (readonly) return true;
 			try {
 				const body = { op: "save", id, content };
 				// Browsers cap a keepalive request at 64 KB.

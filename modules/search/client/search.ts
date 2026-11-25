@@ -194,6 +194,8 @@ dialog.addEventListener("click", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+	// No search button: a friend's sidebar, which has nothing to search.
+	if (!document.querySelector(".side-search")) return;
 	if (
 		(event.metaKey || event.ctrlKey) &&
 		!event.altKey &&
