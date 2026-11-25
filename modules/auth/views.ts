@@ -23,7 +23,39 @@ const GOOGLE_MARK = raw(`<svg viewBox="0 0 48 48" width="18" height="18" aria-hi
 	<path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
 </svg>`);
 
-export function loginPage({ href, error }: { href: string; error?: string }): Html {
+/** Signing in without Google, on localhost only (`dev.ts`). */
+function devForm(dev: { path: string; emails: string[] }, next: string): Html {
+	return html`<form class="login-dev" method="post" action="${dev.path}">
+		<p class="login-dev-title">Development sign-in <span>localhost only</span></p>
+		<input type="hidden" name="next" value="${next}" />
+		<input
+			class="login-dev-email"
+			name="email"
+			type="email"
+			list="login-dev-emails"
+			required
+			aria-label="Email"
+			placeholder="Email"
+			value="${dev.emails[0] ?? ""}"
+		/>
+		<datalist id="login-dev-emails">
+			${dev.emails.map((email) => html`<option value="${email}"></option>`)}
+		</datalist>
+		<button class="login-dev-go" type="submit">Sign in</button>
+	</form>`;
+}
+
+export function loginPage({
+	href,
+	error,
+	next = "/",
+	dev = null,
+}: {
+	href: string;
+	error?: string;
+	next?: string;
+	dev?: { path: string; emails: string[] } | null;
+}): Html {
 	return html`<!doctype html>
 		<html lang="en">
 			<head>
@@ -45,6 +77,7 @@ export function loginPage({ href, error }: { href: string; error?: string }): Ht
 							: ""
 					}
 					<a class="login-google" href="${href}">${GOOGLE_MARK}<span>Sign in with Google</span></a>
+					${dev ? devForm(dev, next) : ""}
 				</main>
 			</body>
 		</html>`;

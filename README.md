@@ -24,6 +24,10 @@ A deploy needs the same four in `.env.prod`, with its https `ORIGIN`, so know th
 - If port 1337 is busy, `space dev` takes the next one and sign-in fails. Free the port, or change `ORIGIN` and the redirect URI to match.
 - A session lasts 30 days, or 7 without use. Taking an email off the list ends its sessions once the app restarts or deploys.
 
+### Without Google, locally
+
+While `ORIGIN` is `http://localhost:…`, the sign-in page also has a **Development sign-in** form: type an email and you're in as them, no Google needed. It takes an owner, or anyone something is shared with, so you can see what a friend sees. It only works for requests to localhost, and never on a deploy (its `ORIGIN` is https).
+
 ## Sharing with friends
 
 Owners can share a page (Share in its header, or Share… in its sidebar menu) or a folder (Share… in its menu) with anyone's email, as **Can view**, **Can comment** or **Can edit**:

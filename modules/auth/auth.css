@@ -51,6 +51,60 @@
 	outline-offset: 2px;
 }
 
+/* Development sign-in: only on localhost, set apart from Google's button. */
+.login-dev {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 8px;
+	width: min(100%, 360px);
+	margin-top: 8px;
+	padding: 12px;
+	border: 1px dashed var(--border);
+	border-radius: 6px;
+}
+
+.login .login-dev-title {
+	width: 100%;
+	font-size: 12px;
+}
+
+.login-dev-title span {
+	margin-left: 4px;
+	padding: 1px 6px;
+	border-radius: 999px;
+	background: var(--bg-hover);
+}
+
+.login-dev-email {
+	flex: 1;
+	min-width: 0;
+	height: 32px;
+	padding: 0 8px;
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	background: var(--bg);
+	color: var(--text);
+	font: inherit;
+}
+
+.login-dev-go {
+	height: 32px;
+	padding: 0 12px;
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	background: var(--bg-hover);
+	color: var(--text);
+	font: inherit;
+	cursor: pointer;
+}
+
+.login-dev-email:focus-visible,
+.login-dev-go:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
 .account {
 	display: flex;
 	align-items: center;

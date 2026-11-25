@@ -5,6 +5,7 @@ import { Input, redirect } from "spacefn";
 import Env from "#configs/env.ts";
 
 import { returnPath } from "./access.ts";
+import * as Dev from "./dev.ts";
 import { PATH } from "./google.ts";
 import * as Sessions from "./sessions.ts";
 
@@ -20,5 +21,5 @@ export const load = Effect.gen(function* () {
 	// Absolute, so the state cookie is set on the host Google comes back to.
 	const href = new URL(PATH, (yield* Env).ORIGIN);
 	if (to !== "/") href.searchParams.set("next", to);
-	return { href: href.toString(), error };
+	return { href: href.toString(), error, next: to, dev: yield* Dev.offer };
 });

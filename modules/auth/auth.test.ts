@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { cfnotes, cookiesOf } from "#lib/testing.ts";
 import { manifest } from "#space/manifest.ts";
 
-const PUBLIC = ["/login", "/auth/google", "/logout"];
+const PUBLIC = ["/login", "/auth/google", "/auth/dev", "/logout"];
 
 describe("the guard", () => {
 	it("covers every route and method in the app", async () => {
