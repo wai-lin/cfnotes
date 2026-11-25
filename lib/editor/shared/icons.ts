@@ -16,10 +16,12 @@ import fileOff from "@tabler/icons/outline/file-off.svg?raw";
 import filePlus from "@tabler/icons/outline/file-plus.svg?raw";
 import fileText from "@tabler/icons/outline/file-text.svg?raw";
 import fileTypePdf from "@tabler/icons/outline/file-type-pdf.svg?raw";
+import focusCentered from "@tabler/icons/outline/focus-centered.svg?raw";
 import gripVertical from "@tabler/icons/outline/grip-vertical.svg?raw";
 import italic from "@tabler/icons/outline/italic.svg?raw";
 import link from "@tabler/icons/outline/link.svg?raw";
 import listTree from "@tabler/icons/outline/list-tree.svg?raw";
+import maximize from "@tabler/icons/outline/maximize.svg?raw";
 import messagePlus from "@tabler/icons/outline/message-plus.svg?raw";
 import music from "@tabler/icons/outline/music.svg?raw";
 import paperclip from "@tabler/icons/outline/paperclip.svg?raw";
@@ -31,6 +33,8 @@ import unlink from "@tabler/icons/outline/unlink.svg?raw";
 import video from "@tabler/icons/outline/video.svg?raw";
 import world from "@tabler/icons/outline/world.svg?raw";
 import x from "@tabler/icons/outline/x.svg?raw";
+import zoomIn from "@tabler/icons/outline/zoom-in.svg?raw";
+import zoomOut from "@tabler/icons/outline/zoom-out.svg?raw";
 
 const SOURCES = {
 	messagePlus,
@@ -62,6 +66,10 @@ const SOURCES = {
 	underline,
 	world,
 	x,
+	focusCentered,
+	maximize,
+	zoomIn,
+	zoomOut,
 } as const;
 
 export type IconName = keyof typeof SOURCES;

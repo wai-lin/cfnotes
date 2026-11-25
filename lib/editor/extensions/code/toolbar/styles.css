@@ -8,11 +8,13 @@
 	pointer-events: none;
 }
 
-.code-bar[hidden] {
+.code-bar[hidden],
+.code-expand[hidden] {
 	display: none;
 }
 
 .code-lang,
+.code-expand,
 .code-copy {
 	display: inline-flex;
 	align-items: center;
@@ -28,6 +30,7 @@
 }
 
 .code-lang:hover,
+.code-expand:hover,
 .code-copy:hover {
 	background: var(--bg-active);
 	color: var(--text);

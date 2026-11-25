@@ -4,6 +4,7 @@ import { $getNodeByKey, type LexicalEditor, type NodeKey } from "lexical";
 
 import { listen, onPointerOutside } from "../../../shared/dom.ts";
 import { languageName, PLAIN_TEXT, resolveLanguage } from "../languages.ts";
+import { viewMermaid } from "../mermaid/index.ts";
 import { $chooseMermaidView, $getMermaidView, $isMermaidBlock } from "../mermaid/logic.ts";
 import { createCodeToolbarStore, type CodeBlockInfo } from "./state.ts";
 import { createCodeToolbarView } from "./view.ts";
@@ -63,6 +64,7 @@ export function registerCodeToolbar(
 			void navigator.clipboard.writeText(text).then(() => view.flashCopied(key));
 		},
 		onView: (key, choice) => editor.update(() => $chooseMermaidView(key, choice)),
+		onExpand: (key) => viewMermaid(editor.read(() => $getNodeByKey(key)?.getTextContent() ?? "")),
 		onLanguage: (key, language) => {
 			editor.update(() => {
 				const node = $getNodeByKey(key);

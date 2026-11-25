@@ -4,7 +4,8 @@ import { $getNodeByKey, type LexicalEditor, type NodeKey } from "lexical";
 
 import { $getMermaidView, $isMermaidBlock, mermaidMessage, type MermaidView } from "./logic.ts";
 import { drawMermaid } from "./render.ts";
-import { clearMermaid, hasPicture, paintMermaid, showMermaidView } from "./view.ts";
+import { clearMermaid, hasPicture, isOnPicture, paintMermaid, showMermaidView } from "./view.ts";
+import { openMermaidViewer } from "./viewer.ts";
 
 export {
 	$chooseMermaidView,
@@ -15,6 +16,12 @@ export {
 	mermaidViewState,
 	type MermaidView,
 } from "./logic.ts";
+
+/** Opens a diagram full-window, to zoom and pan (nothing happens if it doesn't draw). */
+export function viewMermaid(source: string): void {
+	if (!source.trim()) return;
+	drawMermaid(source).then(openMermaidViewer, () => {});
+}
 
 /** Draws the diagram of every Mermaid code block, keeping it in step with edits. */
 export function registerMermaid(editor: LexicalEditor): () => void {
@@ -65,6 +72,20 @@ export function registerMermaid(editor: LexicalEditor): () => void {
 		}
 	};
 
+	/** Clicking a drawn diagram opens it full-window. */
+	const onClick = (event: MouseEvent) => {
+		const dom = (event.target as Element | null)?.closest<HTMLElement>(".ne-code");
+		if (!dom || !isOnPicture(dom, event.clientY)) return;
+		const key = [...keys].find((k) => editor.getElementByKey(k) === dom);
+		if (!key) return;
+		viewMermaid(
+			editor.read(() => {
+				const node = $getNodeByKey(key);
+				return $isMermaidBlock(node) ? node.getTextContent() : "";
+			}),
+		);
+	};
+
 	return mergeRegister(
 		editor.registerMutationListener(
 			CodeNode,
@@ -77,6 +98,11 @@ export function registerMermaid(editor: LexicalEditor): () => void {
 			{ skipInitialization: false },
 		),
 		editor.registerUpdateListener(sync),
+		editor.registerRootListener((root, prev) => {
+			prev?.removeEventListener("click", onClick);
+			root?.addEventListener("click", onClick);
+		}),
+		() => editor.getRootElement()?.removeEventListener("click", onClick),
 		// Blocks already on the page when it loads.
 		(() => {
 			const frame = requestAnimationFrame(sync);

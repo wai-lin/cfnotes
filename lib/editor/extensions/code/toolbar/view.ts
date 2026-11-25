@@ -1,6 +1,6 @@
 import type { NodeKey } from "lexical";
 
-import { el, highlightItems, onPointerHover } from "../../../shared/dom.ts";
+import { el, highlightItems, iconButton, onPointerHover } from "../../../shared/dom.ts";
 import { icon } from "../../../shared/icons.ts";
 import { searchLanguages, type LanguageOption } from "../languages.ts";
 import type { MermaidView } from "../mermaid/logic.ts";
@@ -17,6 +17,8 @@ interface Bar {
 	lang: HTMLButtonElement;
 	/** Code / Preview / Split, on Mermaid blocks only. */
 	views: HTMLDivElement;
+	/** Opens the diagram full-window, on Mermaid blocks showing it. */
+	expand: HTMLButtonElement;
 	copy: HTMLButtonElement;
 	timer: number;
 }
@@ -47,6 +49,7 @@ export function createCodeToolbarView(options: {
 	onToggleMenu: (key: NodeKey) => void;
 	onCopy: (key: NodeKey) => void;
 	onView: (key: NodeKey, view: MermaidView) => void;
+	onExpand: (key: NodeKey) => void;
 	onLanguage: (key: NodeKey, language: string) => void;
 	onCloseMenu: (refocus: boolean) => void;
 }): CodeToolbarView {
@@ -72,12 +75,15 @@ export function createCodeToolbarView(options: {
 			button.dataset.view = view;
 			views.append(button);
 		}
+		const expand = iconButton("code-expand", "Open diagram full-window", "maximize", 14);
+		expand.title = "Zoom and pan";
+		expand.hidden = true;
 		const right = el("div", "code-bar-right");
-		right.append(views, copy);
+		right.append(views, expand, copy);
 		root.dataset.key = key;
 		root.append(lang, right);
 		host.append(root);
-		return { root, lang, views, copy, timer: 0 };
+		return { root, lang, views, expand, copy, timer: 0 };
 	};
 
 	const removeBar = (key: NodeKey) => {
@@ -100,6 +106,7 @@ export function createCodeToolbarView(options: {
 			const label = bar.lang.firstElementChild!;
 			if (label.textContent !== block.language) label.textContent = block.language;
 			bar.views.hidden = block.view === null;
+			bar.expand.hidden = block.view === null || block.view === "code";
 			for (const button of bar.views.children as HTMLCollectionOf<HTMLElement>) {
 				const on = button.dataset.view === block.view;
 				button.classList.toggle("is-active", on);
@@ -126,6 +133,7 @@ export function createCodeToolbarView(options: {
 		const view = button.dataset.view as MermaidView | undefined;
 		if (view) options.onView(key, view);
 		else if (button.classList.contains("code-copy")) options.onCopy(key);
+		else if (button.classList.contains("code-expand")) options.onExpand(key);
 		else options.onToggleMenu(key);
 	};
 	host.addEventListener("mousedown", onMouseDown);

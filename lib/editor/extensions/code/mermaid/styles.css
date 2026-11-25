@@ -99,3 +99,111 @@
 .ne-code[data-mermaid="preview"]::after {
 	margin-top: 4px;
 }
+
+/* A drawn diagram opens full-window when clicked. */
+.ne-code[data-mermaid][data-mermaid-state="ok"]:is(
+		[data-mermaid="split"],
+		[data-mermaid="preview"]
+	)::after {
+	cursor: zoom-in;
+}
+
+/* ---------- the full-window viewer (zoom and pan) ---------- */
+
+.mermaid-viewer {
+	width: calc(100vw - 32px);
+	height: calc(100dvh - 32px);
+	max-width: none;
+	max-height: none;
+	margin: auto;
+	padding: 0;
+	border: 1px solid var(--border);
+	border-radius: 10px;
+	background: var(--bg);
+	color: var(--text);
+	box-shadow: var(--shadow);
+	overflow: hidden;
+}
+
+.mermaid-viewer[open] {
+	display: flex;
+	flex-direction: column;
+}
+
+.mermaid-viewer::backdrop {
+	background: rgba(15, 15, 15, 0.5);
+}
+
+.mermaid-viewer-bar {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 2px;
+	padding: 6px 8px;
+	border-bottom: 1px solid var(--border);
+}
+
+.mermaid-viewer-hint {
+	margin-right: auto;
+	padding-left: 6px;
+	color: var(--muted);
+	font-size: 12px;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.mermaid-viewer-btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 30px;
+	height: 30px;
+	padding: 0 6px;
+	border: 0;
+	border-radius: 6px;
+	background: none;
+	color: var(--muted);
+	font: inherit;
+	font-size: 12px;
+	cursor: pointer;
+}
+
+.mermaid-viewer-btn:hover {
+	background: var(--bg-hover);
+	color: var(--text);
+}
+
+.mermaid-viewer-level {
+	min-width: 52px;
+	font-variant-numeric: tabular-nums;
+}
+
+.mermaid-viewer-stage {
+	position: relative;
+	flex: 1;
+	overflow: hidden;
+	cursor: grab;
+	touch-action: none;
+	outline: none;
+	user-select: none;
+}
+
+.mermaid-viewer-stage.is-dragging {
+	cursor: grabbing;
+}
+
+.mermaid-viewer-img {
+	position: absolute;
+	top: 0;
+	left: 0;
+	max-width: none;
+	transform-origin: 0 0;
+	pointer-events: none;
+}
+
+@media screen {
+	:root[data-scheme="dark"] .mermaid-viewer-img {
+		filter: invert(0.88) hue-rotate(180deg);
+	}
+}

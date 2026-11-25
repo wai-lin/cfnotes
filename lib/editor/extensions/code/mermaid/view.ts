@@ -45,3 +45,16 @@ export function clearMermaid(dom: HTMLElement): void {
 	for (const prop of ["--mermaid-img", "--mermaid-w", "--mermaid-ratio"])
 		dom.style.removeProperty(prop);
 }
+
+/**
+ * Whether a click at `clientY` is on the drawn diagram: anywhere in Preview,
+ * below the source in Split (the picture is the block's `::after`).
+ */
+export function isOnPicture(dom: HTMLElement, clientY: number): boolean {
+	const view = dom.dataset.mermaid;
+	if (dom.dataset.mermaidState !== "ok" || (view !== "preview" && view !== "split")) return false;
+	if (view === "preview") return true;
+	const text = document.createRange();
+	text.selectNodeContents(dom);
+	return clientY > text.getBoundingClientRect().bottom + 8;
+}
