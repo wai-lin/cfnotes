@@ -5,6 +5,8 @@ import {
 	addDays,
 	applyView,
 	cleanView,
+	dayOf,
+	movedTo,
 	showsRowNumbers,
 	daysBetween,
 	groupRows,
@@ -221,17 +223,17 @@ describe("layouts", () => {
 	});
 });
 
-describe("automatic, person and status properties", () => {
+describe("automatic, person and select properties", () => {
 	const created: Column = { id: "ct", name: "Created", type: "created_time" };
 	const author: Column = { id: "cb", name: "Author", type: "created_by" };
 	const who: Column = { id: "p", name: "Who", type: "person" };
 	const status: Column = {
 		id: "st",
 		name: "Stage",
-		type: "status",
+		type: "select",
 		options: [
-			{ id: "draft", name: "Draft", color: "gray", group: "todo" },
-			{ id: "live", name: "Published", color: "green", group: "complete" },
+			{ id: "draft", name: "Draft", color: "gray" },
+			{ id: "live", name: "Published", color: "green" },
 		],
 	};
 	const at = (y: number, m: number, d: number, h = 12) => new Date(y, m - 1, d, h).getTime();
@@ -264,7 +266,7 @@ describe("automatic, person and status properties", () => {
 		expect(matches(author, rows[2]!, filter("cb", "not_empty"))).toBe(false);
 	});
 
-	it("filters a status by option, and groups a board by it", () => {
+	it("filters a select by option, and groups a board by it", () => {
 		const view = { sorts: [], filters: [filter("st", "is", "live")] };
 		expect(ids(applyView(all, rows, view))).toEqual(["a"]);
 		expect(newView([], "board", all).groupBy).toBe("st");
@@ -378,6 +380,26 @@ describe("timeline", () => {
 		expect(newView([], "timeline", cols)).toMatchObject({ dateBy: "s", endBy: "e" });
 		expect(cleanView({ layout: "timeline", dateBy: "s", endBy: "s" }, cols).endBy).toBeUndefined();
 		expect(cleanView({ layout: "calendar", dateBy: "s", endBy: "e" }, cols).endBy).toBeUndefined();
+	});
+
+	it("places, filters and sorts a date & time by its day, keeping its time when moved", () => {
+		const when: Column = { id: "w", name: "When", type: "datetime" };
+		const cols: Column[] = [{ id: "title", name: "Name", type: "title" }, when];
+		const late = { id: "late", title: "late", cells: { w: "2026-11-25T18:00" } };
+		const early = { id: "early", title: "early", cells: { w: "2026-11-25T08:15" } };
+		const on = (op: string, value: string) => ({
+			sorts: [],
+			filters: [{ id: "f", columnId: "w", op, value }],
+		});
+		expect(ids(applyView(cols, [late, early], on("is", "2026-11-25")))).toBe("lateearly");
+		expect(ids(applyView(cols, [late, early], on("after", "2026-11-25")))).toBe("");
+		const sorted = { sorts: [{ columnId: "w", direction: "asc" as const }], filters: [] };
+		expect(ids(applyView(cols, [late, early], sorted))).toBe("earlylate");
+		expect(newView([], "calendar", cols).dateBy).toBe("w");
+		expect(dayOf(when, late)).toBe("2026-11-25");
+		expect(movedTo(when, late, "2026-12-01")).toBe("2026-12-01T18:00");
+		expect(timelineSpan(late, when)).toEqual({ start: "2026-11-25", end: "2026-11-25" });
+		expect(groupRows(when, [late]).map((g) => g.key)).toEqual(["", "2026-11"]);
 	});
 
 	it("shows row numbers as a table view says, or while there are formulas", () => {

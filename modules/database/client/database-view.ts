@@ -15,6 +15,7 @@ import { archivedToast } from "#modules/trash/client/undo.ts";
 import { setIndexTitle } from "#modules/workspace/client/page-directory.ts";
 
 import {
+	COLORS,
 	columnWidth,
 	COLUMN_TYPES,
 	MAX_WIDTH,
@@ -28,7 +29,6 @@ import {
 	type FileRef,
 	type Row,
 	type SelectOption,
-	STATUS_GROUPS,
 } from "../columns.ts";
 import { fnsFor, ROLLUP_FNS, rollupKind } from "../rollup.ts";
 import { canHoldFormula, isScriptError, scriptText } from "../script/script.ts";
@@ -44,6 +44,9 @@ import {
 	type Group,
 	LAYOUT_NAMES,
 	LAYOUTS,
+	dayOf,
+	movedTo,
+	placesBy,
 	prefill,
 	showsRowNumbers,
 	type Layout,
@@ -59,12 +62,13 @@ const TYPE_ICONS: Record<ColumnType, IconName> = {
 	select: "circleChevronDown",
 	multi_select: "list",
 	date: "calendar",
+	datetime: "calendarTime",
+	time: "clockHour4",
 	checkbox: "squareCheck",
 	url: "link",
 	relation: "arrowUpRight",
 	rollup: "mathFunction",
 	script: "code",
-	status: "progress",
 	person: "user",
 	files: "paperclip",
 	email: "mail",
@@ -226,6 +230,28 @@ function formatDate(value: string): string {
 	return Number.isNaN(date.getTime())
 		? value
 		: date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+/** A date & time (`YYYY-MM-DDTHH:MM`, wall clock) as the reader's locale writes it. */
+function formatDateTime(value: string): string {
+	const date = new Date(`${value}:00`);
+	return Number.isNaN(date.getTime())
+		? value
+		: date.toLocaleString(undefined, {
+				year: "numeric",
+				month: "short",
+				day: "numeric",
+				hour: "numeric",
+				minute: "2-digit",
+			});
+}
+
+/** A time of day (`HH:MM`) as the reader's locale writes it. */
+function formatClock(value: string): string {
+	const date = new Date(`2000-01-01T${value}:00`);
+	return Number.isNaN(date.getTime())
+		? value
+		: date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
 interface DatabaseInfo {
@@ -918,6 +944,12 @@ export class DatabaseView extends HTMLElement {
 			case "date":
 				if (typeof value === "string") cell.append(h("span", "db-text", formatDate(value)));
 				break;
+			case "datetime":
+				if (typeof value === "string") cell.append(h("span", "db-text", formatDateTime(value)));
+				break;
+			case "time":
+				if (typeof value === "string") cell.append(h("span", "db-text", formatClock(value)));
+				break;
 			case "checkbox": {
 				const box = h("span", `db-check${value ? " is-on" : ""}`);
 				box.setAttribute("role", "checkbox");
@@ -927,7 +959,6 @@ export class DatabaseView extends HTMLElement {
 				break;
 			}
 			case "select":
-			case "status":
 				if (value) cell.append(pill(value as SelectOption));
 				break;
 			case "multi_select":
@@ -1050,7 +1081,6 @@ export class DatabaseView extends HTMLElement {
 				});
 				return;
 			case "select":
-			case "status":
 			case "multi_select":
 				return this.#selectMenu(row.id, column.id, cell);
 			case "person":
@@ -1085,6 +1115,8 @@ export class DatabaseView extends HTMLElement {
 		const input = h("input", "db-input");
 		input.value = initial;
 		if (column.type === "date") input.type = "date";
+		if (column.type === "datetime") input.type = "datetime-local";
+		if (column.type === "time") input.type = "time";
 		if (column.type === "number" && !formula) input.inputMode = "decimal";
 		if (column.type === "url") input.type = "url";
 		if (column.type === "email") input.type = "email";
@@ -1096,8 +1128,8 @@ export class DatabaseView extends HTMLElement {
 		cell.classList.add("is-editing");
 		this.#editing = true;
 		input.focus();
-		// Date and email inputs have no caret to place.
-		if (input.type !== "date" && input.type !== "email")
+		// Date, time and email inputs have no caret to place.
+		if (!["date", "datetime-local", "time", "email"].includes(input.type))
 			input.setSelectionRange(initial.length, initial.length);
 		const pointing = formulas ? this.#formulaMode(cell, input, row, column) : null;
 
@@ -1609,7 +1641,7 @@ export class DatabaseView extends HTMLElement {
 		button.type = "button";
 		button.addEventListener("click", () => {
 			this.#pop.open(button, (panel) => {
-				const dates = state.columns.filter((c) => c.type === "date");
+				const dates = state.columns.filter(placesBy);
 				panel.append(
 					this.#pop.menu([
 						{ heading: dates.length ? "Show by" : "Add a Date property first" },
@@ -1633,7 +1665,7 @@ export class DatabaseView extends HTMLElement {
 	): HTMLElement {
 		const box = h("div", "db-board-setup");
 		box.append(h("p", "", text));
-		for (const column of state.columns.filter((c) => c.type === "date")) {
+		for (const column of state.columns.filter(placesBy)) {
 			const pick = withIcon(h("button", "db-chip"), TYPE_ICONS.date, `Use ${column.name}`);
 			pick.type = "button";
 			pick.addEventListener("click", () => this.#setView({ ...this.#view, dateBy: column.id }));
@@ -1657,14 +1689,14 @@ export class DatabaseView extends HTMLElement {
 	 */
 	#calendar(state: DatabaseState): HTMLElement {
 		const view = this.#view;
-		const dateCol = state.columns.find((c) => c.id === view.dateBy && c.type === "date");
+		const dateCol = state.columns.find((c) => c.id === view.dateBy && placesBy(c));
 		if (!dateCol) return this.#calendarSetup(state);
 		const rows = applyView(state.columns, state.rows, view, this.#keep, state.titles);
 		const byDay = new Map<string, Row[]>();
 		const undated: Row[] = [];
 		for (const row of rows) {
-			const value = readCell(dateCol, row.cells[dateCol.id]);
-			if (typeof value === "string") {
+			const value = dayOf(dateCol, row);
+			if (value) {
 				const list = byDay.get(value) ?? [];
 				list.push(row);
 				byDay.set(value, list);
@@ -1791,15 +1823,19 @@ export class DatabaseView extends HTMLElement {
 			const rowId = this.#dragRow ?? e.dataTransfer!.getData("text/x-cf-row");
 			const state = this.#state;
 			const row = state?.rows.find((r) => r.id === rowId);
-			if (!state || !row || row.cells[columnId] === key) return;
+			const column = state?.columns.find((c) => c.id === columnId);
+			if (!state || !row || !column) return;
+			// A date & time keeps its time when moved to another day.
+			const value = movedTo(column, row, key);
+			if (row.cells[columnId] === value) return;
 			this.#state = {
 				...state,
 				rows: state.rows.map((r) =>
-					r === row ? { ...row, cells: { ...row.cells, [columnId]: key } } : r,
+					r === row ? { ...row, cells: { ...row.cells, [columnId]: value } } : r,
 				),
 			};
 			this.#render();
-			void this.op({ op: "setCell", rowId, columnId, value: key });
+			void this.op({ op: "setCell", rowId, columnId, value });
 		});
 	}
 
@@ -1824,7 +1860,7 @@ export class DatabaseView extends HTMLElement {
 		button.type = "button";
 		button.addEventListener("click", () => {
 			this.#pop.open(button, (panel) => {
-				const dates = state.columns.filter((c) => c.type === "date");
+				const dates = state.columns.filter(placesBy);
 				const entries: MenuEntry[] = [
 					{ heading: dates.length ? "Starts on" : "Add a Date property first" },
 					...dates.map((c) => ({
@@ -1876,13 +1912,13 @@ export class DatabaseView extends HTMLElement {
 	 */
 	#timeline(state: DatabaseState): HTMLElement {
 		const view = this.#view;
-		const startCol = state.columns.find((c) => c.id === view.dateBy && c.type === "date");
+		const startCol = state.columns.find((c) => c.id === view.dateBy && placesBy(c));
 		if (!startCol)
 			return this.#calendarSetup(
 				state,
 				"A timeline draws rows as bars along the days of their Date properties.",
 			);
-		const endCol = state.columns.find((c) => c.id === view.endBy && c.type === "date");
+		const endCol = state.columns.find((c) => c.id === view.endBy && placesBy(c));
 		const rows = applyView(state.columns, state.rows, view, this.#keep, state.titles);
 		const spans = new Map(rows.map((row) => [row.id, timelineSpan(row, startCol, endCol)]));
 		const dw = DAY_WIDTHS[this.#zoom];
@@ -2131,6 +2167,13 @@ export class DatabaseView extends HTMLElement {
 		const state = this.#state;
 		const row = state?.rows.find((r) => r.id === rowId);
 		if (!state || !row) return;
+		// Days, as a date & time column stores them (keeping each one's time).
+		const stored = (id: string, day: string) => {
+			const column = state.columns.find((c) => c.id === id);
+			return column ? movedTo(column, row, day) : day;
+		};
+		start = stored(startId, start);
+		if (end) end = { id: end.id, value: stored(end.id, end.value) };
 		const cells = { ...row.cells, [startId]: start, ...(end ? { [end.id]: end.value } : {}) };
 		this.#state = { ...state, rows: state.rows.map((r) => (r === row ? { ...row, cells } : r)) };
 		this.#render();
@@ -2530,12 +2573,7 @@ export class DatabaseView extends HTMLElement {
 			chips.append(input);
 
 			const q = query.trim().toLowerCase();
-			const status = column.type === "status";
-			// A status lists its options by group: To-do, In progress, Complete.
-			const ordered = status
-				? STATUS_GROUPS.flatMap((g) => (column.options ?? []).filter((o) => o.group === g.id))
-				: (column.options ?? []);
-			const options = ordered.filter((o) => o.name.toLowerCase().includes(q));
+			const options = (column.options ?? []).filter((o) => o.name.toLowerCase().includes(q));
 			const exact = (column.options ?? []).some((o) => o.name.toLowerCase() === q);
 			type Choice = { option?: SelectOption; create?: string };
 			const choices: Choice[] = options.map((option) => ({ option }));
@@ -2559,13 +2597,7 @@ export class DatabaseView extends HTMLElement {
 					set(multi ? (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]) : [id]);
 				}
 			};
-			let lastGroup: string | undefined;
 			choices.forEach((choice, index) => {
-				const group = status ? (choice.option?.group ?? "todo") : undefined;
-				if (group && group !== lastGroup) {
-					lastGroup = group;
-					list.append(h("div", "db-pop-label", STATUS_GROUPS.find((g) => g.id === group)!.name));
-				}
 				const item = h("button", `db-pop-item${index === active ? " is-active" : ""}`);
 				item.type = "button";
 				if (choice.create) item.append(h("span", "db-pop-create", "Create"));
@@ -2573,6 +2605,23 @@ export class DatabaseView extends HTMLElement {
 				if (choice.option && ids.includes(choice.option.id))
 					item.insertAdjacentHTML("beforeend", icon("check", 14));
 				item.addEventListener("click", () => choose(choice));
+				const option = choice.option;
+				if (option) {
+					// Rename, recolour or delete it, then come back here.
+					const row = h("div", "db-pop-row");
+					const more = h("button", "db-icon-btn db-pop-more");
+					more.type = "button";
+					more.title = "Edit option";
+					more.setAttribute("aria-label", `Edit ${option.name}`);
+					more.innerHTML = icon("dots", 14);
+					more.addEventListener("click", () =>
+						this.#optionsMenu(columnId, cell, option.id, () =>
+							this.#selectMenu(rowId, columnId, cell),
+						),
+					);
+					row.append(item, more);
+					list.append(row);
+				}
 				item.addEventListener("pointermove", () => {
 					if (active === index) return;
 					active = index;
@@ -2580,7 +2629,7 @@ export class DatabaseView extends HTMLElement {
 						.querySelectorAll(".db-pop-item")
 						.forEach((el, i) => el.classList.toggle("is-active", i === index));
 				});
-				list.append(item);
+				if (!option) list.append(item);
 			});
 
 			input.addEventListener("input", () => {
@@ -2605,6 +2654,116 @@ export class DatabaseView extends HTMLElement {
 			panel.append(chips, list);
 			refocus(input);
 		});
+	}
+
+	/**
+	 * A select's options, to rename, recolour or delete. With `optionId` it opens
+	 * on that one; `back` (from a cell's menu) is where its Back button goes.
+	 */
+	#optionsMenu(columnId: string, anchor: HTMLElement, optionId?: string, back?: () => void) {
+		let editing = optionId ?? null;
+		let draft: string | null = null;
+		const column = () =>
+			this.#state?.columns.find(
+				(c) => c.id === columnId && (c.type === "select" || c.type === "multi_select"),
+			);
+		const rename = () => {
+			const option = column()?.options?.find((o) => o.id === editing);
+			const name = draft?.trim();
+			draft = null;
+			if (option && name && name !== option.name)
+				void this.op({ op: "updateOption", columnId, optionId: option.id, name });
+		};
+		const goBack = () => {
+			rename();
+			if (back && editing === optionId) return back();
+			editing = null;
+			this.#pop.refresh();
+		};
+
+		this.#pop.open(
+			anchor,
+			(panel, refocus) => {
+				const col = column();
+				if (!col) return this.#pop.close();
+				const option = col.options?.find((o) => o.id === editing);
+
+				if (!option) {
+					editing = null;
+					const list = h("div", "db-pop-list");
+					list.append(h("div", "db-pop-label", `${col.name} options`));
+					for (const o of col.options ?? []) {
+						const item = h("button", "db-menu-item");
+						item.type = "button";
+						item.append(pill(o));
+						item.insertAdjacentHTML("beforeend", icon("chevronRight", 14));
+						item.addEventListener("click", () => {
+							editing = o.id;
+							this.#pop.refresh();
+						});
+						list.append(item);
+					}
+					if (!col.options?.length)
+						list.append(h("div", "db-pop-empty", "No options yet: type one in a cell to add it."));
+					panel.append(list);
+					return;
+				}
+
+				const head = h("button", "db-menu-item db-pop-back");
+				head.type = "button";
+				withIcon(head, "chevronLeft", back && editing === optionId ? "Back" : "All options");
+				head.addEventListener("click", goBack);
+
+				const name = h("input", "db-pop-input db-pop-name");
+				name.value = draft ?? option.name;
+				name.maxLength = 100;
+				name.setAttribute("aria-label", "Option name");
+				name.addEventListener("input", () => (draft = name.value));
+				name.addEventListener("keydown", (e) => {
+					if (e.key === "Enter") {
+						e.preventDefault();
+						goBack();
+					}
+				});
+				name.addEventListener("blur", rename);
+
+				const colors = h("div", "db-pop-list db-opt-colors");
+				colors.append(h("div", "db-pop-label", "Colour"));
+				for (const color of COLORS) {
+					const item = h("button", "db-menu-item");
+					item.type = "button";
+					const swatch = h("span", "db-opt-swatch");
+					swatch.style.background = `var(--pill-${color})`;
+					item.append(swatch);
+					item.append(h("span", "", color[0]!.toUpperCase() + color.slice(1)));
+					if (color === option.color) item.insertAdjacentHTML("beforeend", icon("check", 14));
+					item.addEventListener("click", () => {
+						if (color !== option.color)
+							void this.op({ op: "updateOption", columnId, optionId: option.id, color });
+					});
+					colors.append(item);
+				}
+
+				const remove = this.#pop.menu([
+					{ separator: true },
+					{
+						label: "Delete option",
+						icon: "trash",
+						danger: true,
+						run: async () => {
+							const yes = await confirmDialog({
+								title: `Delete the “${option.name}” option?`,
+								message: `Rows that have it lose it. Other options in ${col.name} stay.`,
+							});
+							if (yes) void this.op({ op: "deleteOption", columnId, optionId: option.id });
+						},
+					},
+				]);
+				panel.append(head, name, colors, remove);
+				refocus(name);
+			},
+			rename,
+		);
 	}
 
 	#columnMenu(columnId: string, anchor: HTMLElement, selectName = false) {
@@ -2659,6 +2818,18 @@ export class DatabaseView extends HTMLElement {
 						{ separator: true },
 					);
 				} else if (column.type !== "title") {
+					if (column.type === "select" || column.type === "multi_select")
+						entries.push(
+							{
+								label: "Edit options…",
+								icon: "list",
+								run: () => {
+									commitName();
+									this.#optionsMenu(columnId, anchor);
+								},
+							},
+							{ separator: true },
+						);
 					entries.push({ heading: "Type" });
 					for (const type of COLUMN_TYPES) {
 						// Relations, rollups and scripts are made from scratch, not converted to.

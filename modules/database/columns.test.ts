@@ -7,10 +7,12 @@ import {
 	parseColumns,
 	readCell,
 	removeColumn,
+	removeOption,
 	renameColumn,
 	setColumnType,
 	TITLE_COLUMN,
 	type Column,
+	updateOption,
 } from "./columns.ts";
 
 const title: Column = { id: TITLE_COLUMN, name: "Name", type: "title" };
@@ -165,21 +167,64 @@ describe("relations", () => {
 });
 
 describe("newer property types", () => {
-	it("keeps a select's options, in To-do, when it becomes a status", () => {
-		const select = col("select", { options: [{ id: "x", name: "Draft", color: "gray" }] });
-		const [status] = unwrap(setColumnType([select], "select", "status"));
-		expect(status!.options).toEqual([{ id: "x", name: "Draft", color: "gray", group: "todo" }]);
-		const [back] = unwrap(setColumnType([status!], "select", "select"));
-		expect(back!.options).toEqual([{ id: "x", name: "Draft", color: "gray" }]);
-	});
-
-	it("gives an unknown status group To-do when reading", () => {
-		const [, status] = parseColumns(
+	it("reads an old Status property as a Select, keeping its options", () => {
+		const [, select] = parseColumns(
 			JSON.stringify([
-				{ id: "s", name: "S", type: "status", options: [{ id: "o", name: "O", group: "bogus" }] },
+				{
+					id: "s",
+					name: "Stage",
+					type: "status",
+					options: [{ id: "o", name: "Done", color: "green", group: "complete" }],
+				},
 			]),
 		);
-		expect(status!.options![0]!.group).toBe("todo");
+		expect(select).toEqual({
+			id: "s",
+			name: "Stage",
+			type: "select",
+			options: [{ id: "o", name: "Done", color: "green" }],
+		});
+	});
+
+	it("renames, recolours and deletes options, which cells name by id", () => {
+		const options = [
+			{ id: "a", name: "Draft", color: "gray" as const },
+			{ id: "b", name: "Live", color: "green" as const },
+		];
+		const cols = [col("select", { options })];
+		const [renamed] = unwrap(updateOption(cols, "select", "a", { name: " Idea ", color: "blue" }));
+		expect(renamed!.options![0]).toEqual({ id: "a", name: "Idea", color: "blue" });
+		expect(readCell(renamed!, "a")).toMatchObject({ name: "Idea" });
+		expect(updateOption(cols, "select", "a", { name: "live" })).toEqual({
+			ok: false,
+			error: "duplicate_option",
+		});
+		expect(updateOption(cols, "select", "a", { color: "teal" }).ok).toBe(false);
+		expect(updateOption(cols, "select", "zz", { name: "X" }).ok).toBe(false);
+		expect(updateOption([col("text")], "text", "a", { name: "X" }).ok).toBe(false);
+		const [removed] = unwrap(removeOption(cols, "select", "a"));
+		expect(removed!.options!.map((o) => o.id)).toEqual(["b"]);
+		expect(readCell(removed!, "a")).toBeNull();
+	});
+
+	it("keeps dates & times to the minute, and times of day", () => {
+		const when = col("datetime");
+		expect(unwrap(cleanCell(when, "2026-11-25T09:30")).value).toBe("2026-11-25T09:30");
+		expect(unwrap(cleanCell(when, "2026-11-25T09:30:59.123")).value).toBe("2026-11-25T09:30");
+		expect(unwrap(cleanCell(when, "2026-11-25")).value).toBe("2026-11-25T00:00");
+		expect(cleanCell(when, "2026-11-25T24:00").ok).toBe(false);
+		expect(cleanCell(when, "2026-02-30T10:00").ok).toBe(false);
+		// Between date and date & time, a column reads what it can.
+		expect(readCell(when, "2026-11-25")).toBe("2026-11-25T00:00");
+		expect(readCell(col("date"), "2026-11-25T09:30")).toBe("2026-11-25");
+		expect(unwrap(cleanCell(col("date"), "2026-11-25T09:30")).value).toBe("2026-11-25");
+
+		const time = col("time");
+		expect(unwrap(cleanCell(time, "07:05")).value).toBe("07:05");
+		expect(unwrap(cleanCell(time, "07:05:10")).value).toBe("07:05");
+		expect(cleanCell(time, "7:05").ok).toBe(false);
+		expect(cleanCell(time, "23:60").ok).toBe(false);
+		expect(readCell(time, "nope")).toBeNull();
 	});
 
 	it("cleans emails, phones and people", () => {

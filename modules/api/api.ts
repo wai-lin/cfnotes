@@ -101,7 +101,6 @@ function propertyValue(column: Column, row: Row, state: DatabaseState, refs: Ref
 	const value = readCell(column, raw);
 	switch (column.type) {
 		case "select":
-		case "status":
 			return (value as SelectOption | null)?.name ?? null;
 		case "multi_select":
 			return (value as SelectOption[]).map((o) => o.name);
@@ -133,18 +132,14 @@ const propertiesOf = (state: DatabaseState, row: Row, refs: Refs) =>
 			.map((c) => [c.name, propertyValue(c, row, state, refs)]),
 	);
 
-/** A database's properties: name, type, and the choices of a select or status. */
+/** A database's properties: name, type, and the choices of a select. */
 const schemaOf = (state: DatabaseState) =>
 	state.columns.map((c) => ({
 		name: c.name,
 		type: c.type,
 		...(c.options
 			? {
-					options: c.options.map((o) => ({
-						name: o.name,
-						color: o.color,
-						...(o.group ? { group: o.group } : {}),
-					})),
+					options: c.options.map((o) => ({ name: o.name, color: o.color })),
 				}
 			: {}),
 	}));
@@ -165,7 +160,6 @@ function cellInput(column: Column, value: unknown): unknown {
 	if (value === null || value === undefined) return null;
 	switch (column.type) {
 		case "select":
-		case "status":
 			return typeof value === "string" ? { name: value } : value;
 		case "multi_select":
 			return (Array.isArray(value) ? value : [value]).map((v) =>
@@ -201,7 +195,6 @@ function filterFor(column: Column, value: string): Filter | null {
 				op: /^(true|1|yes)$/i.test(value) ? "checked" : "unchecked",
 			};
 		case "select":
-		case "status":
 			return { id, columnId: column.id, op: "is", value: option(value) };
 		case "multi_select":
 			return { id, columnId: column.id, op: "contains", value: option(value) };

@@ -107,31 +107,44 @@ describe("database", () => {
 		expect(await status({ op: "setCell", databaseId, rowId, columnId, value: stranger })).toBe(400);
 	});
 
-	it("starts a Status property with a group for each stage, and boards group by it", async () => {
-		const { app, op, create } = await setup();
+	it("renames, recolours and deletes a select's options", async () => {
+		const { app, op, status, create } = await setup();
 		await using _ = app;
 		const db = await create();
 		const databaseId = db.id;
-		const { state, columnId } = await op({ op: "addColumn", databaseId, type: "status" });
-		const column = state.columns.find((c) => c.id === columnId)!;
-		expect(column.options!.map((o) => [o.name, o.group])).toEqual([
-			["Not started", "todo"],
-			["In progress", "in_progress"],
-			["Done", "complete"],
-		]);
-		const done = column.options![2]!.id;
+		const { columnId } = await op({ op: "addColumn", databaseId, type: "select" });
 		const rowId = db.rows[0]!.id;
-		const moved = await op({ op: "moveRow", databaseId, rowId, columnId, value: done });
-		expect(moved.state.rows[0]!.cells[columnId!]).toBe(done);
-		const named = await op({
+		const one = await op({ op: "setCell", databaseId, rowId, columnId, value: { name: "Draft" } });
+		await op({
 			op: "setCell",
 			databaseId,
-			rowId,
+			rowId: db.rows[1]!.id,
 			columnId,
-			value: { name: "Review" },
+			value: { name: "Live" },
 		});
-		const review = named.state.columns.find((c) => c.id === columnId)!.options!.at(-1)!;
-		expect([review.name, review.group]).toEqual(["Review", "todo"]);
+		const optionId = one.state.rows[0]!.cells[columnId!] as string;
+
+		const renamed = await op({
+			op: "updateOption",
+			databaseId,
+			columnId,
+			optionId,
+			name: "Idea",
+			color: "purple",
+		});
+		const column = () => renamed.state.columns.find((c) => c.id === columnId)!;
+		expect(column().options!.find((o) => o.id === optionId)).toEqual({
+			id: optionId,
+			name: "Idea",
+			color: "purple",
+		});
+		const taken = { op: "updateOption", databaseId, columnId, optionId, name: "live" };
+		expect(await status(taken)).toBe(400);
+
+		const removed = await op({ op: "deleteOption", databaseId, columnId, optionId });
+		const after = removed.state.columns.find((c) => c.id === columnId)!;
+		expect(after.options!.map((o) => o.name)).toEqual(["Live"]);
+		expect(await status({ op: "deleteOption", databaseId, columnId, optionId })).toBe(400);
 	});
 
 	it("keeps only our own uploads in a Files & media property", async () => {

@@ -151,7 +151,6 @@ export function scriptValue(column: Column, row: Row, titles: Record<string, str
 	const value = readCell(column, raw);
 	switch (column.type) {
 		case "select":
-		case "status":
 			return (value as SelectOption | null)?.name ?? null;
 		case "files":
 			return (value as FileRef[]).map((f) => f.name);

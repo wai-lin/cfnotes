@@ -27,7 +27,9 @@ import {
 	parseCells,
 	parseColumns,
 	removeColumn,
+	removeOption,
 	renameColumn,
+	updateOption,
 	resizeColumn,
 	setColumnType,
 	TITLE_COLUMN,
@@ -87,6 +89,8 @@ export const Op = Schema.Struct({
 		"renameView",
 		"deleteView",
 		"addOption",
+		"updateOption",
+		"deleteOption",
 		"addColumn",
 		"deleteColumn",
 		"setRollup",
@@ -99,9 +103,11 @@ export const Op = Schema.Struct({
 	databaseId: Schema.optional(Schema.String),
 	beforeId: field,
 	cells: field,
+	color: field,
 	columnId: field,
 	layout: field,
 	name: field,
+	optionId: field,
 	options: field,
 	relation: field,
 	rollup: field,
@@ -656,9 +662,7 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 		case "addOption": {
 			// A new group on a board: an option of its select column.
 			const column = state.columns.find(
-				(c) =>
-					c.id === body.columnId &&
-					(c.type === "select" || c.type === "multi_select" || c.type === "status"),
+				(c) => c.id === body.columnId && (c.type === "select" || c.type === "multi_select"),
 			);
 			const name = cleanName(body.name);
 			if (!column || !name) return yield* bad("invalid_option");
@@ -752,6 +756,22 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 
 		case "resizeColumn": {
 			const result = resizeColumn(state.columns, body.columnId, body.width ?? null);
+			if (!result.ok) return yield* bad(result.error);
+			yield* saveColumns(result.value);
+			return yield* reply();
+		}
+
+		case "updateOption":
+		case "deleteOption": {
+			// Cells name options by id, so renaming or recolouring needs nothing else; a
+			// deleted option's cells read as empty (see `readCell`).
+			const result =
+				body.op === "updateOption"
+					? updateOption(state.columns, body.columnId, body.optionId, {
+							name: body.name,
+							color: body.color,
+						})
+					: removeOption(state.columns, body.columnId, body.optionId);
 			if (!result.ok) return yield* bad(result.error);
 			yield* saveColumns(result.value);
 			return yield* reply();

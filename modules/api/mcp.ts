@@ -20,7 +20,7 @@ const INSTRUCTIONS = `cfnotes is a private notes workspace, like Notion: pages i
 - Find things with search or list_pages; read one with read_page (Markdown).
 - For a database, get_database shows its properties and their choices; query_database lists rows, filtered with "where" ({"Status": "Published"}) and sorted with "sort" (["-Date"]).
 - Write content as Markdown (GitHub's). Link to another page with [Title](/p/<id>). Toggles are <details><summary>…</summary>…</details>; equations $…$ or $$…$$.
-- Properties are set by name: a select or status by its option name (a new name adds an option), multi-select as a list of names, dates as YYYY-MM-DD, people as emails, relations as row ids.
+- Properties are set by name: a select by its option name (a new name adds an option), multi-select as a list of names, dates as YYYY-MM-DD, dates & times as YYYY-MM-DDTHH:MM (no time zone), times as HH:MM, people as emails, relations as row ids.
 - update_page with "markdown" replaces the whole content; "append_markdown" adds to the end. Someone may have the page open: prefer appending.`;
 
 // ---------------------------------------------------------------- tools

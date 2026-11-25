@@ -31,7 +31,7 @@ interface FnInfo {
 	types?: ColumnType[];
 }
 
-const DATES: ColumnType[] = ["date", "created_time", "last_edited_time"];
+const DATES: ColumnType[] = ["date", "datetime", "created_time", "last_edited_time"];
 
 export const ROLLUP_FNS = {
 	show_original: { label: "Show original", kind: "list" },
@@ -95,7 +95,11 @@ function valuesOf(
 		case "email":
 		case "phone":
 		case "date":
+		case "time":
 			return typeof value === "string" && value ? [value] : [];
+		// By its day, like the other dates.
+		case "datetime":
+			return typeof value === "string" ? [value.slice(0, 10)] : [];
 		case "created_time":
 		case "last_edited_time":
 			return typeof value === "number" ? [dayKey(new Date(value))] : [];
@@ -110,7 +114,6 @@ function valuesOf(
 		case "checkbox":
 			return [value === true];
 		case "select":
-		case "status":
 			return value ? [(value as SelectOption).name] : [];
 		case "multi_select":
 			return (value as SelectOption[]).map((o) => o.name);

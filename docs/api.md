@@ -68,9 +68,9 @@ GET /api/v1/databases/:id/rows?where.Status=Published&sort=-Date&content=html&li
 
 Properties come back by name:
 
-- Select and status: the option's name.
+- Select: the option's name.
 - Multi-select: a list of names.
-- Dates: `YYYY-MM-DD`.
+- Dates: `YYYY-MM-DD`. Dates & times: `YYYY-MM-DDTHH:MM`, wall-clock time with no time zone. Times: `HH:MM`.
 - People: emails.
 - Relations: `[{id, title}]`.
 - Files: `[{name, key, url}]`.
@@ -96,7 +96,7 @@ Properties come back by name:
 
 `PATCH /api/v1/pages/:id` takes `title`, `icon`, `properties`, and one of `markdown` (replaces the content), `doc`, or `append` (Markdown added at the end).
 
-- Properties are set by name, through the same checks as the table. A select or status takes an option's name, and a new name adds the option. Relations take row ids, and people take emails of people on the allowlist.
+- Properties are set by name, through the same checks as the table. A select takes an option's name, and a new name adds the option. Relations take row ids, and people take emails of people on the allowlist.
 - A value that doesn't fit answers `400`, naming the property.
 
 Markdown that's understood:

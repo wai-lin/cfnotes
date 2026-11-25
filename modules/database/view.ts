@@ -7,6 +7,7 @@
  */
 import {
 	cleanName,
+	isDateType,
 	dayKey,
 	type FileRef,
 	readCell,
@@ -128,7 +129,6 @@ export const FILTER_OPS: Record<ColumnType, FilterOp[]> = {
 	url: TEXT_OPS,
 	email: TEXT_OPS,
 	phone: TEXT_OPS,
-	status: SELECT_OPS,
 	person: PERSON_OPS,
 	// Matched against the files' names.
 	files: TEXT_OPS,
@@ -148,6 +148,9 @@ export const FILTER_OPS: Record<ColumnType, FilterOp[]> = {
 	select: SELECT_OPS,
 	multi_select: [op("contains", "contains"), op("not_contains", "does not contain"), ...EMPTY],
 	date: DATE_OPS,
+	// A date & time filters by its day.
+	datetime: DATE_OPS,
+	time: DATE_OPS,
 	checkbox: [op("checked", "is checked", false), op("unchecked", "is not checked", false)],
 	// Matched against the titles of the linked rows.
 	relation: [op("contains", "contains"), op("not_contains", "does not contain"), ...EMPTY],
@@ -163,6 +166,7 @@ export const FILTER_OPS: Record<ColumnType, FilterOp[]> = {
 export function filterType(column: Column): ColumnType {
 	if (column.type === "script") return column.script?.kind ?? "text";
 	if (column.type === "created_time" || column.type === "last_edited_time") return "date";
+	if (column.type === "datetime") return "date";
 	if (column.type === "created_by" || column.type === "last_edited_by") return "person";
 	if (column.type !== "rollup") return column.type;
 	const kind = rollupKind(column);
@@ -202,18 +206,17 @@ function asPlain(column: Column, row: Row): { column: Column; row: Row } {
 }
 
 /** Whether a board can group by `column`: by its options. */
-export const canGroup = (column: Column | undefined) =>
-	column?.type === "select" || column?.type === "status";
+export const canGroup = (column: Column | undefined) => column?.type === "select";
 
 const LIST_GROUP_TYPES = new Set<ColumnType>([
 	"select",
-	"status",
 	"multi_select",
 	"checkbox",
 	"person",
 	"created_by",
 	"last_edited_by",
 	"date",
+	"datetime",
 	"created_time",
 	"last_edited_time",
 ]);
@@ -235,7 +238,7 @@ export interface Group {
 	/** Stable across loads: an option id, an email, `YYYY-MM`, `true`/`false`, or "" for no value. */
 	key: string;
 	label: string;
-	/** Select, multi-select and status groups: their option, drawn as a pill. */
+	/** Select and multi-select groups: their option, drawn as a pill. */
 	option?: SelectOption;
 	/** What a row added to this group gets in the grouped column; unset for none. */
 	value?: unknown;
@@ -245,8 +248,6 @@ export interface Group {
 const monthLabel = (key: string) =>
 	new Date(`${key}-01T00:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" });
 
-const isTimeType = (type: ColumnType) =>
-	type === "date" || type === "created_time" || type === "last_edited_time";
 const isPersonType = (type: ColumnType) =>
 	type === "person" || type === "created_by" || type === "last_edited_by";
 
@@ -265,16 +266,10 @@ export function groupRows(column: Column, rows: Row[]): Group[] {
 		group.rows.push(row);
 	};
 	// Automatic properties can't be set, so their groups give a new row nothing.
-	const editable = column.type === "person" || column.type === "date";
+	const editable = column.type === "person" || column.type === "date" || column.type === "datetime";
 
-	if (column.type === "select" || column.type === "status" || column.type === "multi_select") {
-		const options =
-			column.type === "status"
-				? (["todo", "in_progress", "complete"] as const).flatMap((g) =>
-						(column.options ?? []).filter((o) => o.group === g),
-					)
-				: (column.options ?? []);
-		for (const option of options) {
+	if (column.type === "select" || column.type === "multi_select") {
+		for (const option of column.options ?? []) {
 			const value = column.type === "multi_select" ? [option.id] : option.id;
 			groups.set(option.id, { key: option.id, label: option.name, option, value, rows: [] });
 		}
@@ -286,7 +281,7 @@ export function groupRows(column: Column, rows: Row[]): Group[] {
 
 	for (const row of rows) {
 		const value = readCell(column, row.cells[column.id]);
-		if (column.type === "select" || column.type === "status") {
+		if (column.type === "select") {
 			const option = value as SelectOption | null;
 			(option ? groups.get(option.id)! : none).rows.push(row);
 		} else if (column.type === "multi_select") {
@@ -300,7 +295,7 @@ export function groupRows(column: Column, rows: Row[]): Group[] {
 			if (emails.length === 0) none.rows.push(row);
 			for (const email of emails)
 				add(email, () => ({ label: email, ...(editable ? { value: [email] } : {}) }), row);
-		} else if (isTimeType(column.type)) {
+		} else if (isDateType(column.type)) {
 			const day =
 				typeof value === "number"
 					? dayKey(new Date(value))
@@ -319,7 +314,7 @@ export function groupRows(column: Column, rows: Row[]): Group[] {
 		}
 	}
 	const found = [...groups.values()];
-	if (isTimeType(column.type)) found.sort((a, b) => (a.key < b.key ? -1 : 1));
+	if (isDateType(column.type)) found.sort((a, b) => (a.key < b.key ? -1 : 1));
 	else if (isPersonType(column.type)) found.sort((a, b) => collator.compare(a.label, b.label));
 	return column.type === "checkbox" ? found : [none, ...found];
 }
@@ -336,10 +331,30 @@ export interface Span {
  * bar is one day long. `null` when the row has no start date.
  */
 export function timelineSpan(row: Row, start: Column, end?: Column): Span | null {
-	const from = readCell(start, row.cells[start.id]);
-	if (typeof from !== "string") return null;
-	const to = end ? readCell(end, row.cells[end.id]) : null;
-	return { start: from, end: typeof to === "string" && to >= from ? to : from };
+	const from = dayOf(start, row);
+	if (!from) return null;
+	const to = end ? dayOf(end, row) : null;
+	return { start: from, end: to && to >= from ? to : from };
+}
+
+/** Whether a calendar or timeline can place rows by `column`: a date, or a date & time. */
+export const placesBy = (column: Column | undefined): column is Column =>
+	column?.type === "date" || column?.type === "datetime";
+
+/** The day (`YYYY-MM-DD`) a date or date & time cell is on, or null. */
+export function dayOf(column: Column, row: Row): string | null {
+	const value = readCell(column, row.cells[column.id]);
+	return typeof value === "string" ? value.slice(0, 10) : null;
+}
+
+/**
+ * What a date or date & time cell becomes when its row is moved to `day`: a
+ * date & time keeps its time (midnight if it had none).
+ */
+export function movedTo(column: Column, row: Row, day: string): string {
+	if (column.type !== "datetime") return day;
+	const value = readCell(column, row.cells[column.id]);
+	return `${day}T${typeof value === "string" ? value.slice(11, 16) : "00:00"}`;
 }
 
 /** `YYYY-MM-DD` moved by `days` (calendar days, so daylight saving doesn't shift it). */
@@ -373,7 +388,7 @@ export function newView(views: View[], layout: Layout, columns: Column[]): View 
 	const view: View = { id: shortId(), name, layout, sorts: [], filters: [] };
 	const select = columns.find((c) => canGroup(c));
 	if (layout === "board" && select) view.groupBy = select.id;
-	const dates = columns.filter((c) => c.type === "date");
+	const dates = columns.filter(placesBy);
 	if ((layout === "calendar" || layout === "timeline") && dates[0]) view.dateBy = dates[0].id;
 	if (layout === "timeline" && dates[1]) view.endBy = dates[1].id;
 	return view;
@@ -423,8 +438,9 @@ function cleanValue(column: Column, value: unknown): string | number | undefined
 		}
 		case "date":
 			return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
+		case "time":
+			return typeof value === "string" && /^\d{2}:\d{2}$/.test(value) ? value : undefined;
 		case "select":
-		case "status":
 		case "multi_select":
 			return typeof value === "string" && column.options?.some((o) => o.id === value)
 				? value
@@ -470,7 +486,7 @@ export function cleanView(raw: unknown, columns: Column[]): View {
 		}
 	}
 	const isDate = (key: unknown): key is string =>
-		typeof key === "string" && byId.get(key)?.type === "date";
+		typeof key === "string" && placesBy(byId.get(key));
 	if ((view.layout === "calendar" || view.layout === "timeline") && isDate(dateBy))
 		view.dateBy = dateBy;
 	if (view.layout === "timeline" && view.dateBy && isDate(endBy) && endBy !== view.dateBy)
@@ -581,8 +597,7 @@ export function matches(column: Column, row: Row, filter: Filter, titles: Titles
 			const has = emails.includes(String(v ?? ""));
 			return filter.op === "contains" ? has : !has;
 		}
-		case "select":
-		case "status": {
+		case "select": {
 			const option = readCell(column, row.cells[column.id]) as SelectOption | null;
 			if (filter.op === "empty") return option === null;
 			if (filter.op === "not_empty") return option !== null;
@@ -595,8 +610,12 @@ export function matches(column: Column, row: Row, filter: Filter, titles: Titles
 			const has = options.some((o) => o.id === v);
 			return filter.op === "contains" ? has : !has;
 		}
-		case "date": {
-			const d = readCell(column, row.cells[column.id]) as string | null;
+		case "date":
+		case "datetime":
+		case "time": {
+			const read = readCell(column, row.cells[column.id]) as string | null;
+			// A date & time matches by its day.
+			const d = read && column.type === "datetime" ? read.slice(0, 10) : read;
 			if (filter.op === "empty") return d === null;
 			if (filter.op === "not_empty") return d !== null;
 			if (d === null || typeof v !== "string") return false;
@@ -652,13 +671,14 @@ function sortKey(column: Column, row: Row, titles: Titles): string | number | nu
 		case "number":
 			return readCell(column, row.cells[column.id]) as number | null;
 		case "date":
+		case "datetime":
+		case "time":
 			return readCell(column, row.cells[column.id]) as string | null;
 		case "checkbox":
 			return readCell(column, row.cells[column.id]) === true ? 1 : 0;
 		case "relation":
 			return related(column, row, titles)[0] ?? null;
 		case "select":
-		case "status":
 		case "multi_select": {
 			// By the options' own order, like Notion.
 			const value = readCell(column, row.cells[column.id]);

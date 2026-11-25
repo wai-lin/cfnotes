@@ -14,7 +14,7 @@ async function blog(app: ReturnType<typeof cfnotes>) {
 	// The starter rows aren't posts.
 	for (const row of state.rows as Json[]) await op({ op: "deleteRow", databaseId, rowId: row.id });
 	for (const [type, name] of [
-		["status", "Status"],
+		["select", "Status"],
 		["date", "Date"],
 		["checkbox", "Featured"],
 	])

@@ -21,8 +21,9 @@ export const COLUMN_TYPES = [
 	"number",
 	"select",
 	"multi_select",
-	"status",
 	"date",
+	"datetime",
+	"time",
 	"person",
 	"files",
 	"checkbox",
@@ -45,8 +46,9 @@ export const TYPE_LABELS: Record<ColumnType, string> = {
 	number: "Number",
 	select: "Select",
 	multi_select: "Multi-select",
-	status: "Status",
 	date: "Date",
+	datetime: "Date & time",
+	time: "Time",
 	person: "Person",
 	files: "Files & media",
 	checkbox: "Checkbox",
@@ -73,17 +75,6 @@ export const AUTO_TYPES = new Set<ColumnType>([
 /** Properties whose values are worked out, never stored in a row's cells. */
 export const isComputed = (type: ColumnType) =>
 	type === "relation" || type === "rollup" || type === "script" || AUTO_TYPES.has(type);
-
-/** A status option's group, which says how far along a row is. */
-export const STATUS_GROUPS = [
-	{ id: "todo", name: "To-do" },
-	{ id: "in_progress", name: "In progress" },
-	{ id: "complete", name: "Complete" },
-] as const;
-export type StatusGroup = (typeof STATUS_GROUPS)[number]["id"];
-
-const isStatusGroup = (value: unknown): value is StatusGroup =>
-	STATUS_GROUPS.some((g) => g.id === value);
 
 export const COLORS = [
 	"gray",
@@ -115,8 +106,6 @@ export interface SelectOption {
 	id: string;
 	name: string;
 	color: Color;
-	/** Status only. */
-	group?: StatusGroup;
 }
 
 /** A file in a Files & media cell: its key in Blob (see `modules/files`) and its name. */
@@ -136,7 +125,7 @@ export interface Column {
 	id: string;
 	name: string;
 	type: ColumnType;
-	/** Select, multi-select and status only. */
+	/** Select and multi-select only. */
 	options?: SelectOption[];
 	/** Relation only. */
 	relation?: Relation;
@@ -231,15 +220,11 @@ export interface DatabaseState {
 
 export const shortId = () => crypto.randomUUID().replaceAll("-", "").slice(0, 10);
 
-const hasOptions = (type: ColumnType) =>
-	type === "select" || type === "multi_select" || type === "status";
+export const hasOptions = (type: ColumnType) => type === "select" || type === "multi_select";
 
-/** A new Status property's options, one per group, like Notion's. */
-export const defaultStatusOptions = (): SelectOption[] => [
-	{ id: shortId(), name: "Not started", color: "gray", group: "todo" },
-	{ id: shortId(), name: "In progress", color: "blue", group: "in_progress" },
-	{ id: shortId(), name: "Done", color: "green", group: "complete" },
-];
+/** Date, date & time and the automatic times: what calendars, timelines and date filters use. */
+export const isDateType = (type: ColumnType) =>
+	type === "date" || type === "datetime" || type === "created_time" || type === "last_edited_time";
 
 export function isColumnType(value: unknown): value is Exclude<ColumnType, "title"> {
 	return typeof value === "string" && (COLUMN_TYPES as readonly string[]).includes(value);
@@ -277,13 +262,15 @@ export function parseColumns(json: string | null | undefined): Column[] {
 		>;
 		if (typeof id !== "string" || !id || seen.has(id)) continue;
 		const isTitle = id === TITLE_COLUMN;
-		if (!isTitle && !isColumnType(type)) continue;
+		// Status properties were dropped for Select; their options carry over.
+		const kind = type === "status" ? "select" : type;
+		if (!isTitle && !isColumnType(kind)) continue;
 		const column: Column = {
 			id,
 			name: cleanName(name) ?? (isTitle ? "Name" : "Column"),
-			type: isTitle ? "title" : (type as ColumnType),
+			type: isTitle ? "title" : (kind as ColumnType),
 		};
-		if (hasOptions(column.type)) column.options = parseOptions(options, column.type === "status");
+		if (hasOptions(column.type)) column.options = parseOptions(options);
 		if (typeof width === "number" && width >= MIN_WIDTH && width <= MAX_WIDTH) {
 			column.width = Math.round(width);
 		}
@@ -320,21 +307,18 @@ function parseRelation(value: unknown): Relation | null {
 	return relation;
 }
 
-function parseOptions(value: unknown, status = false): SelectOption[] {
+export const isColor = (value: unknown): value is Color =>
+	(COLORS as readonly unknown[]).includes(value);
+
+function parseOptions(value: unknown): SelectOption[] {
 	if (!Array.isArray(value)) return [];
 	const options: SelectOption[] = [];
 	for (const item of value) {
 		if (!item || typeof item !== "object") continue;
-		const { id, name, color, group } = item as Record<string, unknown>;
+		const { id, name, color } = item as Record<string, unknown>;
 		const clean = cleanName(name);
-		if (typeof id !== "string" || !clean) continue;
-		const option: SelectOption = {
-			id,
-			name: clean,
-			color: (COLORS as readonly unknown[]).includes(color) ? (color as Color) : "gray",
-		};
-		if (status) option.group = isStatusGroup(group) ? group : "todo";
-		options.push(option);
+		if (typeof id !== "string" || !clean || options.some((o) => o.id === id)) continue;
+		options.push({ id, name: clean, color: isColor(color) ? color : "gray" });
 	}
 	return options;
 }
@@ -377,7 +361,7 @@ export function addColumn(
 		name: freeName(columns, cleanName(name) ?? TYPE_LABELS[type]),
 		type,
 	};
-	if (hasOptions(type)) column.options = type === "status" ? defaultStatusOptions() : [];
+	if (hasOptions(type)) column.options = [];
 	if (relation) column.relation = relation;
 	if (rollup) column.rollup = rollup;
 	if (script) column.script = script;
@@ -413,16 +397,7 @@ export function setColumnType(columns: Column[], id: unknown, type: unknown): Re
 		// So is a script.
 		if (c.type === "script" || type === "script") return "script_type";
 		const next: Column = { id: c.id, name: c.name, type };
-		if (type === "status") {
-			// Keeps a select's options, each starting in To-do; a new status gets the usual three.
-			const kept = (c.options ?? []).map((o) => ({ ...o, group: o.group ?? ("todo" as const) }));
-			next.options = kept.length > 0 ? kept : defaultStatusOptions();
-		} else if (hasOptions(type)) {
-			next.options = (c.options ?? []).map((o) => {
-				const { group: _, ...option } = o;
-				return option;
-			});
-		}
+		if (hasOptions(type)) next.options = c.options ?? [];
 		return next;
 	});
 }
@@ -457,6 +432,46 @@ export function moveColumn(columns: Column[], id: unknown, beforeId: unknown): R
 	return { ok: true, value: rest.toSpliced(index, 0, column) };
 }
 
+/**
+ * Changes one option of a select or multi-select: its name (not one another
+ * option has) or colour. Cells name options by id, so they follow.
+ */
+export function updateOption(
+	columns: Column[],
+	id: unknown,
+	optionId: unknown,
+	change: { name?: unknown; color?: unknown },
+): Result<Column[]> {
+	return withColumn(columns, id, (c) => {
+		const options = c.options ?? [];
+		const index = options.findIndex((o) => o.id === optionId);
+		if (!hasOptions(c.type) || index < 0) return "invalid_option";
+		let option = options[index]!;
+		if (change.name !== undefined) {
+			const name = cleanName(change.name);
+			if (!name) return "invalid_name";
+			const lower = name.toLowerCase();
+			if (options.some((o) => o.id !== optionId && o.name.toLowerCase() === lower))
+				return "duplicate_option";
+			option = { ...option, name };
+		}
+		if (change.color !== undefined) {
+			if (!isColor(change.color)) return "invalid_color";
+			option = { ...option, color: change.color };
+		}
+		return { ...c, options: options.with(index, option) };
+	});
+}
+
+/** Removes an option; cells that had it read as without it (see `readCell`). */
+export function removeOption(columns: Column[], id: unknown, optionId: unknown): Result<Column[]> {
+	return withColumn(columns, id, (c) => {
+		const options = c.options ?? [];
+		if (!hasOptions(c.type) || !options.some((o) => o.id === optionId)) return "invalid_option";
+		return { ...c, options: options.filter((o) => o.id !== optionId) };
+	});
+}
+
 /** A local date as `YYYY-MM-DD`. */
 export function dayKey(date: Date): string {
 	const pad = (n: number) => String(n).padStart(2, "0");
@@ -464,11 +479,39 @@ export function dayKey(date: Date): string {
 }
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** A wall-clock date and time, to the minute, with no time zone: `YYYY-MM-DDTHH:MM`. */
+const DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+/** A time of day: `HH:MM`. */
+const TIME = /^\d{2}:\d{2}$/;
 
 function validDate(value: string): boolean {
 	if (!DATE.test(value)) return false;
 	const date = new Date(`${value}T00:00:00Z`);
 	return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);
+}
+
+function validTime(value: string): boolean {
+	if (!TIME.test(value)) return false;
+	const [h, m] = value.split(":").map(Number);
+	return h! < 24 && m! < 60;
+}
+
+/**
+ * A date-ish value as `column` stores it, from what a browser or the API
+ * sends: seconds are dropped, and a date column takes the day of a date & time
+ * (or a date & time column a bare day, at midnight).
+ */
+function cleanWhen(type: "date" | "datetime" | "time", raw: string): string | null {
+	const value = raw.trim();
+	if (type === "time") {
+		const time = value.match(/^(\d{2}:\d{2})(:\d{2}(\.\d+)?)?$/)?.[1];
+		return time && validTime(time) ? time : null;
+	}
+	const match = value.match(/^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?)?$/);
+	if (!match || !validDate(match[1]!)) return null;
+	if (type === "date") return match[1]!;
+	const time = match[2] ?? "00:00";
+	return validTime(time) ? `${match[1]}T${time}` : null;
 }
 
 /**
@@ -546,9 +589,12 @@ export function cleanCell(
 		case "checkbox":
 			return typeof raw === "boolean" ? ok(raw || undefined) : fail("invalid_value");
 		case "date":
-			return typeof raw === "string" && validDate(raw) ? ok(raw) : fail("invalid_value");
+		case "datetime":
+		case "time": {
+			const value = typeof raw === "string" ? cleanWhen(column.type, raw) : null;
+			return value ? ok(value) : fail("invalid_value");
+		}
 		case "select":
-		case "status":
 		case "multi_select": {
 			const options = [...(column.options ?? [])];
 			const pick = (item: unknown): string | null => {
@@ -564,7 +610,6 @@ export function cleanCell(
 					name,
 					color: NEW_OPTION_COLORS[options.length % NEW_OPTION_COLORS.length]!,
 				};
-				if (column.type === "status") option.group = "todo";
 				options.push(option);
 				return option.id;
 			};
@@ -636,10 +681,22 @@ export function readCell(column: Column, raw: unknown): unknown {
 		}
 		case "checkbox":
 			return raw === true;
+		// A column that changed between date and date & time reads what it can.
 		case "date":
-			return typeof raw === "string" && DATE.test(raw) ? raw : null;
-		case "select":
-		case "status": {
+			return typeof raw === "string" && (DATE.test(raw) || DATETIME.test(raw))
+				? raw.slice(0, 10)
+				: null;
+		case "datetime":
+			return typeof raw === "string"
+				? DATETIME.test(raw)
+					? raw
+					: DATE.test(raw)
+						? `${raw}T00:00`
+						: null
+				: null;
+		case "time":
+			return typeof raw === "string" && TIME.test(raw) ? raw : null;
+		case "select": {
 			const id = Array.isArray(raw) ? raw[0] : raw;
 			return column.options?.find((o) => o.id === id) ?? null;
 		}

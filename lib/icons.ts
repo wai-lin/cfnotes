@@ -9,6 +9,7 @@ import arrowUp from "@tabler/icons/outline/arrow-up.svg?raw";
 import arrowsSort from "@tabler/icons/outline/arrows-sort.svg?raw";
 import bold from "@tabler/icons/outline/bold.svg?raw";
 import bookmark from "@tabler/icons/outline/bookmark.svg?raw";
+import calendarTime from "@tabler/icons/outline/calendar-time.svg?raw";
 import calendar from "@tabler/icons/outline/calendar.svg?raw";
 import check from "@tabler/icons/outline/check.svg?raw";
 import chevronDown from "@tabler/icons/outline/chevron-down.svg?raw";
@@ -18,6 +19,7 @@ import chevronsLeft from "@tabler/icons/outline/chevrons-left.svg?raw";
 import circleCheck from "@tabler/icons/outline/circle-check.svg?raw";
 import circleChevronDown from "@tabler/icons/outline/circle-chevron-down.svg?raw";
 import clockEdit from "@tabler/icons/outline/clock-edit.svg?raw";
+import clockHour4 from "@tabler/icons/outline/clock-hour-4.svg?raw";
 import clock from "@tabler/icons/outline/clock.svg?raw";
 import code from "@tabler/icons/outline/code.svg?raw";
 import colorSwatch from "@tabler/icons/outline/color-swatch.svg?raw";
@@ -55,7 +57,6 @@ import phone from "@tabler/icons/outline/phone.svg?raw";
 import photo from "@tabler/icons/outline/photo.svg?raw";
 import plus from "@tabler/icons/outline/plus.svg?raw";
 import printer from "@tabler/icons/outline/printer.svg?raw";
-import progress from "@tabler/icons/outline/progress.svg?raw";
 import search from "@tabler/icons/outline/search.svg?raw";
 import send from "@tabler/icons/outline/send.svg?raw";
 import squareCheck from "@tabler/icons/outline/square-check.svg?raw";
@@ -135,7 +136,8 @@ const SOURCES = {
 	mail,
 	phone,
 	user,
-	progress,
+	calendarTime,
+	clockHour4,
 	clock,
 	clockEdit,
 	userEdit,
