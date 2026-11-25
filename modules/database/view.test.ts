@@ -5,6 +5,7 @@ import {
 	addDays,
 	applyView,
 	cleanView,
+	showsRowNumbers,
 	daysBetween,
 	groupRows,
 	matches,
@@ -377,5 +378,16 @@ describe("timeline", () => {
 		expect(newView([], "timeline", cols)).toMatchObject({ dateBy: "s", endBy: "e" });
 		expect(cleanView({ layout: "timeline", dateBy: "s", endBy: "s" }, cols).endBy).toBeUndefined();
 		expect(cleanView({ layout: "calendar", dateBy: "s", endBy: "e" }, cols).endBy).toBeUndefined();
+	});
+
+	it("shows row numbers as a table view says, or while there are formulas", () => {
+		const table = cleanView({ layout: "table" }, []);
+		expect(showsRowNumbers(table, false)).toBe(false);
+		expect(showsRowNumbers(table, true)).toBe(true);
+		const on = cleanView({ layout: "table", rowNumbers: true }, []);
+		const off = cleanView({ layout: "table", rowNumbers: false }, []);
+		expect([showsRowNumbers(on, false), showsRowNumbers(off, true)]).toEqual([true, false]);
+		expect(cleanView({ layout: "board", rowNumbers: true }, []).rowNumbers).toBeUndefined();
+		expect(cleanView({ layout: "table", rowNumbers: "yes" }, []).rowNumbers).toBeUndefined();
 	});
 });

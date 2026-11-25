@@ -42,6 +42,7 @@ import layoutKanban from "@tabler/icons/outline/layout-kanban.svg?raw";
 import layoutRows from "@tabler/icons/outline/layout-rows.svg?raw";
 import letterCase from "@tabler/icons/outline/letter-case.svg?raw";
 import link from "@tabler/icons/outline/link.svg?raw";
+import listNumbers from "@tabler/icons/outline/list-numbers.svg?raw";
 import list from "@tabler/icons/outline/list.svg?raw";
 import mail from "@tabler/icons/outline/mail.svg?raw";
 import mathFunction from "@tabler/icons/outline/math-function.svg?raw";
@@ -90,6 +91,7 @@ const SOURCES = {
 	hash,
 	circleChevronDown,
 	list,
+	listNumbers,
 	calendar,
 	squareCheck,
 	link,

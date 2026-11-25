@@ -58,7 +58,16 @@ export interface View {
 	dateBy?: string;
 	/** Timeline only: the date column where a row's bar ends; unset = one day long. */
 	endBy?: string;
+	/**
+	 * Table only: show each row's number (its place in the database, which
+	 * `[row:column]` counts in). Unset: shown while there are scripts or formulas.
+	 */
+	rowNumbers?: boolean;
 }
+
+/** Whether a view shows row numbers: its setting, or by default when `formulas` (scripts or formulas exist). */
+export const showsRowNumbers = (view: View, formulas: boolean): boolean =>
+	view.layout === "table" && (view.rowNumbers ?? formulas);
 
 export const MAX_VIEWS = 20;
 export const LAYOUT_NAMES: Record<Layout, string> = {
@@ -447,10 +456,8 @@ export function cleanView(raw: unknown, columns: Column[]): View {
 	}
 	const view = emptyView();
 	if (!input || typeof input !== "object") return view;
-	const { sorts, filters, id, name, layout, groupBy, dateBy, endBy, collapsed } = input as Record<
-		string,
-		unknown
-	>;
+	const { sorts, filters, id, name, layout, groupBy, dateBy, endBy, collapsed, rowNumbers } =
+		input as Record<string, unknown>;
 	const byId = new Map(columns.map((c) => [c.id, c]));
 	if (typeof id === "string" && /^[\w-]{1,20}$/.test(id)) view.id = id;
 	if (isLayout(layout)) view.layout = layout;
@@ -468,6 +475,7 @@ export function cleanView(raw: unknown, columns: Column[]): View {
 		view.dateBy = dateBy;
 	if (view.layout === "timeline" && view.dateBy && isDate(endBy) && endBy !== view.dateBy)
 		view.endBy = endBy;
+	if (view.layout === "table" && typeof rowNumbers === "boolean") view.rowNumbers = rowNumbers;
 
 	for (const item of Array.isArray(sorts) ? sorts : []) {
 		if (!item || typeof item !== "object" || view.sorts.length >= MAX_SORTS) continue;

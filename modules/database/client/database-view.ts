@@ -45,6 +45,7 @@ import {
 	LAYOUT_NAMES,
 	LAYOUTS,
 	prefill,
+	showsRowNumbers,
 	type Layout,
 	type View,
 } from "../view.ts";
@@ -75,6 +76,11 @@ const TYPE_ICONS: Record<ColumnType, IconName> = {
 };
 
 /** Width of the last column (the "+" header and the rows' ⋯ buttons). */
+/** Whether the database has scripts or cell formulas to write references for. */
+const hasFormulas = (state: DatabaseState): boolean =>
+	state.columns.some((c) => c.type === "script") ||
+	state.rows.some((row) => row.formulas && Object.keys(row.formulas).length > 0);
+
 const LAYOUT_ICONS: Record<Layout, IconName> = {
 	table: "table",
 	board: "layoutKanban",
@@ -568,14 +574,10 @@ export class DatabaseView extends HTMLElement {
 			tr.append(td);
 			body.append(tr);
 		}
-		// Row numbers (the database's own order, which `[row:column]` counts in)
-		// show once there are formulas or scripts to write.
+		// Row numbers (the database's own order, which `[row:column]` counts in):
+		// the view's setting, or by default once there are formulas or scripts.
 		const position = new Map(state.rows.map((row, i) => [row.id, i + 1]));
-		if (
-			state.columns.some((c) => c.type === "script") ||
-			state.rows.some((row) => row.formulas && Object.keys(row.formulas).length > 0)
-		)
-			table.classList.add("has-formulas");
+		if (showsRowNumbers(this.#view, hasFormulas(state))) table.classList.add("has-row-numbers");
 		const rowEl = (row: Row) => {
 			const tr = h("tr", "db-tr");
 			tr.dataset.row = row.id;
@@ -1348,10 +1350,22 @@ export class DatabaseView extends HTMLElement {
 						this.#pop.close();
 					}
 				});
+				const numbered = showsRowNumbers(view, hasFormulas(this.#state!));
 				panel.append(
 					input,
 					this.#pop.menu(
 						[
+							...(view.layout === "table"
+								? [
+										{
+											label: "Show row numbers",
+											icon: "listNumbers" as const,
+											checked: numbered,
+											run: () => this.#setView({ ...this.#view, rowNumbers: !numbered }),
+										},
+										{ separator: true as const },
+									]
+								: []),
 							{
 								label: "Delete view",
 								icon: "trash",
