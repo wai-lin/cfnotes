@@ -21,6 +21,11 @@ export interface MountOptions {
 	namespace?: string;
 	/** Accessible name of the text area. */
 	label?: string;
+	/**
+	 * `false` shows the document without letting it be typed in (default true).
+	 * The host gets `ne-readonly`, which hides the editing overlays.
+	 */
+	editable?: boolean;
 	theme?: EditorThemeClasses;
 	/** Called after each edit with the document as a JSON string. */
 	onChange?: (json: string) => void;
@@ -47,12 +52,15 @@ export function mountEditor(host: HTMLElement, options: MountOptions): EditorHan
 	const onError = options.onError ?? ((error: Error) => console.error("[editor]", error));
 	const schema = buildSchema(options.extensions, options.theme ?? defaultTheme);
 
+	const editable = options.editable ?? true;
 	const content = document.createElement("div");
 	content.className = "ne-content";
-	content.contentEditable = "true";
+	content.contentEditable = String(editable);
+	host.classList.toggle("ne-readonly", !editable);
 	content.spellcheck = true;
 	content.setAttribute("role", "textbox");
 	content.setAttribute("aria-multiline", "true");
+	if (!editable) content.setAttribute("aria-readonly", "true");
 	content.setAttribute("aria-label", options.label ?? "Page content");
 	host.replaceChildren(content);
 
@@ -61,6 +69,7 @@ export function mountEditor(host: HTMLElement, options: MountOptions): EditorHan
 		theme: schema.theme,
 		nodes: schema.nodes,
 		html: { import: schema.html },
+		editable,
 		onError,
 	});
 	editor.setRootElement(content);

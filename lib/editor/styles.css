@@ -28,3 +28,4 @@
 @import "./extensions/equation/styles.css";
 @import "./extensions/embed/styles.css";
 @import "./extensions/code/mermaid/styles.css";
+@import "./core/readonly.css";

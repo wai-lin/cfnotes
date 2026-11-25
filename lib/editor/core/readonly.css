@@ -1,0 +1,23 @@
+/*
+ * A read-only editor (mount's `editable: false`, which marks the host
+ * `ne-readonly`): the document, without the tools for changing it. The block
+ * menu opens from a handle hidden here; the format bar is on the body.
+ */
+.ne-readonly
+	:is(
+		.blk-handle,
+		.blk-dropline,
+		.table-add,
+		.table-cell-btn,
+		.ne-image-handle,
+		.col-resizer,
+		.ne-embed-tools,
+		.ne-embed-form,
+		.code-lang
+	) {
+	display: none !important;
+}
+
+body:has(.ne-readonly) :is(.fmt-bar, .blk-marquee) {
+	display: none !important;
+}
