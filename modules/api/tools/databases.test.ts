@@ -2,28 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { cfnotes } from "#lib/testing.ts";
 
-type Json = Record<string, any>;
-type App = ReturnType<typeof cfnotes>;
-
-/** Calls an MCP tool with a write token: its text, parsed when it's JSON, and whether it failed. */
-async function mcp(app: App) {
-	const token = await app.token("write");
-	return async (name: string, args: object) => {
-		const res = await app.api(token, "/api/mcp", {
-			method: "POST",
-			json: { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } },
-		});
-		const { result } = (await res.json()) as {
-			result: { content: { text: string }[]; isError?: boolean };
-		};
-		const text = result.content[0]!.text;
-		let data: Json = {};
-		try {
-			data = JSON.parse(text) as Json;
-		} catch {}
-		return { text, data, error: result.isError === true };
-	};
-}
+import { mcp, type App, type Json } from "./testing.ts";
 
 describe("making databases over MCP", () => {
 	it("makes one with its properties and no rows", async () => {

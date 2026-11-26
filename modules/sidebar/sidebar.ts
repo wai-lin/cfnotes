@@ -111,7 +111,9 @@ export const newFolder = Effect.fn("Sidebar.newFolder")(function* (input: typeof
 	const name = yield* folderName(input.name);
 	const parent = yield* folderTarget(input.parentId);
 	const now = yield* Clock.currentTimeMillis;
-	yield* MainDb.folders.create({ id: crypto.randomUUID(), parentId: parent.id, name, now });
+	const id = crypto.randomUUID();
+	yield* MainDb.folders.create({ id, parentId: parent.id, name, now });
+	return id;
 });
 
 export const renameFolder = Effect.fn("Sidebar.renameFolder")(function* (

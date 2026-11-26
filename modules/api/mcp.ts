@@ -15,6 +15,7 @@ import { SAVE_LIMITS } from "#modules/pages/pages.ts";
 import { DATABASE_TOOLS } from "./tools/databases.ts";
 import { PAGE_TOOLS } from "./tools/pages.ts";
 import { str, type Tool } from "./tools/tool.ts";
+import { WORKSPACE_TOOLS } from "./tools/workspace.ts";
 
 const VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 const SERVER = { name: "cfnotes", title: "cfnotes", version: "1.0.0" };
@@ -26,11 +27,12 @@ const INSTRUCTIONS = `cfnotes is a private notes workspace, like Notion: pages i
 - create_view, update_view and delete_view manage a database's views (table, board, list, gallery, calendar, timeline) with their own filters, sorts and grouping.
 - Write content as Markdown (GitHub's). Link to another page with [Title](/p/<id>). Toggles are <details><summary>…</summary>…</details>; equations $…$ or $$…$$.
 - Properties are set by name: a select by its option name (a new name adds an option), multi-select as a list of names, dates as YYYY-MM-DD, dates & times as YYYY-MM-DDTHH:MM (no time zone), times as HH:MM, people as emails, relations as row ids.
+- move_page, create_folder, update_folder and delete_folder organize the sidebar; list_trash and restore_page bring back what was trashed.
 - update_page with "markdown" replaces the whole content; "append_markdown" adds to the end. Someone may have the page open: prefer appending.`;
 
 // ---------------------------------------------------------------- tools
 
-const TOOLS: Tool[] = [...PAGE_TOOLS, ...DATABASE_TOOLS];
+const TOOLS: Tool[] = [...PAGE_TOOLS, ...WORKSPACE_TOOLS, ...DATABASE_TOOLS];
 
 /** The tools this caller may use. */
 export const toolsFor = (scope: Tokens.Scope) =>

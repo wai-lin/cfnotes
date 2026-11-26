@@ -143,6 +143,11 @@ Tools:
 | `update_page`                                  | Title, icon, properties, and replace or append content. _(write)_                     |
 | `add_comment`                                  | A comment on a page, or a reply in a thread. _(write)_                                |
 | `trash_page`                                   | Moves a page to Trash. _(write)_                                                      |
+| `move_page`                                    | Moves a page to a folder, and to a place among its pages. _(write)_                   |
+| `create_folder`, `update_folder`               | Makes, renames and nests folders. _(write)_                                           |
+| `delete_folder`                                | Deletes a folder; what's in it moves up a level. _(write)_                            |
+| `list_trash`                                   | What's in Trash, and when each is deleted for good.                                   |
+| `restore_page`                                 | Brings something back from Trash. _(write)_                                           |
 
 A read-only token isn't offered the write tools. A request whose `Origin` isn't the app's own is refused, which guards against DNS rebinding from a browser.
 
@@ -151,6 +156,7 @@ A read-only token isn't offered the write tools. A request whose `Origin` isn't 
 - `modules/auth/tokens.ts`: tokens. `Sessions.user` answers with a token's owner on `/api/…`.
 - `modules/api/api.ts`: what both the REST API and MCP do, built on the app's own modules (pages, database, comments, search).
 - `modules/api/render.ts` and `markdown.ts`: the editor's saved state to HTML and Markdown, and Markdown back.
+- `modules/api/organize.ts`: moving pages, folders and Trash, through the sidebar's and Trash's own functions.
 - `modules/api/table-views.ts`: a database's views, by property name, through the table's own view ops.
 - `modules/api/schema.ts`: making databases and changing their properties, by name, through the table's own ops.
 - `modules/api/http.ts` and `mcp.ts`: the request handlers; `app/routes/api/` only wires them. MCP's tools are in `modules/api/tools/`.
