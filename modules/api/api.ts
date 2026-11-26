@@ -212,30 +212,113 @@ function cellInput(column: Column, value: unknown): unknown {
 	}
 }
 
-/** One `where` value as a table filter: equality, or containment for lists. */
-function filterFor(column: Column, value: string): Filter | null {
-	const id = crypto.randomUUID();
-	const option = (name: string) =>
-		column.options?.find((o) => o.name.toLowerCase() === name.trim().toLowerCase())?.id ?? "-";
-	switch (column.type) {
-		case "checkbox":
-			return {
-				id,
-				columnId: column.id,
-				op: /^(true|1|yes)$/i.test(value) ? "checked" : "unchecked",
-			};
-		case "select":
-			return { id, columnId: column.id, op: "is", value: option(value) };
-		case "multi_select":
-			return { id, columnId: column.id, op: "contains", value: option(value) };
-		case "number":
-			return { id, columnId: column.id, op: "eq", value: Number(value) };
-		default: {
-			const op = opsFor(column).some((o) => o.op === "is") ? "is" : "contains";
-			return { id, columnId: column.id, op, value };
+/** Other names agents use for the table's filter operators. */
+const OP_ALIASES: Record<string, string[]> = {
+	is: ["eq", "equals"],
+	is_not: ["neq", "not"],
+	eq: ["is", "equals"],
+	neq: ["is_not", "not"],
+	gt: ["after"],
+	lt: ["before"],
+	gte: ["on_or_after"],
+	lte: ["on_or_before"],
+	after: ["gt"],
+	before: ["lt"],
+	on_or_after: ["gte"],
+	on_or_before: ["lte"],
+	empty: ["is_empty"],
+	not_empty: ["is_not_empty"],
+	checked: ["is_checked"],
+	unchecked: ["is_not_checked"],
+};
+
+/** The operator `name` means for `column`, or `undefined`. */
+const opNamed = (column: Column, name: string) =>
+	opsFor(column).find((o) => o.op === name || OP_ALIASES[o.op]?.includes(name));
+
+/**
+ * One `where` entry as table filters. A plain value means equality (containment
+ * for lists, and checked or not for a checkbox); an object names operators,
+ * all of which must hold: `{"after": "2026-11-01", "before": "2026-12-01"}`.
+ */
+function filtersFor(column: Column, value: unknown): Filter[] | string {
+	const ops = opsFor(column).map((o) => o.op);
+	const filter = (op: string, v?: string | number): Filter => ({
+		id: crypto.randomUUID(),
+		columnId: column.id,
+		op,
+		...(v === undefined ? {} : { value: v }),
+	});
+	const option = (name: unknown) => {
+		const found = column.options?.find(
+			(o) => o.name.toLowerCase() === String(name).trim().toLowerCase(),
+		);
+		return found
+			? found.id
+			: `No option "${String(name)}" in "${column.name}"; there are ${column.options?.map((o) => `"${o.name}"`).join(", ") || "none"}`;
+	};
+	/** The value as the filter compares it, or a problem with it. */
+	const operand = (v: unknown): { ok: string | number } | string => {
+		if (column.type === "select" || column.type === "multi_select") {
+			const id = option(v);
+			return column.options?.some((o) => o.id === id) ? { ok: id } : id;
 		}
+		if (ops.includes("gt")) {
+			const n = typeof v === "number" ? v : Number(v);
+			return Number.isFinite(n)
+				? { ok: n }
+				: `"${column.name}" is a number, not ${JSON.stringify(v)}`;
+		}
+		if (ops.includes("after") && column.type !== "time" && !/^\d{4}-\d{2}-\d{2}/.test(String(v)))
+			return `"${column.name}" compares dates as YYYY-MM-DD, not ${JSON.stringify(v)}`;
+		return { ok: String(v) };
+	};
+
+	if (column.type === "checkbox" && (typeof value !== "object" || value === null)) {
+		const on = value === true || /^(true|1|yes)$/i.test(String(value));
+		return [filter(on ? "checked" : "unchecked")];
 	}
+	if (value === null || typeof value !== "object" || Array.isArray(value)) {
+		const first = ops.includes("is") ? "is" : ops.includes("eq") ? "eq" : "contains";
+		const v = operand(value);
+		return typeof v === "string" ? v : [filter(first, v.ok)];
+	}
+	const out: Filter[] = [];
+	for (const [name, raw] of Object.entries(value)) {
+		const found = opNamed(column, name);
+		if (!found)
+			return `"${column.name}" (${column.type}) has no "${name}"; it takes ${ops.join(", ")}`;
+		if (!found.needsValue) {
+			// `{"empty": false}` means not empty, and so on.
+			const flip: Record<string, string> = {
+				empty: "not_empty",
+				not_empty: "empty",
+				checked: "unchecked",
+				unchecked: "checked",
+			};
+			out.push(filter(raw === false ? (flip[found.op] ?? found.op) : found.op));
+			continue;
+		}
+		const v = operand(raw);
+		if (typeof v === "string") return v;
+		out.push(filter(found.op, v.ok));
+	}
+	return out;
 }
+
+/** A `where` object's filters, all of which a row must match. */
+const whereFilters = Effect.fn("Api.whereFilters")(function* (
+	state: DatabaseState,
+	where: Readonly<Record<string, unknown>>,
+) {
+	const filters: Filter[] = [];
+	for (const [name, value] of Object.entries(where)) {
+		const found = filtersFor(yield* columnNamed(state, name), value);
+		if (typeof found === "string") return yield* bad(found);
+		filters.push(...found);
+	}
+	return filters;
+});
 
 // ---------------------------------------------------------------- pages
 
@@ -371,8 +454,13 @@ export const getDatabase = Effect.fn("Api.getDatabase")(function* (id: string) {
 	};
 });
 
+const Where = Schema.Record(Schema.String, Schema.Unknown);
+
 export const RowsQuery = Schema.Struct({
-	where: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+	/** Property name → a value, or `{operator: value}`; every one must match. */
+	where: Schema.optional(Where),
+	/** Groups like `where`; a row must match at least one (on top of `where`). */
+	whereAny: Schema.optional(Schema.Array(Where)),
 	sort: Schema.optional(Schema.Array(Schema.String)),
 	view: Schema.optional(Schema.String),
 	limit: Schema.optional(Schema.Number),
@@ -384,8 +472,10 @@ export const RowsQuery = Schema.Struct({
 
 /**
  * A database's rows with their properties. `where` keeps rows whose property
- * is the value (contains it, for lists); `sort` orders by properties, `-Name`
- * for descending; `view` starts from a view's own filters and sorts.
+ * is the value (contains it, for lists), or passes the table's operators
+ * (`{"after": "2026-11-01"}`); `whereAny` keeps rows that pass any one of its
+ * groups; `sort` orders by properties, `-Name` for descending; `view` starts
+ * from a view's own filters and sorts.
  * `content` adds each row's page content in that format.
  */
 export const queryRows = Effect.fn("Api.queryRows")(function* (
@@ -400,21 +490,47 @@ export const queryRows = Effect.fn("Api.queryRows")(function* (
 			)
 		: undefined;
 	if (query.view && !view) return yield* bad(`No view "${query.view}"`);
-	const filters: Filter[] = [...(view?.filters ?? [])];
-	for (const [name, value] of Object.entries(query.where ?? {})) {
-		const filter = filterFor(yield* columnNamed(state, name), value);
-		if (filter) filters.push(filter);
-	}
+	const filters: Filter[] = [
+		...(view?.filters ?? []),
+		...(yield* whereFilters(state, query.where ?? {})),
+	];
+	// Each of `whereAny` is a group of filters; a row may match any one of them.
+	const groups: Filter[][] = [];
+	for (const where of query.whereAny ?? []) groups.push(yield* whereFilters(state, where));
 	const sorts: Sort[] = [];
 	for (const entry of query.sort ?? []) {
 		const desc = entry.startsWith("-");
 		const column = yield* columnNamed(state, desc ? entry.slice(1) : entry);
 		sorts.push({ columnId: column.id, direction: desc ? "desc" : "asc" });
 	}
-	const shown = applyView(
+	const matching = applyView(
 		state.columns,
 		state.rows,
-		{ filters, sorts: sorts.length > 0 ? sorts : (view?.sorts ?? []) },
+		{ filters, sorts: [] },
+		new Set(),
+		state.titles,
+	);
+	const anyOf =
+		groups.length === 0
+			? matching
+			: (() => {
+					const hits = new Set(
+						groups.flatMap((group) =>
+							applyView(
+								state.columns,
+								matching,
+								{ filters: group, sorts: [] },
+								new Set(),
+								state.titles,
+							).map((r) => r.id),
+						),
+					);
+					return matching.filter((r) => hits.has(r.id));
+				})();
+	const shown = applyView(
+		state.columns,
+		anyOf,
+		{ filters: [], sorts: sorts.length > 0 ? sorts : (view?.sorts ?? []) },
 		new Set(),
 		state.titles,
 	);

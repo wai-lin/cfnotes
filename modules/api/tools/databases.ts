@@ -15,6 +15,7 @@ import {
 	json,
 	object,
 	readOnly,
+	record,
 	str,
 	string,
 	type Json,
@@ -57,6 +58,23 @@ const propertyFields: Json = {
 	script,
 };
 const property = object(propertyFields, ["name", "type"]);
+
+const where: Json = {
+	type: "object",
+	description: [
+		"Property name → a value (equality; containment for multi-select, people and relations; a checkbox takes true or false), or an object of operators that must all hold.",
+		"Text, URL, email, phone, files, rollups, scripts: contains, not_contains, is, is_not, starts_with, ends_with.",
+		"Number: eq, neq, gt, lt, gte, lte. Date, date & time (by its day), time, created/edited time: is, before, after, on_or_before, on_or_after, as YYYY-MM-DD (HH:MM for a time).",
+		"Select: is, is_not. Multi-select, people, relations (by title): contains, not_contains. Checkbox: checked, unchecked.",
+		'Every type: empty, not_empty ({"empty": true}).',
+	].join(" "),
+	additionalProperties: {
+		anyOf: [
+			{ type: ["string", "number", "boolean"] },
+			{ type: "object", additionalProperties: { type: ["string", "number", "boolean"] } },
+		],
+	},
+};
 
 /** One change's schema: its action, and what that action takes. */
 const change = (action: string, description: string, fields: Json, required: string[]) => ({
@@ -150,16 +168,16 @@ export const DATABASE_TOOLS: Tool[] = [
 	{
 		name: "query_database",
 		title: "Query a database",
-		description: "Lists a database's rows with their properties, filtered, sorted and paged.",
+		description:
+			'Lists a database\'s rows with their properties, filtered, sorted and paged. Filter with "where": {"Status": "Published"} for equality, or operators: {"Date": {"on_or_after": "2026-11-01"}, "Views": {"gt": 100}, "Tags": {"empty": true}, "Title": {"contains": "draft"}}. get_database\'s property types say which operators apply.',
 		inputSchema: object(
 			{
 				database_id: databaseId,
-				where: {
-					type: "object",
-					description:
-						'Property name → value. Keeps rows whose property is the value (contains it, for multi-select, people and relations). Checkboxes: "true" or "false".',
-					additionalProperties: { type: "string" },
-				},
+				where,
+				where_any: array(
+					where,
+					"Groups like where; a row must match at least one of them (and where too). For OR.",
+				),
 				sort: {
 					type: "array",
 					items: { type: "string" },
@@ -180,12 +198,9 @@ export const DATABASE_TOOLS: Tool[] = [
 		annotations: readOnly,
 		run: (args) =>
 			Effect.gen(function* () {
-				const where =
-					args.where && typeof args.where === "object"
-						? (args.where as Record<string, unknown>)
-						: {};
 				const query = yield* Schema.decodeUnknownEffect(Api.RowsQuery)({
-					where: Object.fromEntries(Object.entries(where).map(([k, v]) => [k, String(v)])),
+					where: record(args.where),
+					whereAny: Array.isArray(args.where_any) ? args.where_any : undefined,
 					sort: Array.isArray(args.sort) ? args.sort.map(String) : undefined,
 					view: str(args.view),
 					limit: typeof args.limit === "number" ? args.limit : undefined,

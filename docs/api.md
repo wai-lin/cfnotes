@@ -61,6 +61,13 @@ GET /api/v1/databases/:id/rows?where.Status=Published&sort=-Date&content=html&li
 ```
 
 - `where.<Property>=<value>`: keeps rows whose property equals the value, ignoring case. For multi-select, person and relation properties it means "contains". Checkboxes take `true` or `false`.
+- `where.<Property>:<operator>=<value>`: keeps rows that pass one of the table's operators, e.g. `where.Date:on_or_after=2026-11-01` or `where.Views:gt=100`. Operators that take no value go bare: `where.Tags:empty`. Several `where` filters must all match.
+  - Text, URL, email, phone, files, rollups and scripts: `contains`, `not_contains`, `is`, `is_not`, `starts_with`, `ends_with`.
+  - Numbers: `eq`, `neq`, `gt`, `lt`, `gte`, `lte`.
+  - Dates, dates & times (by their day), times and automatic times: `is`, `before`, `after`, `on_or_before`, `on_or_after`, with `YYYY-MM-DD` (`HH:MM` for a time).
+  - Select: `is`, `is_not`. Multi-select, person and relation (by the linked rows' titles): `contains`, `not_contains`. Checkbox: `checked`, `unchecked`.
+  - Every type: `empty`, `not_empty`.
+- `any.<n>.<Property>[:<operator>]=<value>`: groups of filters, numbered; a row must also match at least one group. `any.0.Status=Draft&any.1.Views:gte=500` is "a draft, or 500 views or more".
 - `sort=<Property>`: sorts ascending, or `-<Property>` descending. It can repeat, or be comma-separated.
 - `view=<name or id>`: starts from a view's own filters and sorts.
 - `limit` (default 100, at most 1000) and `offset` page through the rows. The answer has `total` and `nextOffset`.
@@ -122,19 +129,19 @@ claude mcp add --transport http cfnotes https://notes.example.com/api/mcp \
 
 Tools:
 
-| Tool                                           | Does                                                                                |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `search`                                       | Finds pages by words.                                                               |
-| `list_pages`, `list_folders`, `list_databases` | Lists what's there.                                                                 |
-| `read_page`                                    | A page as Markdown, with its properties and comments.                               |
-| `get_database`                                 | A database's properties (options, relations, rollups, scripts) and views.           |
-| `query_database`                               | Rows with `where`, `sort`, `view`, `limit`, `offset`, and optionally their content. |
-| `create_page`                                  | A page or row from Markdown, with properties. _(write)_                             |
-| `create_database`                              | A database with properties, full-page or inline in a page. _(write)_                |
-| `update_database`                              | Title, and add, rename, convert, move or delete properties and options. _(write)_   |
-| `update_page`                                  | Title, icon, properties, and replace or append content. _(write)_                   |
-| `add_comment`                                  | A comment on a page, or a reply in a thread. _(write)_                              |
-| `trash_page`                                   | Moves a page to Trash. _(write)_                                                    |
+| Tool                                           | Does                                                                                  |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `search`                                       | Finds pages by words.                                                                 |
+| `list_pages`, `list_folders`, `list_databases` | Lists what's there.                                                                   |
+| `read_page`                                    | A page as Markdown, with its properties and comments.                                 |
+| `get_database`                                 | A database's properties (options, relations, rollups, scripts) and views.             |
+| `query_database`                               | Rows filtered with `where` (values or operators) and `where_any` (OR), sorted, paged. |
+| `create_page`                                  | A page or row from Markdown, with properties. _(write)_                               |
+| `create_database`                              | A database with properties, full-page or inline in a page. _(write)_                  |
+| `update_database`                              | Title, and add, rename, convert, move or delete properties and options. _(write)_     |
+| `update_page`                                  | Title, icon, properties, and replace or append content. _(write)_                     |
+| `add_comment`                                  | A comment on a page, or a reply in a thread. _(write)_                                |
+| `trash_page`                                   | Moves a page to Trash. _(write)_                                                      |
 
 A read-only token isn't offered the write tools. A request whose `Origin` isn't the app's own is refused, which guards against DNS rebinding from a browser.
 

@@ -226,3 +226,127 @@ describe("changing a database over MCP", () => {
 		expect(((await res.json()) as Json).result.isError).toBe(true);
 	});
 });
+
+describe("querying a database over MCP", () => {
+	/** A database of posts: Status, Views, Date, Tags, Featured. */
+	async function posts(app: App) {
+		const call = await mcp(app);
+		const { data: db } = await call("create_database", {
+			title: "Posts",
+			properties: [
+				{ name: "Status", type: "select", options: ["Draft", "Published"] },
+				{ name: "Views", type: "number" },
+				{ name: "Date", type: "date" },
+				{ name: "Featured", type: "checkbox" },
+			],
+		});
+		const add = (title: string, properties: object) =>
+			call("create_page", { title, database_id: db.id, properties });
+		await add("Hello", {
+			Status: "Published",
+			Views: 120,
+			Date: "2026-10-02",
+			Tags: ["news"],
+			Featured: true,
+		});
+		await add("Draft idea", { Status: "Draft", Views: 0 });
+		await add("November notes", {
+			Status: "Published",
+			Views: 40,
+			Date: "2026-11-05",
+			Tags: ["notes"],
+		});
+		await add("Big launch", {
+			Status: "Published",
+			Views: 900,
+			Date: "2026-11-20",
+			Tags: ["news", "launch"],
+		});
+		const query = async (args: object) => {
+			const res = await call("query_database", { database_id: db.id, sort: ["Name"], ...args });
+			return res.error ? res.text : (res.data.rows as Json[]).map((r) => r.title);
+		};
+		return { db, query, token: await app.token("read") };
+	}
+
+	it("filters with the table's operators", async () => {
+		await using app = cfnotes();
+		const { query } = await posts(app);
+		expect(await query({ where: { Date: { on_or_after: "2026-11-01" } } })).toEqual([
+			"Big launch",
+			"November notes",
+		]);
+		expect(await query({ where: { Date: { after: "2026-11-01", before: "2026-11-10" } } })).toEqual(
+			["November notes"],
+		);
+		expect(await query({ where: { Views: { gt: 100 } } })).toEqual(["Big launch", "Hello"]);
+		expect(await query({ where: { Views: { lte: 40 } } })).toEqual([
+			"Draft idea",
+			"November notes",
+		]);
+		expect(await query({ where: { Date: { empty: true } } })).toEqual(["Draft idea"]);
+		expect(await query({ where: { Tags: { not_empty: true }, Featured: false } })).toEqual([
+			"Big launch",
+			"November notes",
+		]);
+		expect(await query({ where: { Status: { is_not: "Draft" }, Tags: "news" } })).toEqual([
+			"Big launch",
+			"Hello",
+		]);
+		expect(await query({ where: { Name: { starts_with: "b" } } })).toEqual(["Big launch"]);
+		// Plain values still mean equality.
+		expect(await query({ where: { Status: "draft", Views: 0 } })).toEqual(["Draft idea"]);
+	});
+
+	it("keeps rows matching any of where_any's groups", async () => {
+		await using app = cfnotes();
+		const { query } = await posts(app);
+		expect(await query({ where_any: [{ Status: "Draft" }, { Views: { gte: 500 } }] })).toEqual([
+			"Big launch",
+			"Draft idea",
+		]);
+		expect(
+			await query({
+				where: { Status: "Published" },
+				where_any: [{ Featured: true }, { Tags: "launch" }],
+			}),
+		).toEqual(["Big launch", "Hello"]);
+	});
+
+	it("says what's wrong with a filter", async () => {
+		await using app = cfnotes();
+		const { query } = await posts(app);
+		expect(await query({ where: { Views: { starts_with: "1" } } })).toBe(
+			'BadRequest: "Views" (number) has no "starts_with"; it takes eq, neq, gt, lt, gte, lte, empty, not_empty',
+		);
+		expect(await query({ where: { Views: { gt: "lots" } } })).toBe(
+			'BadRequest: "Views" is a number, not "lots"',
+		);
+		expect(await query({ where: { Date: { after: "November" } } })).toContain("YYYY-MM-DD");
+		expect(await query({ where: { Status: "Gone" } })).toBe(
+			'BadRequest: No option "Gone" in "Status"; there are "Draft", "Published"',
+		);
+	});
+
+	it("takes the same operators over REST", async () => {
+		await using app = cfnotes();
+		const { db, token } = await posts(app);
+		const rows = async (search: string) =>
+			(
+				(
+					(await (
+						await app.api(token, `/api/v1/databases/${db.id}/rows?sort=Name&${search}`)
+					).json()) as Json
+				).rows as Json[]
+			).map((r) => r.title);
+		expect(await rows("where.Date:on_or_after=2026-11-01")).toEqual([
+			"Big launch",
+			"November notes",
+		]);
+		expect(await rows("where.Date:empty")).toEqual(["Draft idea"]);
+		expect(await rows("any.0.Status=Draft&any.1.Views:gte=500")).toEqual([
+			"Big launch",
+			"Draft idea",
+		]);
+	});
+});

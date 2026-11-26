@@ -90,21 +90,53 @@ export const listDatabases = Effect.map(Api.listDatabases, (databases) => ({ dat
 /** `GET /api/v1/databases/:id` */
 export const getDatabase = Effect.flatMap(id, Api.getDatabase);
 
+/** `Date:after` → `["Date", "after"]`; a property without `:op` is equality. */
+const whereKey = (key: string): [string, string | null] => {
+	const at = key.lastIndexOf(":");
+	return at > 0 && /^[a-z_]+$/.test(key.slice(at + 1))
+		? [key.slice(0, at), key.slice(at + 1)]
+		: [key, null];
+};
+
+/** Adds `value` for `key` (`Prop` or `Prop:op`) to a `where` object. */
+const addWhere = (where: Record<string, unknown>, key: string, value: string) => {
+	const [name, op] = whereKey(key);
+	if (op === null) where[name] = value;
+	else {
+		const ops = (where[name] && typeof where[name] === "object" ? where[name] : {}) as Record<
+			string,
+			unknown
+		>;
+		// `where.Tags:empty` needs no value.
+		ops[op] = value === "" ? true : value === "false" ? false : value;
+		where[name] = ops;
+	}
+};
+
 /**
- * `GET /api/v1/databases/:id/rows?where.Status=Published&sort=-Date&limit=&offset=&view=&content=html`
+ * `GET /api/v1/databases/:id/rows?where.Status=Published&where.Date:after=2026-11-01&any.0.Tags=news&sort=-Date&limit=&offset=&view=&content=html`
  */
 export const queryRows = Effect.gen(function* () {
 	const databaseId = yield* id;
 	const request = yield* HttpServerRequest.HttpServerRequest;
 	const params = new URL(request.url, "http://api").searchParams;
-	const where: Record<string, string> = {};
-	for (const [key, value] of params) if (key.startsWith("where.")) where[key.slice(6)] = value;
+	const where: Record<string, unknown> = {};
+	const any = new Map<string, Record<string, unknown>>();
+	for (const [key, value] of params) {
+		if (key.startsWith("where.")) addWhere(where, key.slice(6), value);
+		const group = /^any\.(\d+)\.(.+)$/.exec(key);
+		if (group) {
+			if (!any.has(group[1]!)) any.set(group[1]!, {});
+			addWhere(any.get(group[1]!)!, group[2]!, value);
+		}
+	}
 	const number = (key: string) => {
 		const value = params.get(key);
 		return value !== null && Number.isFinite(Number(value)) ? Number(value) : undefined;
 	};
 	const query = yield* Schema.decodeUnknownEffect(Api.RowsQuery)({
 		where,
+		whereAny: any.size > 0 ? [...any.values()] : undefined,
 		sort: params
 			.getAll("sort")
 			.flatMap((s) => s.split(","))

@@ -21,7 +21,7 @@ const SERVER = { name: "cfnotes", title: "cfnotes", version: "1.0.0" };
 
 const INSTRUCTIONS = `cfnotes is a private notes workspace, like Notion: pages in folders, and databases whose rows are pages with properties.
 - Find things with search or list_pages; read one with read_page (Markdown).
-- For a database, get_database shows its properties and their choices; query_database lists rows, filtered with "where" ({"Status": "Published"}) and sorted with "sort" (["-Date"]).
+- For a database, get_database shows its properties and their choices; query_database lists rows, filtered with "where" ({"Status": "Published"}, or operators: {"Date": {"after": "2026-11-01"}, "Tags": {"empty": true}}), "where_any" for OR, and sorted with "sort" (["-Date"]).
 - create_database makes a database with its properties; update_database renames, adds, converts, moves and deletes properties, edits select options, and sets up relations, rollups and scripts. Add rows with create_page.
 - Write content as Markdown (GitHub's). Link to another page with [Title](/p/<id>). Toggles are <details><summary>…</summary>…</details>; equations $…$ or $$…$$.
 - Properties are set by name: a select by its option name (a new name adds an option), multi-select as a list of names, dates as YYYY-MM-DD, dates & times as YYYY-MM-DDTHH:MM (no time zone), times as HH:MM, people as emails, relations as row ids.
