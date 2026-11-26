@@ -9,6 +9,7 @@ import { HttpServerRequest, HttpServerResponse } from "effect/http";
 import { Input } from "spacefn";
 
 import Env from "#configs/env.ts";
+import * as Sessions from "#modules/auth/sessions.ts";
 import * as Tokens from "#modules/auth/tokens.ts";
 import { SAVE_LIMITS } from "#modules/pages/pages.ts";
 
@@ -29,6 +30,10 @@ const INSTRUCTIONS = `cfnotes is a private notes workspace, like Notion: pages i
 - Properties are set by name: a select by its option name (a new name adds an option), multi-select as a list of names, dates as YYYY-MM-DD, dates & times as YYYY-MM-DDTHH:MM (no time zone), times as HH:MM, people as emails, relations as row ids.
 - move_page, create_folder, update_folder and delete_folder organize the sidebar; list_trash and restore_page bring back what was trashed.
 - update_page with "markdown" replaces the whole content; "append_markdown" adds to the end. edit_page changes one heading's section, or finds and replaces text. Someone may have the page open: prefer appending or edit_page to replacing everything.`;
+
+/** Told to a friend's agent: what their token reaches. */
+const FRIEND_NOTE = `
+- This token is a friend's: it reaches only the pages and folders shared with them, each as view, comment or edit (list_folders says which). New pages, databases and folders go in folders shared with them to edit, not the top level.`;
 
 // ---------------------------------------------------------------- tools
 
@@ -108,7 +113,9 @@ export const post = Effect.gen(function* () {
 				protocolVersion: asked && VERSIONS.includes(asked) ? asked : VERSIONS[0],
 				capabilities: { tools: { listChanged: false } },
 				serverInfo: SERVER,
-				instructions: INSTRUCTIONS,
+				instructions: (yield* Sessions.isOwner(caller.email))
+					? INSTRUCTIONS
+					: INSTRUCTIONS + FRIEND_NOTE,
 			});
 		}
 		case "ping":

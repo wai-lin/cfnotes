@@ -2,7 +2,9 @@
  * What the API and the MCP server do, on top of the app's own modules: pages
  * with their content as HTML, Markdown or the editor's JSON, databases and
  * their rows with properties by name, search, comments, and writing pages.
- * Changes are made as the token's owner (see `modules/auth/tokens.ts`).
+ * Changes are made as the token's maker (see `modules/auth/tokens.ts`), and
+ * a friend's token reaches only what's shared with them: each read checks
+ * `Sharing`, and each change goes through the app's own checks.
  */
 import { Clock, Effect, Option, Schema } from "effect";
 import { BadRequest, NotFound } from "spacefn";
@@ -25,6 +27,8 @@ import { databaseState, runOp } from "#modules/database/database.ts";
 import { applyView, opsFor, type Filter, type Sort, type View } from "#modules/database/view.ts";
 import * as Pages from "#modules/pages/pages.ts";
 import * as Search from "#modules/search/search.ts";
+import type { Access } from "#modules/sharing/roles.ts";
+import * as Sharing from "#modules/sharing/sharing.ts";
 import * as Trash from "#modules/trash/trash.ts";
 import MainDb from "#space/db/main.ts";
 
@@ -71,7 +75,9 @@ const refsFor = Effect.fn("Api.refsFor")(function* (states: unknown[], links: Li
 	}
 	const titles: Record<string, string> = {};
 	if (pageIds.size > 0)
-		for (const row of yield* MainDb.pages.listTitles({ ids: JSON.stringify([...pageIds]) }))
+		for (const row of yield* Sharing.visible(
+			yield* MainDb.pages.listTitles({ ids: JSON.stringify([...pageIds]) }),
+		))
 			titles[row.id] = row.title;
 	const synced: Refs["synced"] = {};
 	if (syncIds.size > 0)
@@ -368,7 +374,7 @@ export const listPages = Effect.fn("Api.listPages")(function* (
 	options: { kind?: string | undefined; database?: string | undefined } = {},
 ) {
 	const { ORIGIN } = yield* Env;
-	const folders = new Map((yield* MainDb.folders.list()).map((f) => [f.id, f]));
+	const folders = new Map((yield* visibleFolders).map((f) => [f.id, f]));
 	/** A folder's path, like `Blog/Drafts`. */
 	const pathOf = (id: string | null) => {
 		const names: string[] = [];
@@ -382,12 +388,15 @@ export const listPages = Effect.fn("Api.listPages")(function* (
 		}
 		return names.join("/") || null;
 	};
-	const pages = (yield* MainDb.pages.listLive()).map((page) => ({
+	const pages = (yield* Sharing.visible(yield* MainDb.pages.listLive())).map((page) => ({
 		id: page.id,
 		title: page.title,
 		kind: kindOf(page),
 		icon: page.icon,
-		folder: page.folder_id ? { id: page.folder_id, path: pathOf(page.folder_id) } : null,
+		folder:
+			page.folder_id && folders.has(page.folder_id)
+				? { id: page.folder_id, path: pathOf(page.folder_id) }
+				: null,
 		databaseId: page.database_id,
 		hostId: page.host_id,
 		createdAt: iso(page.created_at),
@@ -403,9 +412,21 @@ export const listPages = Effect.fn("Api.listPages")(function* (
 	);
 });
 
-/** The folders, each with its path. */
+/**
+ * The folders the signed-in person may see: all of them for an owner. For a
+ * friend, one above those shared with them is left out, so theirs are at the top.
+ */
+const visibleFolders = Effect.gen(function* () {
+	const access = yield* Sharing.folderAccessAll;
+	return (yield* MainDb.folders.list())
+		.filter((f) => access.has(f.id))
+		.map((f) => (f.parent_id && !access.has(f.parent_id) ? { ...f, parent_id: null } : f));
+});
+
+/** The folders, each with its path, and what the caller may do in it. */
 export const listFolders = Effect.gen(function* () {
-	const folders = yield* MainDb.folders.list();
+	const access = yield* Sharing.folderAccessAll;
+	const folders = yield* visibleFolders;
 	const byId = new Map(folders.map((f) => [f.id, f]));
 	const path = (id: string) => {
 		const names: string[] = [];
@@ -417,15 +438,40 @@ export const listFolders = Effect.gen(function* () {
 			names.unshift(at.name);
 		return names.join("/");
 	};
-	return folders.map((f) => ({ id: f.id, name: f.name, parentId: f.parent_id, path: path(f.id) }));
+	const owner = (yield* Sharing.me)?.owner ?? false;
+	return folders.map((f) => ({
+		id: f.id,
+		name: f.name,
+		parentId: f.parent_id,
+		path: path(f.id),
+		// A friend's role in it; owners may do anything anywhere.
+		...(owner ? {} : { access: access.get(f.id) }),
+	}));
 });
 
-/** A page that isn't in Trash, or a 404. */
-export const livePage = Effect.fn("Api.livePage")(function* (id: string) {
+/**
+ * A page that isn't in Trash, which the caller may at least `min` (view, by
+ * default) on, or why not: a 404 for one they can't see.
+ */
+export const livePage = Effect.fn("Api.livePage")(function* (id: string, min: Access = "view") {
 	if (!isId(id)) return yield* notFound();
 	const page = Option.getOrUndefined(yield* MainDb.pages.find({ id }));
 	if (!page || page.archived_at !== null) return yield* notFound();
+	yield* Sharing.requireAccess(id, min);
 	return page;
+});
+
+/** A database the caller may at least `min` on, or why not. */
+export const liveDatabase = Effect.fn("Api.liveDatabase")(function* (
+	id: string,
+	min: Access = "view",
+) {
+	const state = isId(id) ? yield* databaseState(id) : null;
+	if (!state) return yield* notFound("database");
+	yield* Sharing.requireAccess(id, min).pipe(
+		Effect.catchTag("NotFound", () => Effect.fail(notFound("database"))),
+	);
+	return state;
 });
 
 /** One page: what it is, its properties when it's a row, and its content in `format`. */
@@ -450,7 +496,7 @@ export const getPage = Effect.fn("Api.getPage")(function* (
 		database: database ? { id: database.id, title: database.title } : null,
 		properties: database && row ? propertiesOf(database, row, refs) : null,
 		/** The pages that link to this one. */
-		backlinks: (yield* MainDb.links.listBacklinks({ id })).map((link) => ({
+		backlinks: (yield* Sharing.visible(yield* MainDb.links.listBacklinks({ id }))).map((link) => ({
 			id: link.id,
 			title: link.title,
 		})),
@@ -464,19 +510,22 @@ export const getPage = Effect.fn("Api.getPage")(function* (
 	};
 });
 
-export const listDatabases = Effect.map(MainDb.databases.list(), (rows) =>
-	rows.map((d) => ({ id: d.id, title: d.title, hostId: d.host_id })),
+export const listDatabases = Effect.map(
+	Effect.flatMap(MainDb.databases.list(), (rows) => Sharing.visible(rows)),
+	(rows) => rows.map((d) => ({ id: d.id, title: d.title, hostId: d.host_id })),
 );
 
 /** A database: its title and properties. */
 export const getDatabase = Effect.fn("Api.getDatabase")(function* (id: string) {
-	const state = isId(id) ? yield* databaseState(id) : null;
-	if (!state) return yield* notFound("database");
-	// The databases its relations link to, for naming what its rollups roll up.
+	const state = yield* liveDatabase(id);
+	// The databases its relations link to (that the caller may see), for naming what its rollups roll up.
 	const related = new Map<string, DatabaseState>();
+	const seen = yield* Sharing.accessToAll(
+		state.columns.flatMap((c) => (c.relation ? [c.relation.databaseId] : [])),
+	);
 	for (const c of state.columns) {
 		const other = c.relation?.databaseId;
-		if (!other || related.has(other)) continue;
+		if (!other || related.has(other) || !seen.has(other)) continue;
 		const found = other === id ? state : yield* databaseState(other, { rollups: false });
 		if (found) related.set(other, found);
 	}
@@ -519,8 +568,7 @@ export const queryRows = Effect.fn("Api.queryRows")(function* (
 	id: string,
 	query: typeof RowsQuery.Type,
 ) {
-	const state = isId(id) ? yield* databaseState(id) : null;
-	if (!state) return yield* notFound("database");
+	const state = yield* liveDatabase(id);
 	const view = query.view
 		? state.views.find(
 				(v) => v.id === query.view || v.name.toLowerCase() === query.view!.toLowerCase(),
@@ -617,7 +665,18 @@ export const paged = <A>(items: readonly A[], paging: Paging, fallback = DEFAULT
 export const search = Effect.fn("Api.search")(function* (q: string, paging: Paging = {}) {
 	const offset = Math.max(0, Math.floor(paging.offset ?? 0));
 	const limit = Math.min(200, Math.max(1, Math.floor(paging.limit ?? 20)));
-	const found = yield* Search.find({ q }, { limit, offset });
+	const owner = (yield* Sharing.me)?.owner ?? false;
+	// A friend's: only what's shared with them, so the paging is done after that.
+	const found = owner
+		? yield* Search.find({ q }, { limit, offset })
+		: yield* Effect.gen(function* () {
+				const all = yield* Search.find({ q }, { limit: 200, offset: 0 });
+				const results = yield* Sharing.visible(all.results);
+				return {
+					results: results.slice(offset, offset + limit),
+					total: all.total === undefined ? undefined : results.length,
+				};
+			});
 	const total = found.total ?? found.results.length;
 	const { ORIGIN } = yield* Env;
 	return {
@@ -720,8 +779,7 @@ export const createPage = Effect.fn("Api.createPage")(function* (input: typeof N
 	const by = yield* Sessions.editor;
 	let id: string;
 	if (input.database) {
-		if (!isId(input.database) || !(yield* databaseState(input.database)))
-			return yield* notFound("database");
+		yield* liveDatabase(input.database, "edit");
 		const made = yield* runOp(input.database, {
 			op: "addRow",
 			databaseId: input.database,
@@ -732,6 +790,8 @@ export const createPage = Effect.fn("Api.createPage")(function* (input: typeof N
 		const folders = yield* MainDb.folders.list();
 		if (input.folder && !folders.some((f) => f.id === input.folder))
 			return yield* notFound("folder");
+		// A friend adds pages only to folders shared with them to edit.
+		yield* Sharing.requireFolder(input.folder ?? null);
 		id = crypto.randomUUID();
 		yield* MainDb.pages.create({
 			id,
@@ -762,7 +822,7 @@ export const updatePage = Effect.fn("Api.updatePage")(function* (
 	id: string,
 	input: typeof PageChanges.Type,
 ) {
-	const page = yield* livePage(id);
+	const page = yield* livePage(id, "edit");
 	if (page.kind === "database" && (input.markdown ?? input.doc ?? input.append) !== undefined)
 		return yield* bad("A database has rows, not content");
 	if (input.title !== undefined) yield* Pages.rename(id, { title: input.title });
@@ -782,7 +842,7 @@ export const appendNodes = Effect.fn("Api.appendNodes")(function* (
 	id: string,
 	nodes: readonly unknown[],
 ) {
-	const current = (parseJson((yield* livePage(id)).content) ?? fromMarkdown("")) as {
+	const current = (parseJson((yield* livePage(id, "edit")).content) ?? fromMarkdown("")) as {
 		root: { children?: unknown[] };
 	};
 	const children = (current.root.children ?? []).filter(
@@ -804,7 +864,8 @@ const isEmptyParagraph = (node: unknown) =>
 
 /** To Trash, as the app does; it can be restored from there. */
 export const trashPage = Effect.fn("Api.trashPage")(function* (id: string) {
-	yield* livePage(id);
+	// As the app: an owner's, or a friend's who may edit where it lives.
+	yield* Sharing.requireHome(yield* livePage(id));
 	yield* Trash.remove(id);
 });
 

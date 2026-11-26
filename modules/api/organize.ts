@@ -7,6 +7,7 @@ import { Effect, Option, Schema } from "effect";
 import { BadRequest, NotFound } from "spacefn";
 
 import { isId } from "#lib/ids.ts";
+import * as Sharing from "#modules/sharing/sharing.ts";
 import * as Sidebar from "#modules/sidebar/sidebar.ts";
 import * as Trash from "#modules/trash/trash.ts";
 import MainDb from "#space/db/main.ts";
@@ -77,9 +78,27 @@ export const deleteFolder = Effect.fn("Organize.deleteFolder")(function* (id: st
 	return { folder: found, movedUp: { pages: undo.pages.length, folders: undo.folders.length } };
 });
 
-/** What's in Trash: each thing deleted (with how much went with it), newest first. */
+/** Whether the caller may bring back page `id` from Trash: an owner, or a friend who could have put it there. */
+const mayRestore = Effect.fn("Organize.mayRestore")(function* (page: {
+	id: string;
+	database_id: string | null;
+	host_id: string | null;
+	folder_id: string | null;
+}) {
+	if ((yield* Sharing.me)?.owner) return true;
+	const seen = yield* Sharing.accessTo(page.id);
+	return seen !== null && (yield* Sharing.mayRehome(page));
+});
+
+/** What's in Trash (a friend's: what they may restore): each thing deleted, newest first. */
 export const listTrash = Effect.gen(function* () {
-	const { items } = yield* Trash.list;
+	const all = (yield* Trash.list).items;
+	const owner = (yield* Sharing.me)?.owner ?? false;
+	const items = [];
+	for (const item of all) {
+		const page = owner ? null : Option.getOrUndefined(yield* MainDb.pages.find({ id: item.id }));
+		if (owner || (page && (yield* mayRestore(page)))) items.push(item);
+	}
 	return items.map((item) => ({
 		id: item.id,
 		title: item.title,
@@ -96,7 +115,7 @@ export const listTrash = Effect.gen(function* () {
 export const restorePage = Effect.fn("Organize.restorePage")(function* (id: string) {
 	if (!isId(id)) return yield* new NotFound({ message: "No such page" });
 	const page = Option.getOrUndefined(yield* MainDb.pages.find({ id }));
-	if (!page) return yield* new NotFound({ message: "No such page" });
+	if (!page || !(yield* mayRestore(page))) return yield* new NotFound({ message: "No such page" });
 	if (page.archived_at !== null && page.archived_with !== id)
 		return yield* bad(
 			"It went to Trash with something else (a database or the page holding it): restore that, see list_trash",

@@ -4,9 +4,12 @@ import type { cfnotes } from "#lib/testing.ts";
 export type Json = Record<string, any>;
 export type App = ReturnType<typeof cfnotes>;
 
-/** Calls an MCP tool with a write token: its text, parsed when it's JSON, and whether it failed. */
-export async function mcp(app: App) {
-	const token = await app.token("write");
+/**
+ * Calls an MCP tool with a write token (the owner's, or `email`'s): its text,
+ * parsed when it's JSON, and whether it failed.
+ */
+export async function mcp(app: App, email?: string) {
+	const token = await app.token("write", email);
 	return async (name: string, args: object) => {
 		const res = await app.api(token, "/api/mcp", {
 			method: "POST",

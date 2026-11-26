@@ -5,11 +5,10 @@
  * survive that is refused here, with the reason.
  */
 import { Effect, Schema } from "effect";
-import { BadRequest, NotFound } from "spacefn";
+import { BadRequest } from "spacefn";
 
-import { isId } from "#lib/ids.ts";
 import type { DatabaseState } from "#modules/database/columns.ts";
-import { databaseState, runOp } from "#modules/database/database.ts";
+import { runOp } from "#modules/database/database.ts";
 import {
 	cleanView,
 	groupsBy,
@@ -20,7 +19,7 @@ import {
 	type View,
 } from "#modules/database/view.ts";
 
-import { columnNamed, describeView, whereFilters } from "./api.ts";
+import { columnNamed, describeView, liveDatabase, whereFilters } from "./api.ts";
 
 const bad = (message: string) => new BadRequest({ message });
 
@@ -43,11 +42,8 @@ export const ViewSettings = Schema.Struct({
 });
 type ViewSettings = typeof ViewSettings.Type;
 
-const state = Effect.fn("Views.state")(function* (id: string) {
-	const found = isId(id) ? yield* databaseState(id) : null;
-	if (!found) return yield* new NotFound({ message: "No such database" });
-	return found;
-});
+/** A database the caller may change the views of: an edit of it. */
+const state = (id: string) => liveDatabase(id, "edit");
 
 /** The view called `name` (or with that id), or a 400 naming the ones there are. */
 const viewNamed = (db: DatabaseState, name: string) => {

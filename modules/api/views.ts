@@ -3,7 +3,7 @@ import { assets } from "spacefn/assets";
 
 import { icon } from "#lib/icons.ts";
 import { appearanceHead } from "#modules/appearance/views.ts";
-import type { TokenInfo } from "#modules/auth/tokens.ts";
+import { MAX_FRIEND_TOKENS, type TokenInfo } from "#modules/auth/tokens.ts";
 
 const day = (ms: number, now: number) => {
 	const when = new Date(ms);
@@ -23,6 +23,7 @@ export function tokensView({
 	made,
 	error,
 	urls,
+	guest = false,
 }: {
 	origin: string;
 	tokens: readonly TokenInfo[];
@@ -32,6 +33,8 @@ export function tokensView({
 	made: { name: string; scope: string; token: string } | undefined;
 	error: string | undefined;
 	urls: Record<"create" | "revoke", string>;
+	/** A friend's page: their own tokens, which reach only what's shared with them. */
+	guest?: boolean;
 }): Html {
 	const mcp = `${origin}/api/mcp`;
 	return html`<article class="page tokens-page">
@@ -43,7 +46,14 @@ export function tokensView({
 			who made it, so keep it secret like a password. Nothing becomes public.
 			<a href="/docs/api">Read the API and MCP docs</a>.
 		</p>
-
+		${
+			guest
+				? html`<p class="page-intro">
+						Yours reach only what's shared with you, as you can in the app. You can have
+						${MAX_FRIEND_TOKENS} tokens.
+					</p>`
+				: ""
+		}
 		${
 			made
 				? html`<section class="token-made" role="status">

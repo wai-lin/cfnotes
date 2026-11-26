@@ -1,6 +1,7 @@
 /**
  * API tokens: `Authorization: Bearer cfn_…` on `/api/…`, acting as the person
- * who made the token. Only a hash is stored, and the token is shown once.
+ * who made the token: an owner, or a friend, who reaches only what's shared
+ * with them. Only a hash is stored, and the token is shown once.
  */
 import { Clock, Effect, Option, Schema } from "effect";
 import { HttpServerRequest } from "effect/http";
@@ -10,7 +11,7 @@ import Env from "#configs/env.ts";
 import { isId } from "#lib/ids.ts";
 import MainDb from "#space/db/main.ts";
 
-import { isAllowed } from "./access.ts";
+import { isAllowed, normalize } from "./access.ts";
 
 export const SCOPES = ["read", "write"] as const;
 export type Scope = (typeof SCOPES)[number];
@@ -23,6 +24,8 @@ export interface Caller {
 
 const PREFIX = "cfn_";
 const MAX_NAME = 80;
+/** How many tokens a friend may have at once; owners may have any number. */
+export const MAX_FRIEND_TOKENS = 3;
 /** `last_used_at` is written at most this often per token. */
 const TOUCH_EVERY = 60_000;
 
@@ -61,6 +64,13 @@ const bearerOf = (request: HttpServerRequest.HttpServerRequest) => {
 // Looked up once per request: a request asks who it's from more than once.
 const seen = new WeakMap<object, Option.Option<Caller>>();
 
+/** Whether `email` may still sign in: an owner, or someone with something shared with them. */
+const mayEnter = Effect.fn("Tokens.mayEnter")(function* (email: string) {
+	if (isAllowed((yield* Env).ALLOWED_EMAILS, email)) return true;
+	const found = yield* MainDb.shares.has({ email: normalize(email) });
+	return Option.match(found, { onNone: () => false, onSome: (row) => row.shared === 1 });
+});
+
 /** Who the request's token acts for: none without a valid token, or once its maker can't sign in. */
 export const caller = Effect.gen(function* () {
 	const request = yield* HttpServerRequest.HttpServerRequest;
@@ -72,8 +82,7 @@ export const caller = Effect.gen(function* () {
 		const row = Option.getOrUndefined(
 			yield* MainDb.tokens.find({ tokenHash: yield* hashToken(token) }),
 		);
-		const { ALLOWED_EMAILS } = yield* Env;
-		if (row && isAllowed(ALLOWED_EMAILS, row.created_by)) {
+		if (row && (yield* mayEnter(row.created_by))) {
 			const now = yield* Clock.currentTimeMillis;
 			if (row.last_used_at === null || now - row.last_used_at > TOUCH_EVERY)
 				yield* MainDb.tokens.touch({ id: row.id, now });
@@ -103,23 +112,40 @@ export interface TokenInfo {
 	lastUsedAt: number | null;
 }
 
-export const list = Effect.map(MainDb.tokens.list(), (rows) =>
-	rows.map((row): TokenInfo => ({
-		id: row.id,
-		name: row.name,
-		scope: row.scope === "write" ? "write" : "read",
-		createdAt: row.created_at,
-		createdBy: row.created_by,
-		lastUsedAt: row.last_used_at,
-	})),
-);
+/** Who's managing tokens: an owner sees and revokes every one, a friend only their own. */
+export interface Manager {
+	email: string;
+	owner: boolean;
+}
 
-/** Makes a token for `by`; the answer holds the only copy of it. */
+const isTheirs = (who: Manager, createdBy: string) =>
+	who.owner || normalize(createdBy) === normalize(who.email);
+
+export const list = (who: Manager) =>
+	Effect.map(MainDb.tokens.list(), (rows) =>
+		rows
+			.filter((row) => isTheirs(who, row.created_by))
+			.map((row): TokenInfo => ({
+				id: row.id,
+				name: row.name,
+				scope: row.scope === "write" ? "write" : "read",
+				createdAt: row.created_at,
+				createdBy: row.created_by,
+				lastUsedAt: row.last_used_at,
+			})),
+	);
+
+/** Makes a token for `who`; the answer holds the only copy of it. */
 export const create = Effect.fn("Tokens.create")(function* (
 	input: typeof New.Type,
-	by: string | null,
+	who: Manager | null,
 ) {
-	if (!by) return yield* new Forbidden({ message: "Sign in first" });
+	if (!who) return yield* new Forbidden({ message: "Sign in first" });
+	const by = who.email;
+	if (!who.owner && (yield* list(who)).length >= MAX_FRIEND_TOKENS)
+		return yield* new BadRequest({
+			message: `You can have ${MAX_FRIEND_TOKENS} tokens: revoke one to make another`,
+		});
 	const name = input.name.replace(/\s+/g, " ").trim().slice(0, MAX_NAME);
 	if (!name) return yield* new BadRequest({ message: "A token needs a name" });
 	const token = newToken();
@@ -134,8 +160,13 @@ export const create = Effect.fn("Tokens.create")(function* (
 	return { name, scope: input.scope, token };
 });
 
-/** Revokes a token: anyone signed in may, as anyone may need to stop a leaked one. */
-export const revoke = Effect.fn("Tokens.revoke")(function* ({ id }: typeof Revoke.Type) {
-	if (!isId(id)) return yield* new NotFound({ message: "No such token" });
+/** Revokes a token: an owner any (to stop a leaked one), a friend their own. */
+export const revoke = Effect.fn("Tokens.revoke")(function* (
+	{ id }: typeof Revoke.Type,
+	who: Manager | null,
+) {
+	if (!isId(id) || !who) return yield* new NotFound({ message: "No such token" });
+	if (!(yield* list(who)).some((token) => token.id === id))
+		return yield* new NotFound({ message: "No such token" });
 	yield* MainDb.tokens.delete({ id });
 });

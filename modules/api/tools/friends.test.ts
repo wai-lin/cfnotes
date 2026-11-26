@@ -1,0 +1,132 @@
+import { describe, expect, it } from "vitest";
+
+import { cfnotes } from "#lib/testing.ts";
+
+import { idIn, mcp, type App, type Json } from "./testing.ts";
+
+const FRIEND = "friend@example.com";
+
+/**
+ * The owner's workspace: a folder "Trip" shared with FRIEND as `role` (with a
+ * page in it), a folder of the owner's own, and a page outside both.
+ */
+async function setUp(app: App, role = "edit") {
+	const owner = await mcp(app);
+	const trip = (await owner("create_folder", { name: "Trip" })).data;
+	const mine = (await owner("create_folder", { name: "Mine" })).data;
+	const plan = idIn((await owner("create_page", { title: "Plan", folder_id: trip.id })).text);
+	const secret = idIn(
+		(await owner("create_page", { title: "Secret", markdown: "Hidden words" })).text,
+	);
+	const { path } = await app.open();
+	await app.post(path, "share", { op: "invite", kind: "folder", id: trip.id, email: FRIEND, role });
+	return { owner, friend: await mcp(app, FRIEND), trip, mine, plan, secret };
+}
+
+describe("a friend's token", () => {
+	it("works once something is shared with them, and stops when it isn't", async () => {
+		await using app = cfnotes();
+		const token = await app.token("write", FRIEND);
+		const me = () => app.api(token, "/api/v1/me");
+		expect((await me()).status).toBe(401);
+		const { path, id } = await app.open();
+		await app.post(path, "share", { op: "invite", kind: "page", id, email: FRIEND });
+		expect(await (await me()).json()).toEqual({ email: FRIEND, scope: "write" });
+		await app.post(path, "share", { op: "remove", kind: "page", id, email: FRIEND });
+		expect((await me()).status).toBe(401);
+	});
+
+	it("lists, finds and reads only what's shared", async () => {
+		await using app = cfnotes();
+		const { friend, trip, plan, secret } = await setUp(app, "view");
+
+		const pages = (await friend("list_pages", {})).data.pages as Json[];
+		expect(pages.map((p) => p.title)).toEqual(["Plan"]);
+		expect((await friend("list_folders", {})).data.folders).toEqual([
+			{ id: trip.id, name: "Trip", parentId: null, path: "Trip", access: "view" },
+		]);
+		expect((await friend("search", { query: "Hidden" })).data.results).toEqual([]);
+		expect((await friend("read_page", { page_id: plan })).error).toBe(false);
+		expect((await friend("read_page", { page_id: secret })).text).toBe("NotFound: No such page");
+
+		// A viewer can't change it.
+		const edited = await friend("update_page", { page_id: plan, title: "Mine" });
+		expect(edited.text).toMatch(/^Forbidden/);
+	});
+
+	it("makes and changes things only in folders shared with them to edit", async () => {
+		await using app = cfnotes();
+		const { owner, friend, trip, mine, plan, secret } = await setUp(app);
+
+		const made = await friend("create_page", { title: "Day 1", folder_id: trip.id });
+		expect(made.error).toBe(false);
+		const sub = (await friend("create_folder", { name: "Days", parent_id: trip.id })).data;
+		expect(sub.path).toBe("Trip/Days");
+		expect((await friend("move_page", { page_id: idIn(made.text), folder_id: sub.id })).error).toBe(
+			false,
+		);
+		const db = await friend("create_database", { title: "Costs", folder_id: trip.id });
+		expect(db.error).toBe(false);
+		expect((await friend("update_page", { page_id: plan, append_markdown: "More" })).error).toBe(
+			false,
+		);
+
+		// Not at the top level, nor in the owner's folder, nor on the owner's page.
+		expect((await friend("create_page", { title: "Top" })).text).toMatch(/^Forbidden/);
+		expect((await friend("create_folder", { name: "Top" })).text).toMatch(/^Forbidden/);
+		expect((await friend("create_database", { title: "Top" })).text).toMatch(/^Forbidden/);
+		expect((await friend("create_page", { title: "X", folder_id: mine.id })).text).toMatch(
+			/^NotFound/,
+		);
+		expect((await friend("move_page", { page_id: plan, folder_id: null })).text).toMatch(
+			/^Forbidden/,
+		);
+		expect((await friend("trash_page", { page_id: secret })).text).toBe("NotFound: No such page");
+		expect((await friend("delete_folder", { folder_id: trip.id })).text).toMatch(/^Forbidden/);
+
+		// Trash: what they put there, and nothing of the owner's.
+		await owner("trash_page", { page_id: secret });
+		expect((await friend("trash_page", { page_id: plan })).error).toBe(false);
+		const trash = (await friend("list_trash", {})).data.items as Json[];
+		expect(trash.map((item) => item.title)).toEqual(["Plan"]);
+		expect((await friend("restore_page", { page_id: secret })).text).toBe("NotFound: No such page");
+		expect((await friend("restore_page", { page_id: plan })).error).toBe(false);
+	});
+
+	it("is told what it reaches when it connects", async () => {
+		await using app = cfnotes();
+		await setUp(app);
+		const token = await app.token("read", FRIEND);
+		const res = await app.api(token, "/api/mcp", {
+			method: "POST",
+			json: { jsonrpc: "2.0", id: 1, method: "initialize", params: {} },
+		});
+		const { result } = (await res.json()) as { result: { instructions: string } };
+		expect(result.instructions).toContain("This token is a friend's");
+	});
+});
+
+describe("the tokens page", () => {
+	it("shows a friend only their own tokens, up to three", async () => {
+		await using app = cfnotes();
+		await app.token("write");
+		const { path, id } = await app.open();
+		await app.post(path, "share", { op: "invite", kind: "page", id, email: FRIEND });
+		const friend = await app.as(FRIEND);
+
+		const make = (name: string) =>
+			friend.fetch("/tokens?__action=create", {
+				method: "POST",
+				headers: { "content-type": "application/x-www-form-urlencoded" },
+				body: new URLSearchParams({ name, scope: "read" }),
+			});
+		for (const name of ["one", "two", "three"]) expect((await make(name)).status).toBe(200);
+		const refused = await (await make("four")).text();
+		expect(refused).toContain("You can have 3 tokens");
+
+		const html = await (await friend.fetch("/tokens")).text();
+		expect(html).toContain("reach only what's shared with you");
+		expect(html.match(/class="trash-item token-item/g)?.length ?? 0).toBe(3);
+		expect(html).not.toContain("owner@example.com");
+	});
+});

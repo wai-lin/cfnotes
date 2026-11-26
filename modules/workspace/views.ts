@@ -15,12 +15,16 @@ const tokensLink = (activeId?: string) =>
 	</a>`;
 
 /**
- * A friend's: the forms a folder's "New page" and "New database" submit, in
- * folders shared with them to edit.
+ * A friend's: the forms a folder's "New page" and "New database" submit (in
+ * folders shared with them to edit), and their API tokens.
  */
-function guestTools(options: { urls: { create: string; createDatabase: string } }): Html {
+function guestTools(options: {
+	activeId?: string;
+	urls: { create: string; createDatabase: string };
+}): Html {
 	return html`<form id="new-page-form" method="post" action="${options.urls.create}" hidden></form>
-		<form id="new-db-form" method="post" action="${options.urls.createDatabase}" hidden></form>`;
+		<form id="new-db-form" method="post" action="${options.urls.createDatabase}" hidden></form>
+		${tokensLink(options.activeId)}`;
 }
 
 /** New page, database and folder, Trash and API tokens: an owner's. */

@@ -220,7 +220,7 @@ export function markQuote(blocks: Node[], quote: string, id: string): string | n
 /** Makes `edits` to page `id`'s content, in order, and saves it once. */
 export const editPage = Effect.fn("Sections.editPage")(function* (id: string, input: unknown) {
 	const edits = yield* Schema.decodeUnknownEffect(Schema.Array(PageEdit))(input);
-	const page = yield* livePage(id);
+	const page = yield* livePage(id, "edit");
 	if (page.kind === "database") return yield* bad("A database has rows, not content");
 	if (edits.length === 0) return yield* bad("No edits");
 	const state = (parseJson(page.content) ?? fromMarkdown("")) as { root: Node };

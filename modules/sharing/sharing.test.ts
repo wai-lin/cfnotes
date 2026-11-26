@@ -78,7 +78,7 @@ describe("sharing a page", () => {
 		// Another page is as good as missing, and the rest of the app is the owner's.
 		expect((await friend.fetch(other.path)).status).toBe(404);
 		expect((await friend.post(other.path, "comments", { op: "list" })).status).toBe(404);
-		for (const route of ["/trash", "/search?q=x", "/tokens", "/archive"])
+		for (const route of ["/trash", "/search?q=x", "/archive"])
 			expect((await friend.fetch(route)).status, route).toBe(403);
 		expect((await friend.post(path, "create", {})).status).toBe(403);
 		expect((await friend.post(path, "share", { op: "list", kind: "page", id })).status).toBe(403);

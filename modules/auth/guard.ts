@@ -39,15 +39,17 @@ const refuse = (request: HttpServerRequest.HttpServerRequest, path: string) => {
 
 /**
  * What a friend (signed in through a share, not on ALLOWED_EMAILS) may reach:
- * pages, which check what's shared with them action by action, and files.
- * Uploads and link previews only for someone who may edit something.
+ * pages, which check what's shared with them action by action, files, their
+ * API tokens, and the API, where each request checks what's shared the same
+ * way. Uploads and link previews only for someone who may edit something.
  */
-const GUEST_READS = /^\/(p\/[\w-]+|files\/(img|file|media)\/[\w.-]+|auth\/session)?$/;
+const GUEST_READS = /^\/(p\/[\w-]+|files\/(img|file|media)\/[\w.-]+|auth\/session|tokens)?$/;
 const GUEST_WRITES = /^\/(files|files\/attach|files\/media|unfurl)$/;
 
 const guestMay = Effect.fn("guestMay")(function* (method: string, path: string, email: string) {
+	if (isApiPath(path)) return true;
 	if (GUEST_READS.test(path))
-		return method === "GET" || method === "HEAD" || path.startsWith("/p/");
+		return method === "GET" || method === "HEAD" || path.startsWith("/p/") || path === "/tokens";
 	if (GUEST_WRITES.test(path)) return yield* Sessions.editsSomething(email);
 	return false;
 });

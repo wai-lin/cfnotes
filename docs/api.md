@@ -11,7 +11,8 @@ curl -H "Authorization: Bearer cfn_…" https://notes.example.com/api/v1/pages
 ```
 
 - A token acts as the person who made it. Pages and comments it writes are recorded as theirs.
-- A token stops working when its maker is taken off `ALLOWED_EMAILS`, or when anyone revokes it.
+- A token stops working when its maker can no longer sign in (taken off `ALLOWED_EMAILS`, or a friend's last share removed), or when it's revoked. An owner may revoke any token; a friend only their own.
+- A friend (someone a page or folder is shared with) may make up to 3 tokens. Theirs reach only what's shared with them, as in the app: lists, search and reads leave out the rest, and changes need the share's role. They make pages, databases and folders, and move or trash things, only inside folders shared with them to edit, never at the top level. `list_folders` and `GET /api/v1/folders` give each folder's `access`.
 - A **read only** token can use `GET`. Anything else needs **read and write**.
 - A token works only under `/api/`. A session cookie counts for nothing there, so a page open in a browser can't call the API.
 - There is no CORS. Call the API from a server or a build step, never from a reader's browser, where the token would be exposed.

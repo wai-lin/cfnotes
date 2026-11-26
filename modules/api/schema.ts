@@ -19,9 +19,10 @@ import { databaseState, newDatabase, runOp } from "#modules/database/database.ts
 import { fnsFor, isRollupFn, ROLLUP_FNS } from "#modules/database/rollup.ts";
 import { compileScript } from "#modules/database/script/compile.ts";
 import * as Pages from "#modules/pages/pages.ts";
+import * as Sharing from "#modules/sharing/sharing.ts";
 import MainDb from "#space/db/main.ts";
 
-import { appendNodes, columnNamed, livePage } from "./api.ts";
+import { appendNodes, columnNamed, liveDatabase, livePage } from "./api.ts";
 
 const bad = (message: string) => new BadRequest({ message });
 
@@ -304,8 +305,7 @@ export const updateDatabase = Effect.fn("Schema.updateDatabase")(function* (
 	input: unknown,
 ) {
 	const changes = yield* Schema.decodeUnknownEffect(DatabaseChanges)(input);
-	if (!isId(id)) return yield* new NotFound({ message: "No such database" });
-	yield* fresh(id);
+	yield* liveDatabase(id, "edit");
 	if (changes.title !== undefined)
 		yield* op(id, { op: "rename", title: changes.title }, "Renaming");
 	for (const [i, change] of (changes.changes ?? []).entries())
@@ -326,7 +326,9 @@ export const createDatabase = Effect.fn("Schema.createDatabase")(function* (inpu
 	if (spec.folder_id && spec.page_id) return yield* bad("Give folder_id or page_id, not both");
 	if (spec.folder_id && !(yield* MainDb.folders.list()).some((f) => f.id === spec.folder_id))
 		return yield* new NotFound({ message: "No such folder" });
-	const host = spec.page_id ? yield* livePage(spec.page_id) : null;
+	const host = spec.page_id ? yield* livePage(spec.page_id, "edit") : null;
+	// A friend makes a full-page one only in a folder shared with them to edit.
+	if (!host) yield* Sharing.requireFolder(spec.folder_id ?? null);
 	if (host && (host.kind === "database" || host.database_id))
 		return yield* bad("An inline database goes in a page, not a database or its rows");
 	const id = yield* newDatabase({
