@@ -1,5 +1,6 @@
 /** MCP tools for databases: describing, querying, making them and changing their properties. */
 import { Effect, Schema } from "effect";
+import { BadRequest } from "spacefn";
 
 import { COLORS, COLUMN_TYPES } from "#modules/database/columns.ts";
 import { LAYOUTS } from "#modules/database/view.ts";
@@ -177,6 +178,46 @@ const viewFields = (): Json => ({
 	row_numbers: boolean("Table: show each row's number."),
 });
 
+/** At most this many rows in one create_rows or update_rows. */
+const MAX_BATCH = 100;
+
+/** A failure as the agent reads it in a batch's answer. */
+const why = (error: unknown) => {
+	const { _tag, message } = (error ?? {}) as { _tag?: unknown; message?: unknown };
+	return typeof _tag === "string" && typeof message === "string"
+		? `${_tag}: ${message}`
+		: "Something went wrong";
+};
+
+/**
+ * Runs `each` on every item, one after another: what worked, and what failed
+ * and why (a failure doesn't stop the rest). Unexpected failures still fail.
+ */
+const batch = <A, B>(
+	items: readonly A[],
+	each: (item: A, index: number) => Effect.Effect<B, unknown, any>,
+) =>
+	Effect.gen(function* () {
+		if (items.length === 0) return yield* new BadRequest({ message: "No rows" });
+		if (items.length > MAX_BATCH)
+			return yield* new BadRequest({ message: `At most ${MAX_BATCH} rows at a time` });
+		const done: B[] = [];
+		const failed: { index: number; error: string }[] = [];
+		for (const [index, item] of items.entries()) {
+			const result = yield* Effect.result(each(item, index));
+			if (result._tag === "Success") done.push(result.success);
+			else {
+				const tag = (result.failure as { _tag?: unknown })?._tag;
+				if (!["BadRequest", "NotFound", "SchemaError", "Conflict"].includes(String(tag)))
+					return yield* Effect.fail(result.failure);
+				failed.push({ index, error: why(result.failure) });
+			}
+		}
+		return { done, failed };
+	});
+
+const rowsOf = (value: unknown) => (Array.isArray(value) ? (value as unknown[]) : []);
+
 export const DATABASE_TOOLS: Tool[] = [
 	{
 		name: "list_databases",
@@ -331,5 +372,98 @@ export const DATABASE_TOOLS: Tool[] = [
 				Views.deleteView(str(args.database_id) ?? "", str(args.view) ?? ""),
 				"Deleted the view.",
 			),
+	},
+	{
+		name: "create_rows",
+		title: "Add rows",
+		description: `Adds up to ${MAX_BATCH} rows to a database in one go, each with its title, properties and optionally Markdown content. A row that fails doesn't stop the others: the answer lists what was made ("created", with ids) and what failed and why ("failed", by index).`,
+		inputSchema: object(
+			{
+				database_id: databaseId,
+				rows: array(
+					object(
+						{
+							title: string("The row's title."),
+							properties: {
+								type: "object",
+								description: 'By name, e.g. {"Status": "Draft"}.',
+								additionalProperties: true,
+							},
+							markdown: string("The row page's content, as Markdown."),
+							icon: string("An emoji."),
+						},
+						["title"],
+					),
+					"The rows, in order.",
+				),
+			},
+			["database_id", "rows"],
+		),
+		annotations: adds,
+		write: true,
+		run: (args) =>
+			Effect.gen(function* () {
+				const database = str(args.database_id) ?? "";
+				// A database that isn't there fails the whole call, not each row.
+				yield* Api.getDatabase(database);
+				const { done, failed } = yield* batch(rowsOf(args.rows), (row) => {
+					const r = record(row) ?? {};
+					return Effect.map(
+						Api.createPage({
+							database,
+							title: str(r.title),
+							markdown: str(r.markdown),
+							icon: str(r.icon),
+							properties: record(r.properties),
+						}),
+						(id) => ({ id, title: str(r.title) ?? "" }),
+					);
+				});
+				return json({ created: done, failed });
+			}),
+	},
+	{
+		name: "update_rows",
+		title: "Change rows",
+		description: `Changes up to ${MAX_BATCH} rows (of any databases) in one go: their titles, icons and properties. A row that fails doesn't stop the others: the answer lists the ids changed ("updated") and what failed and why ("failed", by index).`,
+		inputSchema: object(
+			{
+				rows: array(
+					object(
+						{
+							page_id: string("The row's id."),
+							title: string("A new title."),
+							properties: {
+								type: "object",
+								description: "Properties to set, by name; others stay.",
+								additionalProperties: true,
+							},
+							icon: string("An emoji; empty to remove it."),
+						},
+						["page_id"],
+					),
+					"The rows and their changes.",
+				),
+			},
+			["rows"],
+		),
+		annotations: changes,
+		write: true,
+		run: (args) =>
+			Effect.gen(function* () {
+				const { done, failed } = yield* batch(rowsOf(args.rows), (row) => {
+					const r = record(row) ?? {};
+					const id = str(r.page_id) ?? "";
+					return Effect.as(
+						Api.updatePage(id, {
+							title: str(r.title),
+							icon: str(r.icon),
+							properties: record(r.properties),
+						}),
+						id,
+					);
+				});
+				return json({ updated: done, failed });
+			}),
 	},
 ];

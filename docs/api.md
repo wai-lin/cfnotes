@@ -137,6 +137,7 @@ Tools:
 | `get_database`                                 | A database's properties (options, relations, rollups, scripts) and views.             |
 | `query_database`                               | Rows filtered with `where` (values or operators) and `where_any` (OR), sorted, paged. |
 | `create_page`                                  | A page or row from Markdown, with properties. _(write)_                               |
+| `create_rows`, `update_rows`                   | Up to 100 rows at once, with each failure reported by index. _(write)_                |
 | `create_database`                              | A database with properties, full-page or inline in a page. _(write)_                  |
 | `update_database`                              | Title, and add, rename, convert, move or delete properties and options. _(write)_     |
 | `create_view`, `update_view`, `delete_view`    | A database's views: layout, filters, sorts, grouping, dates. _(write)_                |

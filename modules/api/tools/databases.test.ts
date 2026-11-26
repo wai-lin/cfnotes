@@ -419,3 +419,74 @@ describe("a database's views over MCP", () => {
 		);
 	});
 });
+
+describe("many rows at once over MCP", () => {
+	it("adds and changes rows in batches, reporting each one that fails", async () => {
+		await using app = cfnotes();
+		const call = await mcp(app);
+		const { data: db } = await call("create_database", {
+			title: "Books",
+			properties: [
+				{ name: "Status", type: "select", options: ["To read", "Done"] },
+				{ name: "Pages", type: "number" },
+			],
+		});
+		const made = await call("create_rows", {
+			database_id: db.id,
+			rows: [
+				{ title: "Dune", properties: { Status: "Done", Pages: 412 }, markdown: "Spice." },
+				{ title: "Bad", properties: { Pages: "many" } },
+				{ title: "Emma", properties: { Status: "To read" } },
+				{ title: "Nope", properties: { Colour: "red" } },
+			],
+		});
+		expect(made.error).toBe(false);
+		expect((made.data.created as Json[]).map((r) => r.title)).toEqual(["Dune", "Emma"]);
+		expect(made.data.failed).toEqual([
+			{ index: 1, error: expect.stringContaining('Property "Pages" (number)') },
+			{ index: 3, error: expect.stringContaining('No property "Colour"') },
+		]);
+		const [dune, emma] = made.data.created as Json[];
+		// A row that failed isn't left behind half-made.
+		expect((await call("get_database", { database_id: db.id })).data.rows).toBe(2);
+		expect((await call("read_page", { page_id: dune!.id })).text).toContain("Spice.");
+
+		const updated = await call("update_rows", {
+			rows: [
+				{ page_id: emma!.id, properties: { Status: "Done", Pages: 474 } },
+				{ page_id: dune!.id, title: "Dune (1965)" },
+				{ page_id: crypto.randomUUID(), title: "Ghost" },
+			],
+		});
+		expect(updated.data).toEqual({
+			updated: [emma!.id, dune!.id],
+			failed: [{ index: 2, error: "NotFound: No such page" }],
+		});
+		const rows = await call("query_database", {
+			database_id: db.id,
+			where: { Status: "Done" },
+			sort: ["Pages"],
+		});
+		expect((rows.data.rows as Json[]).map((r) => [r.title, r.properties.Pages])).toEqual([
+			["Dune (1965)", 412],
+			["Emma", 474],
+		]);
+	});
+
+	it("refuses an empty or oversized batch, or a database that isn't there", async () => {
+		await using app = cfnotes();
+		const call = await mcp(app);
+		const { data: db } = await call("create_database", { title: "x" });
+		expect((await call("create_rows", { database_id: db.id, rows: [] })).text).toBe(
+			"BadRequest: No rows",
+		);
+		const many = Array.from({ length: 101 }, (_, i) => ({ title: `Row ${i}` }));
+		expect((await call("create_rows", { database_id: db.id, rows: many })).text).toBe(
+			"BadRequest: At most 100 rows at a time",
+		);
+		expect(
+			(await call("create_rows", { database_id: crypto.randomUUID(), rows: [{ title: "a" }] }))
+				.text,
+		).toBe("NotFound: No such database");
+	});
+});

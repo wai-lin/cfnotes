@@ -697,13 +697,19 @@ export const createPage = Effect.fn("Api.createPage")(function* (input: typeof N
 			by,
 		});
 	}
-	if (input.icon) yield* Pages.setIcon(id, { icon: input.icon });
-	if (input.doc !== undefined) yield* saveDoc(id, input.doc);
-	else if (input.markdown !== undefined) yield* saveDoc(id, fromMarkdown(input.markdown));
-	if (input.properties) {
-		if (!input.database) return yield* bad("Only database rows have properties");
-		yield* setProperties(input.database, id, input.properties);
-	}
+	const made = id;
+	yield* Effect.gen(function* () {
+		if (input.icon) yield* Pages.setIcon(made, { icon: input.icon });
+		if (input.doc !== undefined) yield* saveDoc(made, input.doc);
+		else if (input.markdown !== undefined) yield* saveDoc(made, fromMarkdown(input.markdown));
+		if (input.properties) {
+			if (!input.database) return yield* bad("Only database rows have properties");
+			yield* setProperties(input.database, made, input.properties);
+		}
+	}).pipe(
+		// A page that couldn't be made as asked isn't left half-made, to be made again on a retry.
+		Effect.tapError(() => Effect.andThen(Trash.remove(made), Trash.purge([made]))),
+	);
 	return id;
 });
 
