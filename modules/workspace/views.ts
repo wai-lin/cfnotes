@@ -9,6 +9,20 @@ import { navItems } from "#modules/sidebar/views.ts";
 
 const svg = (name: IconName, size?: number) => raw(icon(name, size));
 
+const tokensLink = (activeId?: string) =>
+	html`<a class="new-page tokens-link${activeId === "tokens" ? " is-active" : ""}" href="/tokens">
+		${svg("key")}<span>API tokens</span>
+	</a>`;
+
+/**
+ * A friend's: the forms a folder's "New page" and "New database" submit, in
+ * folders shared with them to edit.
+ */
+function guestTools(options: { urls: { create: string; createDatabase: string } }): Html {
+	return html`<form id="new-page-form" method="post" action="${options.urls.create}" hidden></form>
+		<form id="new-db-form" method="post" action="${options.urls.createDatabase}" hidden></form>`;
+}
+
 /** New page, database and folder, Trash and API tokens: an owner's. */
 function ownerTools(options: {
 	activeId?: string;
@@ -28,12 +42,7 @@ function ownerTools(options: {
 		<a class="new-page trash-link${options.activeId === "trash" ? " is-active" : ""}" href="/trash">
 			${svg("trash")}<span>Trash</span>
 		</a>
-		<a
-			class="new-page tokens-link${options.activeId === "tokens" ? " is-active" : ""}"
-			href="/tokens"
-		>
-			${svg("key")}<span>API tokens</span>
-		</a>`;
+		${tokensLink(options.activeId)}`;
 }
 
 /** The whole document: the sidebar, and a page's body beside it. */
@@ -45,8 +54,10 @@ export function shell(options: {
 	activeId?: string;
 	/** Pages outside the sidebar (database rows, inline databases), so links to them show titles. */
 	index: readonly { id: string; title: string }[];
-	/** A friend's: only what's shared with them, with nothing to make, move or search. */
+	/** A friend's: only what's shared with them, with nothing to search. */
 	guest?: boolean;
+	/** A friend's folders shared with them to edit, where they may make and move things. */
+	editable?: readonly string[];
 	/** The sidebar's actions on the page being shown. */
 	urls: Record<string, string> & { create: string; createDatabase: string };
 	body: Html;
@@ -102,10 +113,13 @@ export function shell(options: {
 							data-actions="${JSON.stringify(options.urls)}"
 							data-guest="${guest ? "true" : ""}"
 						>
-							${navItems(options.folders, options.pages, options.activeId, { guest })}
+							${navItems(options.folders, options.pages, options.activeId, {
+								guest,
+								editable: new Set(options.editable ?? []),
+							})}
 						</nav>
 						<div class="sidebar-foot">
-							${guest ? "" : ownerTools(options)}
+							${guest ? guestTools(options) : ownerTools(options)}
 							<button
 								class="new-page side-appearance"
 								type="button"

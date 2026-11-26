@@ -5,8 +5,8 @@ import Env from "#configs/env.ts";
 import { tokensView } from "#modules/api/views.ts";
 import * as Sessions from "#modules/auth/sessions.ts";
 import * as Tokens from "#modules/auth/tokens.ts";
+import * as Sharing from "#modules/sharing/sharing.ts";
 import { sidebarActions, sidebarUrls } from "#modules/sidebar/actions.ts";
-import * as Sidebar from "#modules/sidebar/sidebar.ts";
 import { shell } from "#modules/workspace/views.ts";
 
 export default page({
@@ -17,7 +17,7 @@ export default page({
 			me: yield* Sessions.editor,
 			now: yield* Clock.currentTimeMillis,
 			user: yield* Sessions.requireUser,
-			...(yield* Sidebar.workspace),
+			...(yield* Sharing.workspace),
 		};
 	}),
 	actions: {
@@ -39,6 +39,8 @@ export default page({
 			pages: data.pages,
 			folders: data.folders,
 			index: data.index,
+			guest: data.guest,
+			editable: data.editable,
 			activeId: "tokens",
 			urls: sidebarUrls,
 			body: tokensView({

@@ -113,6 +113,7 @@ export default page({
 			folders: data.folders,
 			index: data.index,
 			guest: data.guest,
+			editable: data.editable,
 			activeId: data.page.id,
 			urls: sidebarUrls,
 			body: pageView({
@@ -121,6 +122,7 @@ export default page({
 				table: data.table,
 				backlinks: data.backlinks,
 				access: data.access,
+				canTrash: data.canTrash,
 				comments: { threads: data.threads, me: data.me },
 				urls: {
 					save: actions.save.url,

@@ -13,7 +13,7 @@ import { normalize } from "#modules/auth/access.ts";
 import * as Sessions from "#modules/auth/sessions.ts";
 import MainDb from "#space/db/main.ts";
 
-import { atLeast, ROLES, roleOfRank, sharedTree, type Access } from "./roles.ts";
+import { atLeast, folderRoles, ROLES, roleOfRank, sharedTree, type Access } from "./roles.ts";
 
 /** Who is signed in, and whether they own the workspace; `null` when no one is. */
 export const me = Effect.gen(function* () {
@@ -70,6 +70,67 @@ export const requireOwner = Effect.gen(function* () {
 	if (!(yield* me)?.owner) return yield* new Forbidden({ message: DENIED.owner });
 });
 
+/** What the signed-in person may do in each folder; folders they can't see are left out. */
+export const folderAccessAll = Effect.gen(function* () {
+	const who = yield* me;
+	const out = new Map<string, Access>();
+	if (!who) return out;
+	const folders = yield* MainDb.folders.list();
+	if (who.owner) {
+		for (const folder of folders) out.set(folder.id, "owner");
+		return out;
+	}
+	const shares = yield* MainDb.shares.listFor({ email: normalize(who.email) });
+	return folderRoles(shares, folders) as Map<string, Access>;
+});
+
+/**
+ * What the signed-in person may do in folder `id` (`null` is the top level,
+ * an owner's alone), failing unless it's at least `min`. A 404 for a folder
+ * they can't see.
+ */
+export const requireFolder = Effect.fn("Sharing.requireFolder")(function* (
+	id: string | null,
+	min: Access = "edit",
+) {
+	if (id === null) {
+		if ((yield* me)?.owner) return "owner" as Access;
+		return yield* new Forbidden({ message: "Only the workspace's owners add to the top level" });
+	}
+	const access = (yield* folderAccessAll).get(id) ?? null;
+	if (access === null) return yield* new NotFound({ message: "No such folder" });
+	if (!atLeast(access, min))
+		return yield* new Forbidden({ message: "You can't change what's in that folder" });
+	return access;
+});
+
+/** Where a page lives: its database, the page holding it, or its folder (`null`, the top level). */
+type Home = { database_id: string | null; host_id: string | null; folder_id: string | null };
+
+/**
+ * Fails unless the signed-in person may change where `page` lives: move it
+ * out, or put it in Trash. That's an edit of its database, host page or folder,
+ * so a page shared with a friend on its own stays put.
+ */
+export const requireHome = Effect.fn("Sharing.requireHome")(function* (page: Home) {
+	const holder = page.database_id ?? page.host_id;
+	if (holder) {
+		const access = yield* accessTo(holder);
+		if (!atLeast(access, "edit"))
+			return yield* new Forbidden({ message: "You can't remove what's in there" });
+		return;
+	}
+	yield* requireFolder(page.folder_id, "edit").pipe(
+		Effect.catchTag("NotFound", () =>
+			Effect.fail(new Forbidden({ message: "Only the workspace's owners can move or delete it" })),
+		),
+	);
+});
+
+/** Whether the signed-in person may move or trash `page` (see `requireHome`). */
+export const mayRehome = (page: Home) =>
+	Effect.match(requireHome(page), { onFailure: () => false, onSuccess: () => true });
+
 /** The ones of `items` the signed-in person may see (`min` or more). */
 export const visible = <T extends { id: string }>(items: readonly T[], min: Access = "view") =>
 	Effect.map(accessToAll(items.map((item) => item.id)), (access) =>
@@ -103,15 +164,20 @@ export const workspace = Effect.gen(function* () {
 		folders: MainDb.folders.list(),
 		index: MainDb.pages.listIndex(),
 	});
-	if (!who || who.owner) return { ...all, guest: false };
+	if (!who || who.owner) return { ...all, guest: false, editable: [] as string[] };
 	const email = normalize(who.email);
+	const shares = yield* MainDb.shares.listFor({ email });
 	const tree = sharedTree({
-		shares: yield* MainDb.shares.listFor({ email }),
+		shares,
 		folders: all.folders,
 		pages: all.pages,
 		direct: yield* MainDb.shares.listPages({ email }),
 	});
-	return { ...tree, index: yield* visible(all.index), guest: true };
+	// The folders they may add to, rename and reorder.
+	const editable = [...folderRoles(shares, all.folders)]
+		.filter(([, role]) => role === "edit")
+		.map(([id]) => id);
+	return { ...tree, index: yield* visible(all.index), guest: true, editable };
 });
 
 /** Where `/` takes a friend: the first page in their sidebar, or `null` while nothing's shared. */

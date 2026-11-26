@@ -157,6 +157,122 @@ describe("sharing a folder", () => {
 	});
 });
 
+describe("a friend in a folder shared to edit", () => {
+	/** A folder shared with FRIEND as `role`, with a subfolder and a page in each. */
+	async function setUp(app: App, role = "edit") {
+		const { path } = await app.open();
+		const outside = await newFolder(app, path, "Mine");
+		const folder = await newFolder(app, path, "Trip");
+		const sub = await newFolder(app, path, "Days", folder);
+		const page = await newPage(app, path, folder);
+		await share(app, path, { kind: "folder", id: folder, role });
+		const friend = await app.as(FRIEND);
+		return { home: path, outside, folder, sub, page, friend };
+	}
+
+	it("makes pages, databases and folders in it, which its share covers", async () => {
+		await using app = cfnotes();
+		const { folder, sub, page, friend } = await setUp(app);
+
+		const made = await friend.post(page.path, "create", { folder: sub });
+		expect(made.status).toBe(303);
+		const madePath = made.headers.get("location")!;
+		expect(await (await friend.fetch(madePath)).text()).toContain('data-access="edit"');
+		const db = await friend.post(page.path, "createDatabase", { folder });
+		expect((await friend.fetch(db.headers.get("location")!)).status).toBe(200);
+
+		const tree = await (
+			await friend.post(page.path, "newFolder", { name: "Food", parentId: sub })
+		).text();
+		expect(tree).toContain('class="folder-name">Food<');
+		// The tree it answers with is theirs, not the whole workspace.
+		expect(tree).not.toContain("Mine");
+		expect(tree).toContain(`href="${madePath}"`);
+	});
+
+	it("renames, moves and trashes inside it, and no further", async () => {
+		await using app = cfnotes();
+		const { home, outside, folder, sub, page, friend } = await setUp(app);
+		const at = page.path;
+
+		expect((await friend.post(at, "renameFolder", { id: sub, name: "Nights" })).status).toBe(200);
+		expect((await friend.post(at, "renameFolder", { id: folder, name: "Ours" })).status).toBe(200);
+		expect(
+			(await friend.post(at, "move", { kind: "page", id: page.id, folderId: sub })).status,
+		).toBe(200);
+		expect(
+			(await friend.post(at, "reorder", { id: page.id, folderId: folder, beforeId: null })).status,
+		).toBe(200);
+
+		// Not out of it, nor the shared folder itself, nor into the owner's.
+		for (const folderId of [null, outside])
+			expect(
+				(await friend.post(at, "move", { kind: "page", id: page.id, folderId })).status,
+				String(folderId),
+			).toBeGreaterThanOrEqual(403);
+		expect(
+			(await friend.post(at, "move", { kind: "folder", id: folder, folderId: sub })).status,
+		).toBe(403);
+		expect((await friend.post(at, "deleteFolder", { id: folder })).status).toBe(403);
+		expect((await friend.post(at, "create", {})).status).toBe(403);
+		expect((await friend.post(at, "create", { folder: outside })).status).toBe(404);
+		expect((await friend.post(at, "newFolder", { name: "X", parentId: null })).status).toBe(403);
+		expect((await friend.post(at, "renameFolder", { id: outside, name: "X" })).status).toBe(404);
+
+		// The page's Delete, and the sidebar's, with Undo.
+		expect(await (await friend.fetch(at)).text()).toContain(">Delete</button>");
+		expect((await friend.post(at, "removePage", { id: page.id })).status).toBe(200);
+		expect((await friend.post(home, "restorePage", { id: page.id })).status).toBe(200);
+		expect((await friend.post(at, "remove", {})).status).toBe(303);
+		expect((await friend.fetch(at)).status).toBe(302);
+
+		const deleted = await friend.post(home, "deleteFolder", { id: sub });
+		expect(deleted.status).toBe(200);
+		const undo = decodeURIComponent(deleted.headers.get("x-undo")!);
+		expect((await friend.post(home, "restoreFolder", JSON.parse(undo))).status).toBe(200);
+	});
+
+	it("shows them the folder's menus, but not a viewer", async () => {
+		await using app = cfnotes();
+		const editor = await setUp(app);
+		const html = await (await editor.friend.fetch(editor.page.path)).text();
+		expect(html).toMatch(
+			new RegExp(`data-folder="${editor.folder}"\\s+data-editable="true"\\s+data-movable=""`),
+		);
+		expect(html).toMatch(
+			new RegExp(`data-folder="${editor.sub}"\\s+data-editable="true"\\s+data-movable="true"`),
+		);
+		expect(html).toContain('id="new-page-form"');
+		expect(html).not.toContain("New folder");
+
+		await share(app, editor.home, {
+			kind: "folder",
+			id: editor.folder,
+			op: "setRole",
+			role: "view",
+		});
+		const viewer = await (await editor.friend.fetch(editor.page.path)).text();
+		expect(viewer).toMatch(new RegExp(`data-folder="${editor.folder}"\\s+data-editable=""`));
+		expect(viewer).not.toContain("folder-more");
+		expect(viewer).not.toContain(">Delete</button>");
+		expect(
+			(await editor.friend.post(editor.page.path, "create", { folder: editor.folder })).status,
+		).toBe(403);
+		expect(
+			(await editor.friend.post(editor.page.path, "removePage", { id: editor.page.id })).status,
+		).toBe(403);
+	});
+
+	it("leaves a page shared on its own where it is", async () => {
+		await using app = cfnotes();
+		const { path, id } = await app.open();
+		await share(app, path, { kind: "page", id, role: "edit" });
+		const friend = await app.as(FRIEND);
+		expect((await friend.post(path, "removePage", { id })).status).toBe(403);
+		expect(await (await friend.fetch(path)).text()).not.toContain(">Delete</button>");
+	});
+});
+
 describe("the Share dialog", () => {
 	it("refuses a bad email and the owners themselves", async () => {
 		await using app = cfnotes();

@@ -28,7 +28,7 @@ function init() {
 	const side = nav?.closest<HTMLElement>(".sidebar");
 	if (!nav || !side) return;
 	const paths = JSON.parse(nav.dataset.actions ?? "{}") as Record<string, string>;
-	/** A friend's tree: it only opens pages and folders. */
+	/** A friend's tree: they change things only in folders shared with them to edit. */
 	const guest = nav.dataset.guest === "true";
 
 	// ---------- open folders ----------
@@ -62,6 +62,11 @@ function init() {
 	/** The folder an item sits in (`null` = top level). */
 	const homeOf = (el: Element): string | null =>
 		el.parentElement?.closest<HTMLElement>(".tree-folder")?.dataset.folder ?? null;
+	/** Whether the reader may add to folder `id` and change what's in it (`null`: the top level). */
+	const mayEdit = (id: string | null) =>
+		!guest || (id !== null && folderEl(id)?.dataset.editable === "true");
+	/** Whether the reader may move or delete folder `id` (an edit of its parent). */
+	const mayMove = (id: string) => !guest || folderEl(id)?.dataset.movable === "true";
 
 	// ---------- server round trips ----------
 
@@ -336,14 +341,17 @@ function init() {
 				? homeOf(nav!.querySelector(`.tree-page[data-page="${CSS.escape(id)}"]`)!)
 				: homeOf(folderEl(id)!);
 		const self = kind === "folder" ? folderEl(id) : null;
-		const list: MenuItem[] = [
-			{
-				label: "Top level",
-				checked: current === null,
-				disabled: current === null,
-				run: () => move(kind, id, null),
-			},
-		];
+		// A friend can't put things at the top level, or in a folder they can't edit.
+		const list: MenuItem[] = guest
+			? []
+			: [
+					{
+						label: "Top level",
+						checked: current === null,
+						disabled: current === null,
+						run: () => move(kind, id, null),
+					},
+				];
 		const walk = (box: Element, depth: number) => {
 			for (const folder of box.querySelectorAll<HTMLElement>(":scope > .tree-folder")) {
 				const fid = folder.dataset.folder!;
@@ -353,7 +361,7 @@ function init() {
 					label: folderName(fid),
 					depth,
 					checked: current === fid,
-					disabled: current === fid,
+					disabled: current === fid || !mayEdit(fid),
 					run: () => move(kind, id, fid),
 				});
 				walk(folder.querySelector(":scope > .folder-children")!, depth + 1);
@@ -364,7 +372,7 @@ function init() {
 	}
 
 	function folderMenu(id: string, at: HTMLElement | { x: number; y: number }) {
-		openMenu(at, folderName(id), [
+		const all: (MenuItem & { owner?: boolean; moves?: boolean })[] = [
 			{
 				label: "New page",
 				run: () => {
@@ -392,12 +400,22 @@ function init() {
 			{ label: "Rename", run: () => rename(id) },
 			{
 				label: "Share…",
+				owner: true,
 				run: () =>
 					openShareDialog({ kind: "folder", id, title: folderName(id), path: paths.share! }),
 			},
-			{ label: "Move to…", run: () => openMenu(at, "Move to", folderChoices("folder", id)) },
-			{ label: "Delete", danger: true, run: () => void deleteFolder(id) },
-		]);
+			{
+				label: "Move to…",
+				moves: true,
+				run: () => openMenu(at, "Move to", folderChoices("folder", id)),
+			},
+			{ label: "Delete", danger: true, moves: true, run: () => void deleteFolder(id) },
+		];
+		openMenu(
+			at,
+			folderName(id),
+			all.filter((item) => !(guest && item.owner) && (!item.moves || mayMove(id))),
+		);
 	}
 
 	async function deletePage(id: string) {
@@ -420,10 +438,14 @@ function init() {
 		const title =
 			nav!.querySelector(`#nav-${CSS.escape(id)} .nav-label`)?.textContent?.trim() || "Untitled";
 		openMenu(at, title, [
-			{
-				label: "Share…",
-				run: () => openShareDialog({ kind: "page", id, title, path: paths.share! }),
-			},
+			...(guest
+				? []
+				: [
+						{
+							label: "Share…",
+							run: () => openShareDialog({ kind: "page", id, title, path: paths.share! }),
+						},
+					]),
 			{ label: "Move to…", run: () => openMenu(at, "Move to", folderChoices("page", id)) },
 			{ label: "Delete", danger: true, run: () => void deletePage(id) },
 		]);
@@ -454,11 +476,16 @@ function init() {
 	});
 
 	nav.addEventListener("contextmenu", (e) => {
-		if (guest) return;
 		const target = e.target as Element;
 		const page = target.closest<HTMLElement>(".tree-page");
 		const row = target.closest<HTMLElement>(".folder-row:not(.is-draft)");
 		if (!page && !row) return;
+		if (
+			page
+				? !mayEdit(homeOf(page))
+				: !mayEdit(row!.closest<HTMLElement>(".tree-folder")!.dataset.folder!)
+		)
+			return;
 		e.preventDefault();
 		const at = { x: e.clientX, y: e.clientY };
 		if (page) pageMenu(page.dataset.page!, at);
@@ -466,9 +493,9 @@ function init() {
 	});
 
 	nav.addEventListener("dblclick", (e) => {
-		if (guest) return;
 		const name = (e.target as Element).closest(".folder-name");
-		if (name) rename(name.closest<HTMLElement>(".tree-folder")!.dataset.folder!);
+		const id = name?.closest<HTMLElement>(".tree-folder")?.dataset.folder;
+		if (id && mayEdit(id)) rename(id);
 	});
 
 	// ---------- drag and drop ----------
@@ -495,8 +522,13 @@ function init() {
 			.forEach((el) => el.classList.remove("is-drop", "drop-before", "drop-after"));
 	};
 
-	/** Where a drop at this point would go, or `null` if nowhere valid. */
+	/** Where a drop at this point would go, or `null` if nowhere valid (or nowhere the reader may edit). */
 	function dropAt(target: Element, clientY: number): { drop: Drop; mark: () => void } | null {
+		const found = anyDropAt(target, clientY);
+		return found && mayEdit(found.drop.folderId) ? found : null;
+	}
+
+	function anyDropAt(target: Element, clientY: number): { drop: Drop; mark: () => void } | null {
 		const d = dragging!;
 		const row = target.closest<HTMLElement>(".folder-row:not(.is-draft)");
 		const folder = row?.closest<HTMLElement>(".tree-folder") ?? null;

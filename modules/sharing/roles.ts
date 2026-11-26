@@ -21,6 +21,35 @@ export const isRole = (value: unknown): value is Role =>
 	typeof value === "string" && (ROLES as readonly string[]).includes(value);
 
 /**
+ * What a friend may do in each folder: the most that a share on it, or on a
+ * folder above it, allows. Folders they can't see are left out.
+ */
+export function folderRoles(
+	shares: readonly { target_kind: string; target_id: string; role: string }[],
+	folders: readonly FolderRow[],
+): Map<string, Role> {
+	const direct = new Map<string, number>();
+	for (const share of shares) {
+		if (share.target_kind !== "folder" || !isRole(share.role)) continue;
+		direct.set(share.target_id, Math.max(direct.get(share.target_id) ?? 0, RANK[share.role]));
+	}
+	const parent = new Map(folders.map((folder) => [folder.id, folder.parent_id]));
+	const out = new Map<string, Role>();
+	for (const folder of folders) {
+		let rank = 0;
+		// Bounded, in case the folders ever loop.
+		for (
+			let at: string | null | undefined = folder.id, steps = 0;
+			at && steps < 100;
+			at = parent.get(at), steps++
+		)
+			rank = Math.max(rank, direct.get(at) ?? 0);
+		if (rank > 0) out.set(folder.id, roleOfRank(rank));
+	}
+	return out;
+}
+
+/**
  * A friend's sidebar: each folder shared with them (with everything in it) and
  * each page shared on its own. Those sit at the top level when what holds them
  * isn't shared too.

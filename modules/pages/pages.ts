@@ -57,7 +57,9 @@ export const view = Effect.fn("Pages.view")(function* (id: string) {
 		? Option.getOrNull(yield* MainDb.databases.find({ id: page.database_id }))
 		: null;
 	const table = page.kind === "database" ? yield* databaseState(id) : null;
-	return { page, backlinks, parent, table, access };
+	// Delete is for an owner, or a friend who may edit where it lives.
+	const canTrash = access === "owner" || (yield* Sharing.mayRehome(page));
+	return { page, backlinks, parent, table, access, canTrash };
 });
 
 /** Where a page in Trash sends the reader: Trash for an owner, the workspace for a friend. */
@@ -162,9 +164,10 @@ export const save = Effect.fn("Pages.save")(function* (id: string, { doc }: type
 
 /** To Trash, then where to go: its database, host page or the workspace, which offers Undo. */
 export const remove = Effect.fn("Pages.remove")(function* (id: string) {
-	yield* Sharing.requireOwner;
+	yield* Sharing.requireAccess(id, "view");
 	const page = Option.getOrUndefined(yield* MainDb.pages.find({ id }));
 	if (!page || page.archived_at !== null) return "/";
+	yield* Sharing.requireHome(page);
 	yield* Trash.remove(id);
 	const back = page.database_id ?? page.host_id;
 	const query = new URLSearchParams({ trashed: id, title: page.title });

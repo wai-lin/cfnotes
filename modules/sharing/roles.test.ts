@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { atLeast, roleOfRank, sharedTree } from "./roles.ts";
+import { atLeast, folderRoles, roleOfRank, sharedTree } from "./roles.ts";
 
 describe("atLeast", () => {
 	it("orders view, comment, edit and owner", () => {
@@ -51,5 +51,32 @@ describe("sharedTree", () => {
 		});
 		expect(tree.pages).toEqual([pages[0], { ...pages[2], folder_id: null }]);
 		expect(tree.folders.map((f) => f.id)).toEqual(["a", "b", "c"]);
+	});
+});
+
+describe("folderRoles", () => {
+	const folders = [
+		{ id: "a", parent_id: null, name: "A" },
+		{ id: "b", parent_id: "a", name: "B" },
+		{ id: "c", parent_id: "b", name: "C" },
+		{ id: "d", parent_id: null, name: "D" },
+	];
+	const share = (target_id: string, role: string) => ({ target_kind: "folder", target_id, role });
+
+	it("gives each folder the most a share on it or above it allows", () => {
+		const roles = folderRoles([share("a", "view"), share("b", "edit")], folders);
+		expect([...roles]).toEqual([
+			["a", "view"],
+			["b", "edit"],
+			["c", "edit"],
+		]);
+	});
+
+	it("ignores page shares and roles it doesn't know", () => {
+		const roles = folderRoles(
+			[{ target_kind: "page", target_id: "a", role: "edit" }, share("d", "owner")],
+			folders,
+		);
+		expect(roles.size).toBe(0);
 	});
 });

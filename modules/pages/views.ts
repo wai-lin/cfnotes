@@ -19,6 +19,7 @@ export function pageView({
 	table,
 	backlinks,
 	access = "owner",
+	canTrash = access === "owner",
 	comments,
 	urls,
 }: {
@@ -35,6 +36,8 @@ export function pageView({
 	backlinks: readonly { id: string; title: string }[];
 	/** What the reader may do: an owner anything, a friend what the page is shared with them as. */
 	access?: Access;
+	/** Whether Delete shows: an owner's, or a friend's who may edit where the page lives. */
+	canTrash?: boolean;
 	/** The page's threads, and who is reading (`null`: no one signed in). */
 	comments: { threads: readonly Thread[]; me: string | null };
 	urls: PageUrls;
@@ -134,7 +137,7 @@ export function pageView({
 				}
 				<button class="ghost page-export" type="button" title="Export as PDF">Export PDF</button>
 				${
-					access === "owner"
+					canTrash
 						? html`<form method="post" action="${urls.remove}">
 								<button class="ghost" type="submit">Delete</button>
 							</form>`

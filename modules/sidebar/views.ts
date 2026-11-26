@@ -35,13 +35,21 @@ export function navLink(page: NavPage, activeId?: string): Html {
 	>`;
 }
 
-/** A friend's tree is only for opening pages: nothing to drag, add or change. */
+/**
+ * A friend's tree opens pages, and changes things only in the folders shared
+ * with them to edit (`editable`): what's in those, and what they hold.
+ */
 interface TreeOptions {
 	guest?: boolean;
+	editable?: ReadonlySet<string>;
 }
 
-function pageItem(page: PageRow, activeId?: string, { guest }: TreeOptions = {}): Html {
-	if (guest)
+/** Whether the reader may add to folder `id` (`null` is the top level, an owner's). */
+const mayEdit = (id: string | null, { guest, editable }: TreeOptions) =>
+	!guest || (id !== null && (editable?.has(id) ?? false));
+
+function pageItem(page: PageRow, activeId?: string, options: TreeOptions = {}): Html {
+	if (!mayEdit(page.folder_id, options))
 		return html`<div class="tree-page" data-page="${page.id}">${navLink(page, activeId)}</div>`;
 	return html`<div class="tree-page" data-page="${page.id}" draggable="true">
 		${navLink(page, activeId)}
@@ -60,8 +68,16 @@ function folderItem(
 	const { id, name } = node.folder;
 	const isOpen = open.has(id);
 	const empty = node.folders.length === 0 && node.pages.length === 0;
-	return html`<div class="tree-folder${isOpen ? " is-open" : ""}" data-folder="${id}">
-		<div class="tree-row folder-row" draggable="${options.guest ? "false" : "true"}">
+	const editable = mayEdit(id, options);
+	// Taking it out of its parent is an edit of that: a folder shared with a friend stays put.
+	const movable = mayEdit(node.folder.parent_id, options);
+	return html`<div
+		class="tree-folder${isOpen ? " is-open" : ""}"
+		data-folder="${id}"
+		data-editable="${editable ? "true" : ""}"
+		data-movable="${movable ? "true" : ""}"
+	>
+		<div class="tree-row folder-row" draggable="${movable ? "true" : "false"}">
 			<button
 				class="folder-toggle"
 				type="button"
@@ -72,7 +88,7 @@ function folderItem(
 			</button>
 			<span class="folder-icon">${svg("folder")}${svg("folderOpen")}</span>
 			<span class="folder-name">${name}</span>
-			${options.guest ? "" : folderActions(id, name)}
+			${editable ? folderActions(id, name) : ""}
 		</div>
 		<div class="folder-children" role="group">
 			${node.folders.map((child) => folderItem(child, open, activeId, options))}
