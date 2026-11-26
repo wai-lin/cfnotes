@@ -70,8 +70,8 @@ export const cleanQuote = (quote: string | null | undefined): string | null => {
 
 /** The page's threads, oldest first, each with its comments. */
 export const threads = Effect.fn("Comments.threads")(function* (pageId: string) {
-	const found = yield* MainDb.listCommentThreads({ pageId });
-	const comments = yield* MainDb.listComments({ pageId });
+	const found = yield* MainDb.comments.listThreads({ pageId });
+	const comments = yield* MainDb.comments.list({ pageId });
 	const byThread = new Map<string, Comment[]>();
 	for (const row of comments) {
 		const list = byThread.get(row.thread_id) ?? [];
@@ -97,7 +97,7 @@ export const threads = Effect.fn("Comments.threads")(function* (pageId: string) 
 /** A thread of this page, or a 404. */
 const threadOn = Effect.fn("Comments.threadOn")(function* (pageId: string, id: unknown) {
 	if (!isId(id)) return yield* bad("invalid_thread");
-	const thread = Option.getOrUndefined(yield* MainDb.findCommentThread({ id }));
+	const thread = Option.getOrUndefined(yield* MainDb.comments.findThread({ id }));
 	if (!thread || thread.page_id !== pageId)
 		return yield* new NotFound({ message: "No such thread" });
 	return thread;
@@ -106,7 +106,7 @@ const threadOn = Effect.fn("Comments.threadOn")(function* (pageId: string, id: u
 /** A comment on this page that the signed-in person wrote, or why not. */
 const ownComment = Effect.fn("Comments.ownComment")(function* (pageId: string, id: unknown) {
 	if (!isId(id)) return yield* bad("invalid_comment");
-	const comment = Option.getOrUndefined(yield* MainDb.findComment({ id }));
+	const comment = Option.getOrUndefined(yield* MainDb.comments.find({ id }));
 	if (!comment || comment.page_id !== pageId)
 		return yield* new NotFound({ message: "No such comment" });
 	const me = yield* Sessions.editor;
@@ -125,7 +125,7 @@ export const run = Effect.fn("Comments.run")(function* (pageId: string, body: ty
 				? "edit"
 				: "comment";
 	yield* Sharing.requireAccess(pageId, needs);
-	const page = Option.getOrUndefined(yield* MainDb.findPage({ id: pageId }));
+	const page = Option.getOrUndefined(yield* MainDb.pages.find({ id: pageId }));
 	if (!page || page.archived_at !== null) return yield* new NotFound({ message: "No such page" });
 	const now = yield* Clock.currentTimeMillis;
 	const by = yield* Sessions.editor;
@@ -136,16 +136,16 @@ export const run = Effect.fn("Comments.run")(function* (pageId: string, body: ty
 		case "start": {
 			if (!isId(body.thread)) return yield* bad("invalid_thread");
 			const text = yield* cleanBody(body.body);
-			if (Option.isSome(yield* MainDb.findCommentThread({ id: body.thread })))
+			if (Option.isSome(yield* MainDb.comments.findThread({ id: body.thread })))
 				return yield* bad("thread_exists");
-			yield* MainDb.createCommentThread({
+			yield* MainDb.comments.createThread({
 				id: body.thread,
 				pageId,
 				quote: cleanQuote(body.quote),
 				now,
 				by,
 			});
-			yield* MainDb.addComment({
+			yield* MainDb.comments.add({
 				id: crypto.randomUUID(),
 				threadId: body.thread,
 				body: text,
@@ -157,7 +157,7 @@ export const run = Effect.fn("Comments.run")(function* (pageId: string, body: ty
 		case "reply": {
 			const thread = yield* threadOn(pageId, body.thread);
 			const text = yield* cleanBody(body.body);
-			yield* MainDb.addComment({
+			yield* MainDb.comments.add({
 				id: crypto.randomUUID(),
 				threadId: thread.id,
 				body: text,
@@ -168,19 +168,19 @@ export const run = Effect.fn("Comments.run")(function* (pageId: string, body: ty
 		}
 		case "edit": {
 			const comment = yield* ownComment(pageId, body.comment);
-			yield* MainDb.editComment({ id: comment.id, body: yield* cleanBody(body.body), now });
+			yield* MainDb.comments.edit({ id: comment.id, body: yield* cleanBody(body.body), now });
 			break;
 		}
 		case "delete": {
 			const comment = yield* ownComment(pageId, body.comment);
-			yield* MainDb.deleteComment({ id: comment.id });
-			yield* MainDb.deleteEmptyCommentThread({ id: comment.thread_id });
+			yield* MainDb.comments.delete({ id: comment.id });
+			yield* MainDb.comments.deleteEmptyThread({ id: comment.thread_id });
 			break;
 		}
 		case "resolve": {
 			const thread = yield* threadOn(pageId, body.thread);
 			const resolved = body.resolved ?? true;
-			yield* MainDb.resolveCommentThread({
+			yield* MainDb.comments.resolveThread({
 				id: thread.id,
 				at: resolved ? now : null,
 				by: resolved ? by : null,
@@ -193,6 +193,6 @@ export const run = Effect.fn("Comments.run")(function* (pageId: string, body: ty
 
 /** Deletes every comment on these pages (when they are deleted for good). */
 export const forget = Effect.fn("Comments.forget")(function* (ids: string) {
-	yield* MainDb.forgetPagesComments({ ids });
-	yield* MainDb.forgetPagesCommentThreads({ ids });
+	yield* MainDb.comments.forgetPages({ ids });
+	yield* MainDb.comments.forgetPagesThreads({ ids });
 });

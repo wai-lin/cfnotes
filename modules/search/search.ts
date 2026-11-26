@@ -40,11 +40,11 @@ export const find = Effect.fn("Search.find")(function* (query: typeof Query.Type
 
 	const [first] = terms;
 	if (!first) {
-		const recent = yield* inTrash ? MainDb.listRecentTrash() : MainDb.listRecentPages();
+		const recent = yield* inTrash ? MainDb.trash.listRecent() : MainDb.pages.listRecent();
 		return { results: recent.map((row) => ({ ...shape(row), snippet: "" })) };
 	}
 	const pattern = likePattern(first);
-	const rows = yield* inTrash ? MainDb.searchTrash({ pattern }) : MainDb.searchPages({ pattern });
+	const rows = yield* inTrash ? MainDb.trash.search({ pattern }) : MainDb.pages.search({ pattern });
 	const results = rankResults(rows, terms)
 		.slice(0, MAX_RESULTS)
 		.map((row) => ({ ...shape(row), snippet: snippet(row.body_text ?? "", terms) }));

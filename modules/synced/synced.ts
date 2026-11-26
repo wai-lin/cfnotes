@@ -38,8 +38,7 @@ export const run = Effect.fn("Synced.run")(function* (pageId: string, body: type
 	if (body.op === "get") {
 		const ids = [...new Set(body.ids ?? [])];
 		if (ids.length > MAX_IDS || !ids.every(isId)) return yield* bad("invalid_ids");
-		const found =
-			ids.length > 0 ? yield* MainDb.findSyncedBlocks({ ids: JSON.stringify(ids) }) : [];
+		const found = ids.length > 0 ? yield* MainDb.synced.find({ ids: JSON.stringify(ids) }) : [];
 		const blocks: Record<string, unknown> = {};
 		for (const row of found) blocks[row.id] = JSON.parse(row.content) as unknown;
 		return { blocks };
@@ -56,7 +55,7 @@ export const run = Effect.fn("Synced.run")(function* (pageId: string, body: type
 		return yield* bad("invalid_content");
 	const json = JSON.stringify(content);
 	if (new TextEncoder().encode(json).byteLength > MAX_SYNCED_BYTES) return yield* bad("too_large");
-	yield* MainDb.saveSyncedBlock({
+	yield* MainDb.synced.save({
 		id: body.id,
 		content: json,
 		now: yield* Clock.currentTimeMillis,

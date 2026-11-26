@@ -75,9 +75,9 @@ describe("sessions", () => {
 		run(
 			Effect.gen(function* () {
 				const stored = (tokenHash: string) =>
-					Effect.map(MainDb.findSession({ tokenHash }), Option.isSome);
+					Effect.map(MainDb.sessions.find({ tokenHash }), Option.isSome);
 				const add = (tokenHash: string, expiresAt: number, now: number) =>
-					MainDb.createSession({ tokenHash, email: "owner@example.com", expiresAt, now });
+					MainDb.sessions.create({ tokenHash, email: "owner@example.com", expiresAt, now });
 				const day = 24 * 60 * 60 * 1000;
 				yield* TestClock.adjust("10 days");
 				yield* add("expired", 10 * day, 9 * day);

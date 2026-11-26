@@ -31,7 +31,7 @@ const treeOf = Effect.fn("Trash.treeOf")(function* (id: string) {
 	const ids = new Set([id]);
 	let level = [id];
 	while (level.length > 0 && ids.size < 20_000) {
-		const owned = yield* MainDb.listOwnedPages({ ids: JSON.stringify(level) });
+		const owned = yield* MainDb.pages.listOwned({ ids: JSON.stringify(level) });
 		level = owned.map((row) => row.id).filter((child) => !ids.has(child));
 		for (const child of level) ids.add(child);
 	}
@@ -40,11 +40,11 @@ const treeOf = Effect.fn("Trash.treeOf")(function* (id: string) {
 
 /** Moves what the reader deleted to Trash, with its rows and inline databases, as one item. */
 export const remove = Effect.fn("Trash.remove")(function* (id: string) {
-	const page = Option.getOrUndefined(yield* MainDb.findPage({ id }));
+	const page = Option.getOrUndefined(yield* MainDb.pages.find({ id }));
 	if (!page || page.archived_at !== null) return;
 	const ids = yield* treeOf(id);
 	const now = yield* Clock.currentTimeMillis;
-	yield* MainDb.archivePages({ ids: JSON.stringify(ids), root: id, now });
+	yield* MainDb.pages.archive({ ids: JSON.stringify(ids), root: id, now });
 });
 
 /**
@@ -56,45 +56,45 @@ export const restore = Effect.fn("Trash.restore")(function* (
 	id: string,
 	{ keepHost = false }: { keepHost?: boolean } = {},
 ) {
-	const page = Option.getOrUndefined(yield* MainDb.findPage({ id }));
+	const page = Option.getOrUndefined(yield* MainDb.pages.find({ id }));
 	if (!page || page.archived_at === null || page.archived_with !== id)
 		return { ok: false, error: "not_archived" } as RestoreResult;
-	if (page.database_id && Option.isNone(yield* MainDb.findDatabase({ id: page.database_id })))
+	if (page.database_id && Option.isNone(yield* MainDb.databases.find({ id: page.database_id })))
 		return { ok: false, error: "database_archived" } as RestoreResult;
 	if (page.host_id) {
-		const host = Option.getOrUndefined(yield* MainDb.findPage({ id: page.host_id }));
+		const host = Option.getOrUndefined(yield* MainDb.pages.find({ id: page.host_id }));
 		// Undo right after deleting an inline database puts its block back, so it
 		// stays attached even if the page saved without it in between.
 		const live = host?.archived_at === null;
 		const embedded = live && (keepHost || (host.content ?? "").includes(id));
-		if (!embedded) yield* MainDb.detachHost({ id });
+		if (!embedded) yield* MainDb.pages.detachHost({ id });
 	}
-	yield* MainDb.restorePages({ root: id });
+	yield* MainDb.pages.restore({ root: id });
 	return { ok: true, id } as RestoreResult;
 });
 
 /** Deletes trashed items (and what went with them) for good, with every link to or from them. */
 export const purge = Effect.fn("Trash.purge")(function* (roots: readonly string[]) {
 	if (roots.length === 0) return;
-	const found = yield* MainDb.listArchivedWith({ roots: JSON.stringify(roots) });
+	const found = yield* MainDb.trash.listWith({ roots: JSON.stringify(roots) });
 	if (found.length === 0) return;
 	const ids = JSON.stringify(found.map((row) => row.id));
-	yield* MainDb.forgetPagesLinks({ ids });
-	yield* MainDb.forgetPagesRelations({ ids });
+	yield* MainDb.links.forgetPages({ ids });
+	yield* MainDb.relations.forgetPages({ ids });
 	yield* Comments.forget(ids);
-	yield* MainDb.forgetPagesShares({ ids });
-	yield* MainDb.deletePages({ ids });
+	yield* MainDb.shares.forgetPages({ ids });
+	yield* MainDb.pages.delete({ ids });
 });
 
 export const empty = Effect.gen(function* () {
-	const all = yield* MainDb.listArchive();
+	const all = yield* MainDb.trash.list();
 	yield* purge(all.map((item) => item.id));
 });
 
 /** Deletes what has been in Trash longer than `TRASH_DAYS`. Returns how many items. */
 export const purgeExpired = Effect.gen(function* () {
 	const before = (yield* Clock.currentTimeMillis) - TRASH_DAYS * DAY;
-	const expired = yield* MainDb.listExpiredArchive({ before });
+	const expired = yield* MainDb.trash.listExpired({ before });
 	yield* purge(expired.map((row) => row.id));
 	return expired.length;
 });
@@ -106,7 +106,7 @@ export const purgeJob = Effect.gen(function* () {
 });
 
 export const list = Effect.gen(function* () {
-	const items = yield* MainDb.listArchive();
+	const items = yield* MainDb.trash.list();
 	const now = yield* Clock.currentTimeMillis;
 	return {
 		now,

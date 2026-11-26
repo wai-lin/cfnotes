@@ -70,11 +70,11 @@ const refsFor = Effect.fn("Api.refsFor")(function* (states: unknown[], links: Li
 	}
 	const titles: Record<string, string> = {};
 	if (pageIds.size > 0)
-		for (const row of yield* MainDb.listTitles({ ids: JSON.stringify([...pageIds]) }))
+		for (const row of yield* MainDb.pages.listTitles({ ids: JSON.stringify([...pageIds]) }))
 			titles[row.id] = row.title;
 	const synced: Refs["synced"] = {};
 	if (syncIds.size > 0)
-		for (const row of yield* MainDb.findSyncedBlocks({ ids: JSON.stringify([...syncIds]) })) {
+		for (const row of yield* MainDb.synced.find({ ids: JSON.stringify([...syncIds]) })) {
 			const content = parseJson(row.content);
 			if (Array.isArray(content)) synced[row.id] = content as Refs["synced"][string];
 		}
@@ -223,7 +223,7 @@ export const listPages = Effect.fn("Api.listPages")(function* (
 	options: { kind?: string | undefined; database?: string | undefined } = {},
 ) {
 	const { ORIGIN } = yield* Env;
-	const folders = new Map((yield* MainDb.listFolders()).map((f) => [f.id, f]));
+	const folders = new Map((yield* MainDb.folders.list()).map((f) => [f.id, f]));
 	/** A folder's path, like `Blog/Drafts`. */
 	const pathOf = (id: string | null) => {
 		const names: string[] = [];
@@ -237,7 +237,7 @@ export const listPages = Effect.fn("Api.listPages")(function* (
 		}
 		return names.join("/") || null;
 	};
-	const pages = (yield* MainDb.listLivePages()).map((page) => ({
+	const pages = (yield* MainDb.pages.listLive()).map((page) => ({
 		id: page.id,
 		title: page.title,
 		kind: kindOf(page),
@@ -260,7 +260,7 @@ export const listPages = Effect.fn("Api.listPages")(function* (
 
 /** The folders, each with its path. */
 export const listFolders = Effect.gen(function* () {
-	const folders = yield* MainDb.listFolders();
+	const folders = yield* MainDb.folders.list();
 	const byId = new Map(folders.map((f) => [f.id, f]));
 	const path = (id: string) => {
 		const names: string[] = [];
@@ -278,7 +278,7 @@ export const listFolders = Effect.gen(function* () {
 /** A page that isn't in Trash, or a 404. */
 const livePage = Effect.fn("Api.livePage")(function* (id: string) {
 	if (!isId(id)) return yield* notFound();
-	const page = Option.getOrUndefined(yield* MainDb.findPage({ id }));
+	const page = Option.getOrUndefined(yield* MainDb.pages.find({ id }));
 	if (!page || page.archived_at !== null) return yield* notFound();
 	return page;
 });
@@ -314,7 +314,7 @@ export const getPage = Effect.fn("Api.getPage")(function* (
 	};
 });
 
-export const listDatabases = Effect.map(MainDb.listDatabases(), (rows) =>
+export const listDatabases = Effect.map(MainDb.databases.list(), (rows) =>
 	rows.map((d) => ({ id: d.id, title: d.title, hostId: d.host_id })),
 );
 
@@ -386,7 +386,7 @@ export const queryRows = Effect.fn("Api.queryRows")(function* (
 
 	const contents = new Map<string, unknown>();
 	if (query.content)
-		for (const row of yield* MainDb.listRowContents({ databaseId: id }))
+		for (const row of yield* MainDb.databases.listRowContents({ databaseId: id }))
 			contents.set(row.id, parseJson(row.content) ?? fromMarkdown(""));
 	const refs = yield* refsFor([...contents.values()], query);
 	const { ORIGIN } = yield* Env;
@@ -500,11 +500,11 @@ export const createPage = Effect.fn("Api.createPage")(function* (input: typeof N
 		});
 		id = (made as unknown as { rowId: string }).rowId;
 	} else {
-		const folders = yield* MainDb.listFolders();
+		const folders = yield* MainDb.folders.list();
 		if (input.folder && !folders.some((f) => f.id === input.folder))
 			return yield* notFound("folder");
 		id = crypto.randomUUID();
-		yield* MainDb.createPage({
+		yield* MainDb.pages.create({
 			id,
 			folderId: input.folder ?? null,
 			title: cleanTitle(input.title),

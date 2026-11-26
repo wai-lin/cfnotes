@@ -32,7 +32,7 @@ export const accessToAll = Effect.fn("Sharing.accessToAll")(function* (ids: read
 		for (const id of ids) out.set(id, "owner");
 		return out;
 	}
-	const rows = yield* MainDb.pageRoles({
+	const rows = yield* MainDb.shares.pageRoles({
 		ids: JSON.stringify([...new Set(ids)]),
 		email: normalize(who.email),
 	});
@@ -82,10 +82,10 @@ export const visible = <T extends { id: string }>(items: readonly T[], min: Acce
  */
 export const madeFrom = Effect.fn("Sharing.madeFrom")(function* (fromId: string, toId: string) {
 	const now = yield* Clock.currentTimeMillis;
-	yield* MainDb.copyPageShares({ fromId, toId, now });
+	yield* MainDb.shares.copyPage({ fromId, toId, now });
 	const who = yield* me;
 	if (!who || who.owner || atLeast(yield* accessTo(toId), "edit")) return;
-	yield* MainDb.putShare({
+	yield* MainDb.shares.put({
 		kind: "page",
 		id: toId,
 		email: normalize(who.email),
@@ -99,17 +99,17 @@ export const madeFrom = Effect.fn("Sharing.madeFrom")(function* (fromId: string,
 export const workspace = Effect.gen(function* () {
 	const who = yield* me;
 	const all = yield* Effect.all({
-		pages: MainDb.listPages(),
-		folders: MainDb.listFolders(),
-		index: MainDb.listIndexPages(),
+		pages: MainDb.pages.list(),
+		folders: MainDb.folders.list(),
+		index: MainDb.pages.listIndex(),
 	});
 	if (!who || who.owner) return { ...all, guest: false };
 	const email = normalize(who.email);
 	const tree = sharedTree({
-		shares: yield* MainDb.listSharesFor({ email }),
+		shares: yield* MainDb.shares.listFor({ email }),
 		folders: all.folders,
 		pages: all.pages,
-		direct: yield* MainDb.listSharedPages({ email }),
+		direct: yield* MainDb.shares.listPages({ email }),
 	});
 	return { ...tree, index: yield* visible(all.index), guest: true };
 });
@@ -150,12 +150,12 @@ export const run = Effect.fn("Sharing.run")(function* (body: typeof Op.Type) {
 	yield* requireOwner;
 	const { kind, id } = body;
 	if (kind === "page") {
-		const page = Option.getOrUndefined(yield* MainDb.findPage({ id }));
+		const page = Option.getOrUndefined(yield* MainDb.pages.find({ id }));
 		if (!page || page.archived_at !== null) return yield* new NotFound({ message: "No such page" });
-	} else if (!(yield* MainDb.listFolders()).some((folder) => folder.id === id))
+	} else if (!(yield* MainDb.folders.list()).some((folder) => folder.id === id))
 		return yield* new NotFound({ message: "No such folder" });
 
-	const shares = () => MainDb.listShares({ kind, id });
+	const shares = () => MainDb.shares.list({ kind, id });
 	const email = normalize((body.email ?? "").trim());
 	if (body.op !== "list") {
 		if (email.length > 254 || !EMAIL.test(email)) return yield* bad("invalid_email");
@@ -168,7 +168,7 @@ export const run = Effect.fn("Sharing.run")(function* (body: typeof Op.Type) {
 			if (yield* Sessions.isOwner(email)) return yield* bad("already_owner");
 			if (body.op === "setRole" && !(yield* shares()).some((row) => row.email === email))
 				return yield* new NotFound({ message: "Not shared with them" });
-			yield* MainDb.putShare({
+			yield* MainDb.shares.put({
 				kind,
 				id,
 				email,
@@ -179,7 +179,7 @@ export const run = Effect.fn("Sharing.run")(function* (body: typeof Op.Type) {
 			break;
 		}
 		case "remove":
-			yield* MainDb.deleteShare({ kind, id, email });
+			yield* MainDb.shares.delete({ kind, id, email });
 			break;
 	}
 	const people: Person[] = (yield* shares()).map((row) => ({

@@ -70,13 +70,13 @@ export const caller = Effect.gen(function* () {
 	let found: Option.Option<Caller> = Option.none();
 	if (token) {
 		const row = Option.getOrUndefined(
-			yield* MainDb.findApiToken({ tokenHash: yield* hashToken(token) }),
+			yield* MainDb.tokens.find({ tokenHash: yield* hashToken(token) }),
 		);
 		const { ALLOWED_EMAILS } = yield* Env;
 		if (row && isAllowed(ALLOWED_EMAILS, row.created_by)) {
 			const now = yield* Clock.currentTimeMillis;
 			if (row.last_used_at === null || now - row.last_used_at > TOUCH_EVERY)
-				yield* MainDb.touchApiToken({ id: row.id, now });
+				yield* MainDb.tokens.touch({ id: row.id, now });
 			found = Option.some({
 				email: row.created_by,
 				scope: row.scope === "write" ? "write" : "read",
@@ -103,7 +103,7 @@ export interface TokenInfo {
 	lastUsedAt: number | null;
 }
 
-export const list = Effect.map(MainDb.listApiTokens(), (rows) =>
+export const list = Effect.map(MainDb.tokens.list(), (rows) =>
 	rows.map((row): TokenInfo => ({
 		id: row.id,
 		name: row.name,
@@ -123,7 +123,7 @@ export const create = Effect.fn("Tokens.create")(function* (
 	const name = input.name.replace(/\s+/g, " ").trim().slice(0, MAX_NAME);
 	if (!name) return yield* new BadRequest({ message: "A token needs a name" });
 	const token = newToken();
-	yield* MainDb.createApiToken({
+	yield* MainDb.tokens.create({
 		id: crypto.randomUUID(),
 		name,
 		tokenHash: yield* hashToken(token),
@@ -137,5 +137,5 @@ export const create = Effect.fn("Tokens.create")(function* (
 /** Revokes a token: anyone signed in may, as anyone may need to stop a leaked one. */
 export const revoke = Effect.fn("Tokens.revoke")(function* ({ id }: typeof Revoke.Type) {
 	if (!isId(id)) return yield* new NotFound({ message: "No such token" });
-	yield* MainDb.deleteApiToken({ id });
+	yield* MainDb.tokens.delete({ id });
 });

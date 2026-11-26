@@ -36,7 +36,7 @@ const notFound = () => new NotFound({ message: "No such page" });
 
 /** A page that isn't in Trash, or a 404. */
 const live = Effect.fn("Pages.live")(function* (id: string) {
-	const page = Option.getOrUndefined(yield* MainDb.findPage({ id }));
+	const page = Option.getOrUndefined(yield* MainDb.pages.find({ id }));
 	if (!page || page.archived_at !== null) return yield* notFound();
 	return page;
 });
@@ -47,14 +47,14 @@ const live = Effect.fn("Pages.live")(function* (id: string) {
  */
 export const view = Effect.fn("Pages.view")(function* (id: string) {
 	const access = yield* Sharing.requireAccess(id, "view");
-	const page = Option.getOrUndefined(yield* MainDb.findPage({ id }));
+	const page = Option.getOrUndefined(yield* MainDb.pages.find({ id }));
 	if (!page) return yield* notFound();
 	if (page.archived_at !== null) return null;
 	// Only the pages linking here that the reader may open.
-	const backlinks = yield* Sharing.visible(yield* MainDb.listBacklinks({ id }));
+	const backlinks = yield* Sharing.visible(yield* MainDb.links.listBacklinks({ id }));
 	// A row links back to its database; a full-page database is drawn from its state.
 	const parent = page.database_id
-		? Option.getOrNull(yield* MainDb.findDatabase({ id: page.database_id }))
+		? Option.getOrNull(yield* MainDb.databases.find({ id: page.database_id }))
 		: null;
 	const table = page.kind === "database" ? yield* databaseState(id) : null;
 	return { page, backlinks, parent, table, access };
@@ -71,10 +71,10 @@ export const createLinked = Effect.fn("Pages.createLinked")(function* (
 	yield* Sharing.requireAccess(from, "edit");
 	yield* live(from);
 	const title = cleanTitle(input.title);
-	const pages = yield* MainDb.listPages();
+	const pages = yield* MainDb.pages.list();
 	const folderId = pages.find((row) => row.id === from)?.folder_id ?? null;
 	const id = crypto.randomUUID();
-	yield* MainDb.createPage({
+	yield* MainDb.pages.create({
 		id,
 		folderId,
 		title,
@@ -99,7 +99,7 @@ export const rename = Effect.fn("Pages.rename")(function* (id: string, input: ty
 	yield* Sharing.requireAccess(id, "edit");
 	const page = yield* live(id);
 	const title = cleanTitle(input.title);
-	yield* MainDb.updatePageTitle({
+	yield* MainDb.pages.updateTitle({
 		id,
 		title,
 		now: yield* Clock.currentTimeMillis,
@@ -112,7 +112,7 @@ export const setIcon = Effect.fn("Pages.setIcon")(function* (id: string, input: 
 	yield* Sharing.requireAccess(id, "edit");
 	const page = yield* live(id);
 	const icon = input.icon.trim().slice(0, 32) || null;
-	yield* MainDb.setPageIcon({
+	yield* MainDb.pages.setIcon({
 		id,
 		icon,
 		now: yield* Clock.currentTimeMillis,
@@ -128,7 +128,7 @@ export const setCover = Effect.fn("Pages.setCover")(function* (
 	yield* Sharing.requireAccess(id, "edit");
 	yield* live(id);
 	const cover = input.cover || null;
-	yield* MainDb.setPageCover({
+	yield* MainDb.pages.setCover({
 		id,
 		cover,
 		now: yield* Clock.currentTimeMillis,
@@ -148,22 +148,22 @@ export const save = Effect.fn("Pages.save")(function* (id: string, { doc }: type
 	if (!state || typeof state !== "object" || !("root" in state)) return yield* invalid();
 
 	const now = yield* Clock.currentTimeMillis;
-	yield* MainDb.updatePageContent({
+	yield* MainDb.pages.updateContent({
 		id,
 		content: doc,
 		bodyText: plainText(state),
 		now,
 		by: yield* Sessions.editor,
 	});
-	yield* MainDb.clearPageLinks({ id });
+	yield* MainDb.links.clear({ id });
 	const links = pageLinksIn(state, id);
-	if (links.length > 0) yield* MainDb.addPageLinks({ id, ids: JSON.stringify(links) });
+	if (links.length > 0) yield* MainDb.links.add({ id, ids: JSON.stringify(links) });
 });
 
 /** To Trash, then where to go: its database, host page or the workspace, which offers Undo. */
 export const remove = Effect.fn("Pages.remove")(function* (id: string) {
 	yield* Sharing.requireOwner;
-	const page = Option.getOrUndefined(yield* MainDb.findPage({ id }));
+	const page = Option.getOrUndefined(yield* MainDb.pages.find({ id }));
 	if (!page || page.archived_at !== null) return "/";
 	yield* Trash.remove(id);
 	const back = page.database_id ?? page.host_id;

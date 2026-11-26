@@ -37,19 +37,19 @@ export const RestorePage = Schema.Struct({ id: Id, keepHost: Schema.optional(Sch
 
 const bad = (message: string) => new BadRequest({ message });
 
-export const tree = Effect.all({ pages: MainDb.listPages(), folders: MainDb.listFolders() });
+export const tree = Effect.all({ pages: MainDb.pages.list(), folders: MainDb.folders.list() });
 
 /** Everything the shell around a page shows. */
 export const workspace = Effect.all({
-	pages: MainDb.listPages(),
-	folders: MainDb.listFolders(),
-	index: MainDb.listIndexPages(),
+	pages: MainDb.pages.list(),
+	folders: MainDb.folders.list(),
+	index: MainDb.pages.listIndex(),
 });
 
 const folderTarget = Effect.fn("Sidebar.folderTarget")(function* (
 	value: string | null | undefined,
 ) {
-	const folders = yield* MainDb.listFolders();
+	const folders = yield* MainDb.folders.list();
 	if (!value) return { id: null, folders };
 	if (!folders.some((folder) => folder.id === value)) return yield* bad("No such folder");
 	return { id: value, folders };
@@ -63,7 +63,7 @@ const folderName = Effect.fn("Sidebar.folderName")(function* (value: string) {
 
 /** For the "New" buttons, where a folder that's gone means the top level. */
 const folderOrTop = (value: string | null | undefined) =>
-	Effect.map(MainDb.listFolders(), (folders) =>
+	Effect.map(MainDb.folders.list(), (folders) =>
 		value && folders.some((folder) => folder.id === value) ? value : null,
 	);
 
@@ -73,7 +73,7 @@ export const createPage = Effect.fn("Sidebar.createPage")(function* ({
 	const id = crypto.randomUUID();
 	const folderId = yield* folderOrTop(folder);
 	const now = yield* Clock.currentTimeMillis;
-	yield* MainDb.createPage({ id, folderId, title: "", now, by: yield* Sessions.editor });
+	yield* MainDb.pages.create({ id, folderId, title: "", now, by: yield* Sessions.editor });
 	return id;
 });
 
@@ -93,11 +93,11 @@ export const createDatabase = Effect.fn("Sidebar.createDatabase")(function* ({
  */
 export const firstPage = Effect.gen(function* () {
 	if (!(yield* Sharing.me)?.owner) return yield* Sharing.firstShared;
-	const [first] = yield* MainDb.listPages();
+	const [first] = yield* MainDb.pages.list();
 	if (first) return first.id;
 	const id = crypto.randomUUID();
 	const now = yield* Clock.currentTimeMillis;
-	yield* MainDb.createPage({
+	yield* MainDb.pages.create({
 		id,
 		folderId: null,
 		title: "Getting started",
@@ -111,7 +111,7 @@ export const newFolder = Effect.fn("Sidebar.newFolder")(function* (input: typeof
 	const name = yield* folderName(input.name);
 	const parent = yield* folderTarget(input.parentId);
 	const now = yield* Clock.currentTimeMillis;
-	yield* MainDb.createFolder({ id: crypto.randomUUID(), parentId: parent.id, name, now });
+	yield* MainDb.folders.create({ id: crypto.randomUUID(), parentId: parent.id, name, now });
 });
 
 export const renameFolder = Effect.fn("Sidebar.renameFolder")(function* (
@@ -119,7 +119,7 @@ export const renameFolder = Effect.fn("Sidebar.renameFolder")(function* (
 ) {
 	const name = yield* folderName(input.name);
 	yield* folderTarget(input.id);
-	yield* MainDb.renameFolder({ id: input.id, name });
+	yield* MainDb.folders.rename({ id: input.id, name });
 });
 
 /** Its pages and subfolders move up one level. Returns what `restoreFolder` needs. */
@@ -133,14 +133,14 @@ export const deleteFolder = Effect.fn("Sidebar.deleteFolder")(function* ({
 		id,
 		name: folder.name,
 		parentId,
-		pages: (yield* MainDb.listFolderPageIds({ id })).map((row) => row.id),
+		pages: (yield* MainDb.folders.listPageIds({ id })).map((row) => row.id),
 		folders: folders.filter((f) => f.parent_id === id).map((f) => f.id),
 	};
-	yield* MainDb.releaseFolderPages({ id, parentId });
-	yield* MainDb.releaseFolderChildren({ id, parentId });
+	yield* MainDb.folders.releasePages({ id, parentId });
+	yield* MainDb.folders.releaseChildren({ id, parentId });
 	// What was shared through it isn't any more (and Undo doesn't share it again).
-	yield* MainDb.forgetFolderShares({ id });
-	yield* MainDb.deleteFolder({ id });
+	yield* MainDb.shares.forgetFolder({ id });
+	yield* MainDb.folders.delete({ id });
 	return undo;
 });
 
@@ -154,23 +154,23 @@ export const restoreFolder = Effect.fn("Sidebar.restoreFolder")(function* (
 	if (parent.folders.some((f) => f.id === id))
 		return yield* new Conflict({ message: "That folder is already back" });
 	const now = yield* Clock.currentTimeMillis;
-	yield* MainDb.createFolder({ id, parentId: parent.id, name, now });
+	yield* MainDb.folders.create({ id, parentId: parent.id, name, now });
 	const parentId = parent.id;
-	yield* MainDb.returnPagesToFolder({ id, ids: JSON.stringify(input.pages), parentId });
-	yield* MainDb.returnFoldersToFolder({ id, ids: JSON.stringify(input.folders), parentId });
+	yield* MainDb.folders.returnPages({ id, ids: JSON.stringify(input.pages), parentId });
+	yield* MainDb.folders.returnFolders({ id, ids: JSON.stringify(input.folders), parentId });
 });
 
 export const move = Effect.fn("Sidebar.move")(function* ({ kind, id, folderId }: typeof Move.Type) {
 	const target = yield* folderTarget(folderId);
 	if (kind === "page") {
-		if (Option.isNone(yield* MainDb.findPage({ id }))) return yield* bad("No such page");
-		yield* MainDb.movePage({ id, folderId: target.id });
+		if (Option.isNone(yield* MainDb.pages.find({ id }))) return yield* bad("No such page");
+		yield* MainDb.pages.move({ id, folderId: target.id });
 		return;
 	}
 	if (!target.folders.some((folder) => folder.id === id)) return yield* bad("No such folder");
 	// A folder can't go inside itself or one of its own subfolders.
 	if (isWithin(target.folders, target.id, id)) return yield* bad("A folder can't go inside itself");
-	yield* MainDb.moveFolder({ id, parentId: target.id });
+	yield* MainDb.folders.move({ id, parentId: target.id });
 });
 
 /** Puts a page in a folder just before `beforeId` (`null` = at the end), and renumbers the folder. */
@@ -180,18 +180,18 @@ export const reorder = Effect.fn("Sidebar.reorder")(function* ({
 	beforeId,
 }: typeof Reorder.Type) {
 	const target = yield* folderTarget(folderId);
-	const pages = yield* MainDb.listPages();
+	const pages = yield* MainDb.pages.list();
 	const page = pages.find((row) => row.id === id);
 	if (!page) return yield* bad("No such page");
 	const siblings = pages.filter((row) => row.folder_id === target.id).map((row) => row.id);
 	const order = placeBefore(siblings, id, beforeId ?? null);
 	if (!order) return yield* bad("No such place");
-	if (page.folder_id !== target.id) yield* MainDb.movePage({ id, folderId: target.id });
-	yield* MainDb.setPageOrder({ ids: JSON.stringify(order) });
+	if (page.folder_id !== target.id) yield* MainDb.pages.move({ id, folderId: target.id });
+	yield* MainDb.pages.setOrder({ ids: JSON.stringify(order) });
 });
 
 export const removePage = Effect.fn("Sidebar.removePage")(function* ({ id }: typeof PageRef.Type) {
-	if (Option.isNone(yield* MainDb.findPage({ id }))) return yield* bad("No such page");
+	if (Option.isNone(yield* MainDb.pages.find({ id }))) return yield* bad("No such page");
 	yield* Trash.remove(id);
 });
 

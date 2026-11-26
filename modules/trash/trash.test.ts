@@ -13,14 +13,14 @@ const run = <A, E>(test: Effect.Effect<A, E, MainDb>) =>
 	Effect.runPromise(test.pipe(Effect.provide(Layer.mergeAll(testDb(MainDb), TestClock.layer()))));
 
 const rowsOf = (databaseId: string) =>
-	Effect.map(MainDb.listRows({ databaseId }), (rows) => rows.map((row) => row.id));
-const find = (id: string) => Effect.map(MainDb.findPage({ id }), Option.getOrUndefined);
+	Effect.map(MainDb.databases.listRows({ databaseId }), (rows) => rows.map((row) => row.id));
+const find = (id: string) => Effect.map(MainDb.pages.find({ id }), Option.getOrUndefined);
 const inSidebar = (id: string) =>
-	Effect.map(MainDb.listPages(), (pages) => pages.some((page) => page.id === id));
+	Effect.map(MainDb.pages.list(), (pages) => pages.some((page) => page.id === id));
 
 const hostWithDatabase = Effect.gen(function* () {
 	const host = crypto.randomUUID();
-	yield* MainDb.createPage({ id: host, folderId: null, title: "Host", now: 0, by: null });
+	yield* MainDb.pages.create({ id: host, folderId: null, title: "Host", now: 0, by: null });
 	return { host, inline: yield* newDatabase({ folderId: null, hostId: host }) };
 });
 
@@ -38,7 +38,7 @@ describe("Trash", () => {
 
 				yield* Trash.remove(db);
 				expect(yield* inSidebar(db)).toBe(false);
-				const item = (yield* MainDb.listArchive()).find((i) => i.id === db)!;
+				const item = (yield* MainDb.trash.list()).find((i) => i.id === db)!;
 				expect(item.items).toBe(3); // the database and its two remaining rows
 
 				// The lone row can't come back before its database.
@@ -59,7 +59,7 @@ describe("Trash", () => {
 				yield* Trash.remove(host);
 				expect((yield* find(host))?.archived_at).not.toBeNull();
 				expect((yield* find(inline))?.archived_with).toBe(host);
-				const items = yield* MainDb.listArchive();
+				const items = yield* MainDb.trash.list();
 				expect(items.find((i) => i.id === host)!.items).toBe(2 + rows.length);
 				expect(items.some((i) => i.id === inline)).toBe(false);
 

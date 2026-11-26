@@ -122,7 +122,8 @@ export const Op = Schema.Struct({
 	width: field,
 });
 
-const findDatabase = (id: string) => Effect.map(MainDb.findDatabase({ id }), Option.getOrUndefined);
+const findDatabase = (id: string) =>
+	Effect.map(MainDb.databases.find({ id }), Option.getOrUndefined);
 
 export const databaseState: (
 	id: string,
@@ -132,7 +133,7 @@ export const databaseState: (
 )(function* (id, { rollups = true, scripts = rollups } = {}) {
 	const found = yield* findDatabase(id);
 	if (!found) return null;
-	const stored = yield* MainDb.listRows({ databaseId: id });
+	const stored = yield* MainDb.databases.listRows({ databaseId: id });
 	const columns = parseColumns(found.columns);
 	const autoColumns = columns.filter((c) => AUTO_TYPES.has(c.type));
 	const rows = stored.map((row) => {
@@ -164,7 +165,7 @@ export const databaseState: (
 	// Relation cells come from `row_relations`, read from whichever side this column is on.
 	const relationColumns = columns.filter((c) => c.type === "relation");
 	if (relationColumns.length > 0) {
-		const links = yield* MainDb.listRelations({ databaseId: id });
+		const links = yield* MainDb.relations.list({ databaseId: id });
 		const byRow = new Map(rows.map((row) => [row.id, row]));
 		for (const row of rows) for (const column of relationColumns) delete row.cells[column.id];
 		const linked = new Set<string>();
@@ -181,7 +182,7 @@ export const databaseState: (
 			}
 		}
 		if (linked.size > 0) {
-			for (const page of yield* MainDb.listTitles({ ids: JSON.stringify([...linked]) })) {
+			for (const page of yield* MainDb.pages.listTitles({ ids: JSON.stringify([...linked]) })) {
 				titles[page.id] = page.title;
 			}
 		}
@@ -354,7 +355,7 @@ const editColumns = Effect.fn("Database.editColumns")(function* (
 	const found = yield* findDatabase(id);
 	if (!found) return;
 	const columns = change(parseColumns(found.columns));
-	yield* MainDb.updateDatabaseColumns({
+	yield* MainDb.databases.updateColumns({
 		id,
 		columns: JSON.stringify(columns),
 		now: yield* Clock.currentTimeMillis,
@@ -378,7 +379,7 @@ export const newDatabase = Effect.fn("Database.create")(function* (options: {
 	const id = crypto.randomUUID();
 	const now = yield* Clock.currentTimeMillis;
 	const by = options.by ?? null;
-	yield* MainDb.createDatabase({
+	yield* MainDb.databases.create({
 		id,
 		folderId: options.folderId,
 		hostId: options.hostId,
@@ -388,7 +389,7 @@ export const newDatabase = Effect.fn("Database.create")(function* (options: {
 		by,
 	});
 	for (let i = 0; i < STARTER_ROWS; i++) {
-		yield* MainDb.createRow({
+		yield* MainDb.databases.createRow({
 			id: crypto.randomUUID(),
 			databaseId: id,
 			title: "",
@@ -406,7 +407,7 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 
 	if (body.op === "create") {
 		yield* Sharing.requireAccess(pageId, "edit");
-		const host = Option.getOrUndefined(yield* MainDb.findPage({ id: pageId }));
+		const host = Option.getOrUndefined(yield* MainDb.pages.find({ id: pageId }));
 		if (!host || host.kind === "database") return yield* bad("invalid_host");
 		const id = yield* newDatabase({ folderId: null, hostId: pageId, by });
 		return { state: yield* databaseState(id) };
@@ -414,7 +415,7 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 
 	if (body.op === "databases") {
 		// For choosing a relation's target.
-		const all = yield* Sharing.visible(yield* MainDb.listDatabases());
+		const all = yield* Sharing.visible(yield* MainDb.databases.list());
 		return {
 			databases: all.map((d) => ({ id: d.id, title: d.title, hostId: d.host_id })),
 		};
@@ -431,9 +432,9 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 	if (!databaseId || !state) return yield* new NotFound({ message: "No such database" });
 
 	const saveViews = (views: View[]) =>
-		MainDb.updateDatabaseView({ id: databaseId, view: JSON.stringify({ views }), now });
+		MainDb.databases.updateView({ id: databaseId, view: JSON.stringify({ views }), now });
 	const saveColumns = (columns: Column[]) =>
-		MainDb.updateDatabaseColumns({
+		MainDb.databases.updateColumns({
 			id: databaseId,
 			columns: JSON.stringify(storable(columns)),
 			now,
@@ -478,7 +479,7 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 		}
 		// Relation, rollup, script and automatic values are worked out on load, never stored.
 		for (const c of state.columns) if (isComputed(c.type)) delete cells[c.id];
-		yield* MainDb.updateRowCells({ id: row.id, cells: JSON.stringify(cells), now, by });
+		yield* MainDb.databases.updateRowCells({ id: row.id, cells: JSON.stringify(cells), now, by });
 	});
 
 	/** Replaces the rows a relation cell links to. */
@@ -490,16 +491,16 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 		const ids = (result.value.value as string[] | undefined) ?? [];
 		yield* Sharing.requireAccess(relation.databaseId, "view");
 		const allowed = new Set(
-			(yield* MainDb.listRows({ databaseId: relation.databaseId })).map((r) => r.id),
+			(yield* MainDb.databases.listRows({ databaseId: relation.databaseId })).map((r) => r.id),
 		);
 		const keep = ids.filter((id) => allowed.has(id));
 		const owner = linkOwner(column);
 		const backwards = Boolean(relation.sourceColumnId);
-		if (backwards) yield* MainDb.clearRelationsTo({ columnId: owner, toId: rowId });
-		else yield* MainDb.clearRelationsFrom({ columnId: owner, fromId: rowId });
+		if (backwards) yield* MainDb.relations.clearTo({ columnId: owner, toId: rowId });
+		else yield* MainDb.relations.clearFrom({ columnId: owner, fromId: rowId });
 		if (keep.length > 0) {
 			const pairs = keep.map((id) => (backwards ? [id, rowId] : [rowId, id]));
-			yield* MainDb.addRelations({ columnId: owner, pairs: JSON.stringify(pairs) });
+			yield* MainDb.relations.add({ columnId: owner, pairs: JSON.stringify(pairs) });
 		}
 		return yield* reply({ touched: [relation.databaseId] });
 	});
@@ -546,7 +547,7 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 					back,
 				);
 				if (twin.ok) {
-					yield* MainDb.updateDatabaseColumns({
+					yield* MainDb.databases.updateColumns({
 						id: targetId,
 						columns: JSON.stringify(twin.value.columns),
 						now,
@@ -568,13 +569,13 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 			return { state: null };
 
 		case "rename":
-			yield* MainDb.updatePageTitle({ id: databaseId, title: cleanTitle(body.title), now, by });
+			yield* MainDb.pages.updateTitle({ id: databaseId, title: cleanTitle(body.title), now, by });
 			return yield* reply();
 
 		case "addRow": {
 			if (state.rows.length >= MAX_ROWS) return yield* bad("too_many_rows");
 			const id = crypto.randomUUID();
-			yield* MainDb.createRow({ id, databaseId, title: cleanTitle(body.title), now, by });
+			yield* MainDb.databases.createRow({ id, databaseId, title: cleanTitle(body.title), now, by });
 			// Values that make the row match the current filters (bad ones are skipped).
 			if (body.cells && typeof body.cells === "object") {
 				let columns = state.columns;
@@ -589,7 +590,7 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 					columns = columns.map((c) => (c.id === columnId ? result.value.column : c));
 				}
 				if (Object.keys(cells).length > 0) {
-					yield* MainDb.updateRowCells({ id, cells: JSON.stringify(cells), now, by });
+					yield* MainDb.databases.updateRowCells({ id, cells: JSON.stringify(cells), now, by });
 				}
 			}
 			return yield* reply({ rowId: id });
@@ -602,7 +603,7 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 
 		case "setTitle":
 			if (!row) return yield* bad("invalid_row");
-			yield* MainDb.updatePageTitle({ id: row.id, title: cleanTitle(body.title), now, by });
+			yield* MainDb.pages.updateTitle({ id: row.id, title: cleanTitle(body.title), now, by });
 			return yield* reply();
 
 		case "setCell": {
@@ -631,7 +632,7 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 					beforeId,
 				);
 				if (!order) return yield* bad("invalid_before");
-				yield* MainDb.setPageOrder({ ids: JSON.stringify(order) });
+				yield* MainDb.pages.setOrder({ ids: JSON.stringify(order) });
 			}
 			return yield* reply();
 		}
@@ -736,7 +737,7 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 				else yield* editColumns(otherId, unlink);
 			} else {
 				// The owner: its links go, and so does its other side.
-				yield* MainDb.deleteColumnRelations({ columnId: column.id });
+				yield* MainDb.relations.deleteColumn({ columnId: column.id });
 				if (twinId) {
 					const drop = (list: Column[]) => list.filter((c) => c.id !== twinId);
 					if (same) columns = drop(columns);

@@ -63,7 +63,7 @@ const tokenRoute = route({
 		const tokenHash = [...new Uint8Array(digest)]
 			.map((b) => b.toString(16).padStart(2, "0"))
 			.join("");
-		yield* MainDb.createApiToken({
+		yield* MainDb.tokens.create({
 			id: crypto.randomUUID(),
 			name: "test",
 			tokenHash,
