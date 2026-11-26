@@ -22,7 +22,7 @@ import {
 	type SelectOption,
 } from "#modules/database/columns.ts";
 import { databaseState, runOp } from "#modules/database/database.ts";
-import { applyView, opsFor, type Filter, type Sort } from "#modules/database/view.ts";
+import { applyView, opsFor, type Filter, type Sort, type View } from "#modules/database/view.ts";
 import * as Pages from "#modules/pages/pages.ts";
 import * as Search from "#modules/search/search.ts";
 import * as Trash from "#modules/trash/trash.ts";
@@ -269,7 +269,7 @@ function filtersFor(column: Column, value: unknown): Filter[] | string {
 				? { ok: n }
 				: `"${column.name}" is a number, not ${JSON.stringify(v)}`;
 		}
-		if (ops.includes("after") && column.type !== "time" && !/^\d{4}-\d{2}-\d{2}/.test(String(v)))
+		if (ops.includes("after") && column.type !== "time" && !/^\d{4}-\d{2}-\d{2}$/.test(String(v)))
 			return `"${column.name}" compares dates as YYYY-MM-DD, not ${JSON.stringify(v)}`;
 		return { ok: String(v) };
 	};
@@ -307,7 +307,7 @@ function filtersFor(column: Column, value: unknown): Filter[] | string {
 }
 
 /** A `where` object's filters, all of which a row must match. */
-const whereFilters = Effect.fn("Api.whereFilters")(function* (
+export const whereFilters = Effect.fn("Api.whereFilters")(function* (
 	state: DatabaseState,
 	where: Readonly<Record<string, unknown>>,
 ) {
@@ -319,6 +319,37 @@ const whereFilters = Effect.fn("Api.whereFilters")(function* (
 	}
 	return filters;
 });
+
+/** A view as an agent reads it: its settings, with properties and options by name. */
+export const describeView = (state: DatabaseState, view: View) => {
+	const byId = new Map(state.columns.map((c) => [c.id, c]));
+	const name = (id: string | undefined) => (id ? (byId.get(id)?.name ?? null) : null);
+	return {
+		id: view.id,
+		name: view.name,
+		layout: view.layout,
+		filters: view.filters.flatMap((f) => {
+			const column = byId.get(f.columnId);
+			if (!column) return [];
+			const option = column.options?.find((o) => o.id === f.value);
+			return [
+				{
+					property: column.name,
+					operator: f.op,
+					...(f.value === undefined ? {} : { value: option ? option.name : f.value }),
+				},
+			];
+		}),
+		sort: view.sorts.flatMap((s) => {
+			const n = name(s.columnId);
+			return n === null ? [] : [s.direction === "desc" ? `-${n}` : n];
+		}),
+		...(view.groupBy ? { groupBy: name(view.groupBy) } : {}),
+		...(view.dateBy ? { dateBy: name(view.dateBy) } : {}),
+		...(view.endBy ? { endBy: name(view.endBy) } : {}),
+		...(view.rowNumbers === undefined ? {} : { rowNumbers: view.rowNumbers }),
+	};
+};
 
 // ---------------------------------------------------------------- pages
 
@@ -448,7 +479,7 @@ export const getDatabase = Effect.fn("Api.getDatabase")(function* (id: string) {
 		title: state.title,
 		hostId: state.hostId,
 		properties: schemaOf(state, related),
-		views: state.views.map((v) => ({ id: v.id, name: v.name, layout: v.layout })),
+		views: state.views.map((v) => describeView(state, v)),
 		people: state.people,
 		rows: state.rows.length,
 	};

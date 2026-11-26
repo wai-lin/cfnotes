@@ -350,3 +350,93 @@ describe("querying a database over MCP", () => {
 		]);
 	});
 });
+
+describe("a database's views over MCP", () => {
+	it("adds, changes and deletes views with filters, sorts and grouping", async () => {
+		await using app = cfnotes();
+		const call = await mcp(app);
+		const { data: db } = await call("create_database", {
+			title: "Tasks",
+			properties: [
+				{ name: "Status", type: "select", options: ["Todo", "Doing", "Done"] },
+				{ name: "Due", type: "date" },
+				{ name: "Ends", type: "date" },
+			],
+		});
+		const board = await call("create_view", {
+			database_id: db.id,
+			name: "Open work",
+			layout: "board",
+			where: { Status: { is_not: "Done" }, Due: { not_empty: true } },
+			sort: ["-Due"],
+		});
+		expect(board.error).toBe(false);
+		expect(board.data).toMatchObject({
+			name: "Open work",
+			layout: "board",
+			groupBy: "Status",
+			filters: [
+				{ property: "Status", operator: "is_not", value: "Done" },
+				{ property: "Due", operator: "not_empty" },
+			],
+			sort: ["-Due"],
+		});
+
+		await call("create_page", {
+			title: "Write",
+			database_id: db.id,
+			properties: { Status: "Doing", Due: "2026-11-30" },
+		});
+		await call("create_page", {
+			title: "Ship",
+			database_id: db.id,
+			properties: { Status: "Done", Due: "2026-11-02" },
+		});
+		const rows = await call("query_database", { database_id: db.id, view: "open work" });
+		expect((rows.data.rows as Json[]).map((r) => r.title)).toEqual(["Write"]);
+
+		// A timeline picks its dates from the database; a new layout drops the board's lanes.
+		const timeline = await call("update_view", {
+			database_id: db.id,
+			view: "Open work",
+			layout: "timeline",
+			end_by: "Ends",
+		});
+		expect(timeline.data).toMatchObject({ layout: "timeline", dateBy: "Due", endBy: "Ends" });
+		expect(timeline.data.groupBy).toBeUndefined();
+
+		const described = await call("get_database", { database_id: db.id });
+		expect((described.data.views as Json[]).map((v) => v.name)).toEqual(["Table", "Open work"]);
+
+		expect((await call("delete_view", { database_id: db.id, view: "Open work" })).text).toBe(
+			"Deleted the view.",
+		);
+		expect((await call("delete_view", { database_id: db.id, view: "Table" })).text).toBe(
+			"BadRequest: A database keeps at least one view",
+		);
+	});
+
+	it("refuses settings the view couldn't keep, and makes nothing", async () => {
+		await using app = cfnotes();
+		const call = await mcp(app);
+		const { data: db } = await call("create_database", {
+			title: "Notes",
+			properties: [{ name: "Due", type: "date" }],
+		});
+		const tries = [
+			[{ layout: "board", group_by: "Due" }, 'A board groups by a select; "Due" isn\'t one'],
+			[{ layout: "calendar", date_by: "Name" }, "\"Name\" isn't a date, so it can't place rows"],
+			[{ layout: "gallery", row_numbers: true }, "Only a table shows row numbers"],
+			[{ layout: "table", sort: ["Nope"] }, 'No property "Nope"'],
+		] as const;
+		for (const [settings, message] of tries) {
+			const res = await call("create_view", { database_id: db.id, ...settings });
+			expect(res.text, JSON.stringify(settings)).toContain(message);
+		}
+		const after = await call("get_database", { database_id: db.id });
+		expect(after.data.views).toHaveLength(1);
+		expect((await call("update_view", { database_id: db.id, view: "Gone" })).text).toBe(
+			'BadRequest: No view "Gone": there are "Table"',
+		);
+	});
+});

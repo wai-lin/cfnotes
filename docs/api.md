@@ -139,6 +139,7 @@ Tools:
 | `create_page`                                  | A page or row from Markdown, with properties. _(write)_                               |
 | `create_database`                              | A database with properties, full-page or inline in a page. _(write)_                  |
 | `update_database`                              | Title, and add, rename, convert, move or delete properties and options. _(write)_     |
+| `create_view`, `update_view`, `delete_view`    | A database's views: layout, filters, sorts, grouping, dates. _(write)_                |
 | `update_page`                                  | Title, icon, properties, and replace or append content. _(write)_                     |
 | `add_comment`                                  | A comment on a page, or a reply in a thread. _(write)_                                |
 | `trash_page`                                   | Moves a page to Trash. _(write)_                                                      |
@@ -150,6 +151,7 @@ A read-only token isn't offered the write tools. A request whose `Origin` isn't 
 - `modules/auth/tokens.ts`: tokens. `Sessions.user` answers with a token's owner on `/api/…`.
 - `modules/api/api.ts`: what both the REST API and MCP do, built on the app's own modules (pages, database, comments, search).
 - `modules/api/render.ts` and `markdown.ts`: the editor's saved state to HTML and Markdown, and Markdown back.
+- `modules/api/table-views.ts`: a database's views, by property name, through the table's own view ops.
 - `modules/api/schema.ts`: making databases and changing their properties, by name, through the table's own ops.
 - `modules/api/http.ts` and `mcp.ts`: the request handlers; `app/routes/api/` only wires them. MCP's tools are in `modules/api/tools/`.
 - `modules/api/docs.ts`: serves this file publicly at `/docs/api` (HTML) and `/docs/api.md` (Markdown), with the app's `ORIGIN` in the examples and without this section.

@@ -226,7 +226,7 @@ export const canGroupList = (column: Column | undefined) =>
 	!!column && LIST_GROUP_TYPES.has(column.type);
 
 /** Whether `layout` groups by `groupBy`, and by which columns. */
-const groupsBy = (layout: Layout, column: Column | undefined) =>
+export const groupsBy = (layout: Layout, column: Column | undefined) =>
 	layout === "board"
 		? canGroup(column)
 		: layout === "table" || layout === "list"

@@ -23,6 +23,7 @@ const INSTRUCTIONS = `cfnotes is a private notes workspace, like Notion: pages i
 - Find things with search or list_pages; read one with read_page (Markdown).
 - For a database, get_database shows its properties and their choices; query_database lists rows, filtered with "where" ({"Status": "Published"}, or operators: {"Date": {"after": "2026-11-01"}, "Tags": {"empty": true}}), "where_any" for OR, and sorted with "sort" (["-Date"]).
 - create_database makes a database with its properties; update_database renames, adds, converts, moves and deletes properties, edits select options, and sets up relations, rollups and scripts. Add rows with create_page.
+- create_view, update_view and delete_view manage a database's views (table, board, list, gallery, calendar, timeline) with their own filters, sorts and grouping.
 - Write content as Markdown (GitHub's). Link to another page with [Title](/p/<id>). Toggles are <details><summary>…</summary>…</details>; equations $…$ or $$…$$.
 - Properties are set by name: a select by its option name (a new name adds an option), multi-select as a list of names, dates as YYYY-MM-DD, dates & times as YYYY-MM-DDTHH:MM (no time zone), times as HH:MM, people as emails, relations as row ids.
 - update_page with "markdown" replaces the whole content; "append_markdown" adds to the end. Someone may have the page open: prefer appending.`;

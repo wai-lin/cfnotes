@@ -2,9 +2,11 @@
 import { Effect, Schema } from "effect";
 
 import { COLORS, COLUMN_TYPES } from "#modules/database/columns.ts";
+import { LAYOUTS } from "#modules/database/view.ts";
 
 import * as Api from "../api.ts";
 import * as DbSchema from "../schema.ts";
+import * as Views from "../table-views.ts";
 import {
 	adds,
 	array,
@@ -147,6 +149,34 @@ const schemaChange = {
 	],
 };
 
+/** A view's settings, for create_view and update_view. */
+const viewFields = (): Json => ({
+	name: string("The view's name."),
+	layout: enumOf(LAYOUTS, "How it shows the rows."),
+	where: {
+		...where,
+		description: `Its filters, replacing any it has: ${String(where.description)}`,
+	},
+	sort: array(
+		{ type: "string" },
+		'Its sorts, replacing any it has: property names, "-Name" for descending.',
+	),
+	group_by: {
+		type: ["string", "null"],
+		description:
+			"A board's lanes (a select property), or the property a table or list groups rows by (select, multi-select, checkbox, person, date); null stops grouping.",
+	},
+	date_by: {
+		type: ["string", "null"],
+		description: "Calendar and timeline: the date property that places rows.",
+	},
+	end_by: {
+		type: ["string", "null"],
+		description: "Timeline: the date property where a row's bar ends.",
+	},
+	row_numbers: boolean("Table: show each row's number."),
+});
+
 export const DATABASE_TOOLS: Tool[] = [
 	{
 		name: "list_databases",
@@ -255,5 +285,51 @@ export const DATABASE_TOOLS: Tool[] = [
 				yield* DbSchema.updateDatabase(id, { title: args.title, changes: args.changes });
 				return json(yield* Api.getDatabase(id));
 			}),
+	},
+	{
+		name: "create_view",
+		title: "Add a view",
+		description:
+			"Adds a view to a database: a table, board, list, gallery, calendar or timeline, with its own filters, sorts and grouping. A board groups by its first select and a calendar by its first date unless told otherwise. Answers with the view.",
+		inputSchema: object({ database_id: databaseId, ...viewFields() }, ["database_id", "layout"]),
+		annotations: adds,
+		write: true,
+		run: (args) => {
+			const { database_id, ...settings } = args;
+			return Effect.map(Views.createView(str(database_id) ?? "", settings), json);
+		},
+	},
+	{
+		name: "update_view",
+		title: "Change a view",
+		description:
+			"Changes a view's name, layout, filters, sorts or grouping; what's left out stays. Switching layout drops what the new one doesn't use. Answers with the view.",
+		inputSchema: object(
+			{ database_id: databaseId, view: string("The view, by name or id."), ...viewFields() },
+			["database_id", "view"],
+		),
+		annotations: changes,
+		write: true,
+		run: (args) => {
+			const { database_id, view, ...settings } = args;
+			return Effect.map(Views.updateView(str(database_id) ?? "", str(view) ?? "", settings), json);
+		},
+	},
+	{
+		name: "delete_view",
+		title: "Delete a view",
+		description:
+			"Deletes one of a database's views (not its rows). A database keeps at least one view.",
+		inputSchema: object({ database_id: databaseId, view: string("The view, by name or id.") }, [
+			"database_id",
+			"view",
+		]),
+		annotations: { ...changes, idempotentHint: true },
+		write: true,
+		run: (args) =>
+			Effect.as(
+				Views.deleteView(str(args.database_id) ?? "", str(args.view) ?? ""),
+				"Deleted the view.",
+			),
 	},
 ];
