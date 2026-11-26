@@ -145,3 +145,34 @@ describe("comments over MCP", () => {
 		);
 	});
 });
+
+describe("a page's details over MCP", () => {
+	it("sets and removes covers", async () => {
+		await using app = cfnotes();
+		const { id, call } = await trip(app);
+		expect((await call("update_page", { page_id: id, cover: "g3" })).text).toContain(
+			'"cover": "g3"',
+		);
+		const image = await call("update_page", {
+			page_id: id,
+			cover: "http://localhost:1337/api/v1/files/img/photo.jpg",
+		});
+		expect(image.text).toContain('"cover": "http://localhost:1337/api/v1/files/img/photo.jpg"');
+		expect((await call("update_page", { page_id: id, cover: "" })).text).not.toContain('"cover"');
+		expect(
+			(await call("update_page", { page_id: id, cover: "https://example.com/a.png" })).text,
+		).toContain("A cover is g1 to g6");
+	});
+
+	it("says which pages link to a page", async () => {
+		await using app = cfnotes();
+		const { id, call } = await trip(app);
+		const from = idIn(
+			(await call("create_page", { title: "Index", markdown: `See [Trip](/p/${id}).` })).text,
+		);
+		const read = await call("read_page", { page_id: id });
+		expect(read.text).toContain(
+			`"linkedFrom": [\n    {\n      "id": "${from}",\n      "title": "Index"`,
+		);
+	});
+});

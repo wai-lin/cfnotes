@@ -47,6 +47,8 @@ Answers are JSON. Errors look like `{"error": "NotFound", "message": "No such pa
 - Equations are left as TeX for the site to render: `<span class="math math-inline">\(…\)</span>` and `<div class="math math-display">\[…\]</div>`.
 - Synced blocks are drawn with their latest content. Comment highlights are dropped.
 
+A page also lists the pages that link to it, in `backlinks`.
+
 `format=markdown` gives GitHub Markdown, using HTML for toggles, underline and sub/superscript. `format=json` gives the editor's saved state as it is stored.
 
 Links to other pages and files point back at cfnotes unless you say otherwise:
@@ -101,7 +103,7 @@ Properties come back by name:
 - Give `folder` for a page, or `database` for a row. With neither, the page goes at the top level.
 - Instead of `markdown`, `doc` takes the editor's JSON.
 
-`PATCH /api/v1/pages/:id` takes `title`, `icon`, `properties`, and one of `markdown` (replaces the content), `doc`, or `append` (Markdown added at the end).
+`PATCH /api/v1/pages/:id` takes `title`, `icon`, `cover` (`g1` to `g6` for a gradient, an uploaded image's `/files/img/…` path or URL, or `""` to remove it), `properties`, and one of `markdown` (replaces the content), `doc`, or `append` (Markdown added at the end).
 
 - Properties are set by name, through the same checks as the table. A select takes an option's name, and a new name adds the option. Relations take row ids, and people take emails of people on the allowlist.
 - A value that doesn't fit answers `400`, naming the property.
@@ -133,7 +135,7 @@ Tools:
 | -------------------------------------------------- | ------------------------------------------------------------------------------------- |
 | `search`                                           | Finds pages by words.                                                                 |
 | `list_pages`, `list_folders`, `list_databases`     | Lists what's there.                                                                   |
-| `read_page`                                        | A page as Markdown, with its properties and comments.                                 |
+| `read_page`                                        | A page as Markdown, with its properties, cover, backlinks and comments.               |
 | `get_database`                                     | A database's properties (options, relations, rollups, scripts) and views.             |
 | `query_database`                                   | Rows filtered with `where` (values or operators) and `where_any` (OR), sorted, paged. |
 | `create_page`                                      | A page or row from Markdown, with properties. _(write)_                               |
@@ -141,7 +143,7 @@ Tools:
 | `create_database`                                  | A database with properties, full-page or inline in a page. _(write)_                  |
 | `update_database`                                  | Title, and add, rename, convert, move or delete properties and options. _(write)_     |
 | `create_view`, `update_view`, `delete_view`        | A database's views: layout, filters, sorts, grouping, dates. _(write)_                |
-| `update_page`                                      | Title, icon, properties, and replace or append content. _(write)_                     |
+| `update_page`                                      | Title, icon, cover, properties, and replace or append content. _(write)_              |
 | `edit_page`                                        | Changes one heading's section, or finds and replaces text; all or nothing. _(write)_  |
 | `add_comment`                                      | A comment on a page or on quoted text (marked), or a reply in a thread. _(write)_     |
 | `resolve_thread`, `edit_comment`, `delete_comment` | Resolves or reopens threads; edits or deletes your comments. _(write)_                |

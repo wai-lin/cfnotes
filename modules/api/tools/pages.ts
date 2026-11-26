@@ -41,6 +41,8 @@ export const pageText = (
 		...(page.database ? { database: page.database } : {}),
 		...(page.properties ? { properties: page.properties } : {}),
 		...(page.folderId ? { folderId: page.folderId } : {}),
+		...(page.cover ? { cover: page.cover } : {}),
+		...(page.backlinks.length > 0 ? { linkedFrom: page.backlinks } : {}),
 	};
 	const parts = [
 		`# ${page.icon ? `${page.icon} ` : ""}${page.title || "Untitled"}`,
@@ -153,7 +155,7 @@ export const PAGE_TOOLS: Tool[] = [
 		name: "read_page",
 		title: "Read a page",
 		description:
-			"Reads a page as Markdown: its title, properties (for a database row), content and comments.",
+			"Reads a page as Markdown: its title, properties (for a database row), cover, the pages linking to it (linkedFrom), its content and comments.",
 		inputSchema: object({ page_id: pageId }, ["page_id"]),
 		annotations: readOnly,
 		run: (args) =>
@@ -198,7 +200,7 @@ export const PAGE_TOOLS: Tool[] = [
 		name: "update_page",
 		title: "Change a page",
 		description:
-			"Changes a page's title, icon or properties, replaces its content (markdown) or adds to its end (append_markdown). Answers with the page as it is now.",
+			"Changes a page's title, icon, cover or properties, replaces its content (markdown) or adds to its end (append_markdown). Answers with the page as it is now.",
 		inputSchema: object(
 			{
 				page_id: pageId,
@@ -207,6 +209,9 @@ export const PAGE_TOOLS: Tool[] = [
 				append_markdown: string("Content to add at the end."),
 				properties,
 				icon: string("An emoji; empty to remove it."),
+				cover: string(
+					"g1 to g6 for a gradient, an uploaded image (its /files/img/… path or URL, e.g. from a files property), or empty to remove it.",
+				),
 			},
 			["page_id"],
 		),
@@ -220,6 +225,7 @@ export const PAGE_TOOLS: Tool[] = [
 					markdown: str(args.markdown),
 					append: str(args.append_markdown),
 					icon: str(args.icon),
+					cover: str(args.cover),
 					properties: record(args.properties),
 				});
 				return yield* pageNow(id);

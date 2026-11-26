@@ -449,6 +449,11 @@ export const getPage = Effect.fn("Api.getPage")(function* (
 		folderId: page.folder_id,
 		database: database ? { id: database.id, title: database.title } : null,
 		properties: database && row ? propertiesOf(database, row, refs) : null,
+		/** The pages that link to this one. */
+		backlinks: (yield* MainDb.links.listBacklinks({ id })).map((link) => ({
+			id: link.id,
+			title: link.title,
+		})),
 		createdAt: iso(page.created_at),
 		updatedAt: iso(page.updated_at),
 		createdBy: page.created_by,
@@ -632,8 +637,22 @@ export const PageChanges = Schema.Struct({
 	/** Adds to the end of the content. */
 	append: Schema.optional(Schema.String),
 	icon: Schema.optional(Schema.String),
+	/** A gradient (`g1`…`g6`), an uploaded image (its `/files/img/…` path or URL), or empty to remove it. */
+	cover: Schema.optional(Schema.String),
 	properties: PropertiesInput,
 });
+
+/** A cover as the page stores it, or why it can't be one. */
+const coverOf = (value: string) => {
+	const trimmed = value.trim();
+	if (trimmed === "" || /^g[1-6]$/.test(trimmed)) return Effect.succeed(trimmed);
+	// An uploaded image, as the API links it (`…/api/v1/files/img/x.png`) or the app stores it.
+	const image = /(?:^|\/)(?:api\/v1\/)?files\/(img\/[\w.-]+)$/.exec(trimmed);
+	if (image) return Effect.succeed(`/files/${image[1]}`);
+	return Effect.fail(
+		bad("A cover is g1 to g6 (gradients), an uploaded image (/files/img/…), or empty to remove it"),
+	);
+};
 
 /** Stores a document through the editor's own save, which keeps search and backlinks in step. */
 export const saveDoc = (id: string, state: unknown) =>
@@ -724,6 +743,7 @@ export const updatePage = Effect.fn("Api.updatePage")(function* (
 		return yield* bad("A database has rows, not content");
 	if (input.title !== undefined) yield* Pages.rename(id, { title: input.title });
 	if (input.icon !== undefined) yield* Pages.setIcon(id, { icon: input.icon });
+	if (input.cover !== undefined) yield* Pages.setCover(id, { cover: yield* coverOf(input.cover) });
 	if (input.doc !== undefined) yield* saveDoc(id, input.doc);
 	else if (input.markdown !== undefined) yield* saveDoc(id, fromMarkdown(input.markdown));
 	if (input.append !== undefined) yield* appendNodes(id, markdownBlocks(input.append));
