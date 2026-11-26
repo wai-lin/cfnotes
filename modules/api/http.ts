@@ -33,15 +33,25 @@ export const me = Effect.gen(function* () {
 	return caller.value;
 });
 
-/** `GET /api/v1/pages?kind=page|database|row&database=<id>` */
+const Paging = {
+	limit: Schema.optional(Schema.NumberFromString),
+	offset: Schema.optional(Schema.NumberFromString),
+};
+
+/** `GET /api/v1/pages?kind=page|database|row&database=<id>&limit=&offset=`; every page without `limit`. */
 export const listPages = Effect.gen(function* () {
-	const query = yield* Input.query(
+	const { limit, offset, ...query } = yield* Input.query(
 		Schema.Struct({
 			kind: Schema.optional(Schema.String),
 			database: Schema.optional(Schema.String),
+			...Paging,
 		}),
 	);
-	return { pages: yield* Api.listPages(query) };
+	const pages = yield* Api.listPages(query);
+	if (limit === undefined && offset === undefined)
+		return { total: pages.length, nextOffset: null, pages };
+	const { items, ...page } = Api.paged(pages, { limit, offset });
+	return { ...page, pages: items };
 });
 
 /** `POST /api/v1/pages` with `{title, markdown | doc, folder | database, icon, properties}` */
@@ -151,10 +161,12 @@ export const queryRows = Effect.gen(function* () {
 	return yield* Api.queryRows(databaseId, query);
 });
 
-/** `GET /api/v1/search?q=…` */
+/** `GET /api/v1/search?q=…&limit=&offset=` */
 export const search = Effect.gen(function* () {
-	const { q } = yield* Input.query(Schema.Struct({ q: Schema.optional(Schema.String) }));
-	return { results: yield* Api.search(q ?? "") };
+	const { q, ...paging } = yield* Input.query(
+		Schema.Struct({ q: Schema.optional(Schema.String), ...Paging }),
+	);
+	return yield* Api.search(q ?? "", paging);
 });
 
 /** `GET /api/v1/files/<key>`: an uploaded file, as the app serves it. */

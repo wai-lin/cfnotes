@@ -20,22 +20,22 @@ curl -H "Authorization: Bearer cfn_…" https://notes.example.com/api/v1/pages
 
 Answers are JSON. Errors look like `{"error": "NotFound", "message": "No such page"}`, with the matching status code. Times are ISO strings.
 
-| Request                                                    | What it does                                                                          |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `GET /api/v1/me`                                           | Who the token acts as, and its scope.                                                 |
-| `GET /api/v1/pages?kind=page\|database\|row&database=<id>` | Every page not in Trash.                                                              |
-| `GET /api/v1/pages/:id?format=html\|markdown\|json`        | One page: properties (if it's a row) and content. The default format is HTML.         |
-| `POST /api/v1/pages`                                       | Creates a page; answers `201` with it, as Markdown.                                   |
-| `PATCH /api/v1/pages/:id`                                  | Changes a page.                                                                       |
-| `DELETE /api/v1/pages/:id`                                 | Moves a page to Trash.                                                                |
-| `GET /api/v1/pages/:id/comments`                           | The page's threads.                                                                   |
-| `POST /api/v1/pages/:id/comments`                          | `{body, thread?, quote?}`: a comment on the whole page or on quoted text, or a reply. |
-| `GET /api/v1/folders`                                      | Folders, with their paths.                                                            |
-| `GET /api/v1/databases`                                    | The databases.                                                                        |
-| `GET /api/v1/databases/:id`                                | A database's properties (types, select options), views and row count.                 |
-| `GET /api/v1/databases/:id/rows`                           | Rows with their properties (below).                                                   |
-| `GET /api/v1/search?q=…`                                   | Search by title and text, as the app's quick find does.                               |
-| `GET /api/v1/files/<key>`                                  | An uploaded file (images, attachments, media). Supports byte ranges.                  |
+| Request                                                                   | What it does                                                                          |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `GET /api/v1/me`                                                          | Who the token acts as, and its scope.                                                 |
+| `GET /api/v1/pages?kind=page\|database\|row&database=<id>&limit=&offset=` | Pages not in Trash: all of them, or a page of them with `limit` and `offset`.         |
+| `GET /api/v1/pages/:id?format=html\|markdown\|json`                       | One page: properties (if it's a row) and content. The default format is HTML.         |
+| `POST /api/v1/pages`                                                      | Creates a page; answers `201` with it, as Markdown.                                   |
+| `PATCH /api/v1/pages/:id`                                                 | Changes a page.                                                                       |
+| `DELETE /api/v1/pages/:id`                                                | Moves a page to Trash.                                                                |
+| `GET /api/v1/pages/:id/comments`                                          | The page's threads.                                                                   |
+| `POST /api/v1/pages/:id/comments`                                         | `{body, thread?, quote?}`: a comment on the whole page or on quoted text, or a reply. |
+| `GET /api/v1/folders`                                                     | Folders, with their paths.                                                            |
+| `GET /api/v1/databases`                                                   | The databases.                                                                        |
+| `GET /api/v1/databases/:id`                                               | A database's properties (types, select options), views and row count.                 |
+| `GET /api/v1/databases/:id/rows`                                          | Rows with their properties (below).                                                   |
+| `GET /api/v1/search?q=…&limit=&offset=`                                   | Search by title and text, as the app's quick find does, best first (20 by default).   |
+| `GET /api/v1/files/<key>`                                                 | An uploaded file (images, attachments, media). Supports byte ranges.                  |
 
 ### Reading content
 
@@ -72,7 +72,7 @@ GET /api/v1/databases/:id/rows?where.Status=Published&sort=-Date&content=html&li
 - `any.<n>.<Property>[:<operator>]=<value>`: groups of filters, numbered; a row must also match at least one group. `any.0.Status=Draft&any.1.Views:gte=500` is "a draft, or 500 views or more".
 - `sort=<Property>`: sorts ascending, or `-<Property>` descending. It can repeat, or be comma-separated.
 - `view=<name or id>`: starts from a view's own filters and sorts.
-- `limit` (default 100, at most 1000) and `offset` page through the rows. The answer has `total` and `nextOffset`.
+- `limit` (default 100, at most 1000) and `offset` page through the rows. The answer has `total` and `nextOffset`. Pages and search page the same way.
 - `content=html|markdown|json` also returns each row's page content. `pageUrl` and `fileUrl` work as above.
 
 Properties come back by name:
@@ -133,8 +133,8 @@ Tools:
 
 | Tool                                               | Does                                                                                  |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `search`                                           | Finds pages by words.                                                                 |
-| `list_pages`, `list_folders`, `list_databases`     | Lists what's there.                                                                   |
+| `search`                                           | Finds pages by words, paged with `limit` and `offset`.                                |
+| `list_pages`, `list_folders`, `list_databases`     | Lists what's there; `list_pages` by kind, database or folder, paged.                  |
 | `read_page`                                        | A page as Markdown, with its properties, cover, backlinks and comments.               |
 | `get_database`                                     | A database's properties (options, relations, rollups, scripts) and views.             |
 | `query_database`                                   | Rows filtered with `where` (values or operators) and `where_any` (OR), sorted, paged. |

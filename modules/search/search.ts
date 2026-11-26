@@ -22,10 +22,15 @@ interface Found {
 }
 
 /**
- * `{results: [{id, title, kind, icon, parent, snippet, href}]}`. Every word
- * must appear in the title or body. With no query, the most recently edited.
+ * `{results: [{id, title, kind, icon, parent, snippet, href}], total?}`. Every
+ * word must appear in the title or body (of the 200 most recently edited
+ * pages that have the longest one). With no query, the most recently edited.
  */
-export const find = Effect.fn("Search.find")(function* (query: typeof Query.Type) {
+export const find = Effect.fn("Search.find")(function* (
+	query: typeof Query.Type,
+	/** How many to answer with, after skipping `offset` (the API pages through them). */
+	{ limit = MAX_RESULTS, offset = 0 }: { limit?: number; offset?: number } = {},
+) {
 	const terms = queryTerms((query.q ?? "").slice(0, 200));
 	const inTrash = query.in === "trash";
 	const shape = (row: Found) => ({
@@ -45,8 +50,9 @@ export const find = Effect.fn("Search.find")(function* (query: typeof Query.Type
 	}
 	const pattern = likePattern(first);
 	const rows = yield* inTrash ? MainDb.trash.search({ pattern }) : MainDb.pages.search({ pattern });
-	const results = rankResults(rows, terms)
-		.slice(0, MAX_RESULTS)
+	const ranked = rankResults(rows, terms);
+	const results = ranked
+		.slice(offset, offset + limit)
 		.map((row) => ({ ...shape(row), snippet: snippet(row.body_text ?? "", terms) }));
-	return { results };
+	return { results, total: ranked.length };
 });

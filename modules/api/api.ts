@@ -597,18 +597,42 @@ export const queryRows = Effect.fn("Api.queryRows")(function* (
 	};
 });
 
-export const search = Effect.fn("Api.search")(function* (q: string) {
-	const { results } = yield* Search.find({ q });
+/** Where a list starts and how much of it to answer with. */
+export interface Paging {
+	limit?: number | undefined;
+	offset?: number | undefined;
+}
+
+export const paged = <A>(items: readonly A[], paging: Paging, fallback = DEFAULT_LIMIT) => {
+	const offset = Math.max(0, Math.floor(paging.offset ?? 0));
+	const limit = Math.min(MAX_LIMIT, Math.max(1, Math.floor(paging.limit ?? fallback)));
+	return {
+		total: items.length,
+		nextOffset: offset + limit < items.length ? offset + limit : null,
+		items: items.slice(offset, offset + limit),
+	};
+};
+
+/** Search, ranked; with no words, the most recently edited. At most 200 match. */
+export const search = Effect.fn("Api.search")(function* (q: string, paging: Paging = {}) {
+	const offset = Math.max(0, Math.floor(paging.offset ?? 0));
+	const limit = Math.min(200, Math.max(1, Math.floor(paging.limit ?? 20)));
+	const found = yield* Search.find({ q }, { limit, offset });
+	const total = found.total ?? found.results.length;
 	const { ORIGIN } = yield* Env;
-	return results.map((r) => ({
-		id: r.id,
-		title: r.title,
-		kind: r.kind,
-		icon: r.icon,
-		parent: r.parent,
-		snippet: r.snippet,
-		url: `${ORIGIN}${r.href}`,
-	}));
+	return {
+		total,
+		nextOffset: found.total !== undefined && offset + limit < total ? offset + limit : null,
+		results: found.results.map((r) => ({
+			id: r.id,
+			title: r.title,
+			kind: r.kind,
+			icon: r.icon,
+			parent: r.parent,
+			snippet: r.snippet,
+			url: `${ORIGIN}${r.href}`,
+		})),
+	};
 });
 
 // ---------------------------------------------------------------- writing

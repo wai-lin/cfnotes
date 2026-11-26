@@ -176,3 +176,49 @@ describe("a page's details over MCP", () => {
 		);
 	});
 });
+
+describe("paging over MCP", () => {
+	it("pages through list_pages and search", async () => {
+		await using app = cfnotes();
+		const call = await mcp(app);
+		const { data: folder } = await call("create_folder", { name: "Notes" });
+		for (let i = 1; i <= 5; i++)
+			await call("create_page", {
+				title: `Note ${i}`,
+				markdown: "Shared word: walrus.",
+				folder_id: folder.id,
+			});
+
+		const first = await call("list_pages", { folder_id: folder.id, limit: 2 });
+		expect(first.data).toMatchObject({ total: 5, nextOffset: 2 });
+		expect(first.data.pages).toHaveLength(2);
+		const last = await call("list_pages", { folder_id: folder.id, limit: 2, offset: 4 });
+		expect(last.data).toMatchObject({ total: 5, nextOffset: null });
+		await call("create_page", { title: "At the top" });
+		const top = await call("list_pages", { folder_id: null });
+		expect(top.data.pages.map((p: { title: string }) => p.title)).toEqual(["At the top"]);
+
+		const found = await call("search", { query: "walrus", limit: 3 });
+		expect(found.data).toMatchObject({ total: 5, nextOffset: 3 });
+		const rest = await call("search", { query: "walrus", limit: 3, offset: 3 });
+		expect(rest.data.results).toHaveLength(2);
+		const titles = [...found.data.results, ...rest.data.results].map(
+			(r: { title: string }) => r.title,
+		);
+		expect(new Set(titles).size).toBe(5);
+	});
+
+	it("pages over REST too, and lists every page without a limit", async () => {
+		await using app = cfnotes();
+		const call = await mcp(app);
+		for (let i = 1; i <= 3; i++) await call("create_page", { title: `Page ${i}` });
+		const token = await app.token("read");
+		const get = async (path: string) =>
+			(await (await app.api(token, path)).json()) as Record<string, any>;
+		expect((await get("/api/v1/pages")).pages.length).toBeGreaterThanOrEqual(3);
+		const page = await get("/api/v1/pages?limit=1&offset=1");
+		expect(page).toMatchObject({ nextOffset: 2 });
+		expect(page.pages).toHaveLength(1);
+		expect((await get("/api/v1/search?q=page&limit=2")).nextOffset).toBe(2);
+	});
+});

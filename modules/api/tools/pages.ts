@@ -7,6 +7,7 @@ import {
 	adds,
 	array,
 	changes,
+	integer,
 	json,
 	MARKDOWN_LINKS,
 	object,
@@ -52,6 +53,12 @@ export const pageText = (
 	if (threads.length > 0) parts.push(`## Comments\n\n\`\`\`json\n${json(threads)}\n\`\`\``);
 	return parts.join("\n\n");
 };
+
+/** A tool's limit and offset. */
+const paging = (args: Record<string, unknown>) => ({
+	limit: typeof args.limit === "number" ? args.limit : undefined,
+	offset: typeof args.offset === "number" ? args.offset : undefined,
+});
 
 /** A page as it is now, after a change. */
 export const pageNow = (id: string) =>
@@ -111,27 +118,50 @@ export const PAGE_TOOLS: Tool[] = [
 		name: "search",
 		title: "Search pages",
 		description:
-			"Finds pages, databases and rows by words in their title or text. An empty query lists the most recently edited.",
-		inputSchema: object({ query: string("Words to find.") }, ["query"]),
+			"Finds pages, databases and rows by words in their title or text, best first; every word must appear. An empty query lists the most recently edited. Pages through the matches with limit and offset (nextOffset is where the next page starts).",
+		inputSchema: object(
+			{
+				query: string("Words to find."),
+				limit: integer("At most this many (20 if unset).", 1, 200),
+				offset: integer("Skip this many first."),
+			},
+			["query"],
+		),
 		annotations: readOnly,
-		run: (args) => Effect.map(Api.search(str(args.query) ?? ""), json),
+		run: (args) => Effect.map(Api.search(str(args.query) ?? "", paging(args)), json),
 	},
 	{
 		name: "list_pages",
 		title: "List pages",
 		description:
-			"Lists every page not in Trash, with its id, kind (page, database or row), folder and when it changed. Filter by kind or by database.",
+			"Lists pages not in Trash, with their id, kind (page, database or row), folder and when they changed, most recently created last. Filter by kind, database or folder; page through with limit and offset (nextOffset is where the next page starts).",
 		inputSchema: object({
 			kind: { type: "string", enum: ["page", "database", "row"] },
 			database_id: string("Only the rows of this database."),
+			folder_id: {
+				type: ["string", "null"],
+				description: "Only what's in this folder (not its subfolders); null for the top level.",
+			},
+			limit: integer("At most this many (200 if unset).", 1, 1000),
+			offset: integer("Skip this many first."),
 		}),
 		annotations: readOnly,
 		run: (args) =>
 			Effect.map(
 				Api.listPages({ kind: str(args.kind), database: str(args.database_id) }),
-				(pages) =>
-					json(
-						pages.map(({ id, title, kind, icon, folder, databaseId, updatedAt }) => ({
+				(pages) => {
+					const inFolder =
+						args.folder_id === undefined
+							? pages
+							: pages.filter(
+									(p) =>
+										(p.folder?.id ?? null) === (args.folder_id ?? null) &&
+										(args.folder_id !== null || (p.kind !== "row" && !p.hostId)),
+								);
+					const { items, ...page } = Api.paged(inFolder, paging(args), 200);
+					return json({
+						...page,
+						pages: items.map(({ id, title, kind, icon, folder, databaseId, updatedAt }) => ({
 							id,
 							title,
 							kind,
@@ -140,7 +170,8 @@ export const PAGE_TOOLS: Tool[] = [
 							databaseId,
 							updatedAt,
 						})),
-					),
+					});
+				},
 			),
 	},
 	{

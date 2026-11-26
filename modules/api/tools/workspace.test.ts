@@ -22,9 +22,7 @@ describe("organizing pages over MCP", () => {
 		expect(moved.data).toMatchObject({ id: b, folder: { path: "Blog/Drafts" } });
 		const pages = await call("list_pages", {});
 		expect(
-			(pages.data as unknown as Json[])
-				.filter((p) => p.folder === "Blog/Drafts")
-				.map((p) => p.title),
+			(pages.data.pages as Json[]).filter((p) => p.folder === "Blog/Drafts").map((p) => p.title),
 		).toEqual(["B", "A"]);
 
 		// A folder can't go inside itself; to the top level is fine.
@@ -38,7 +36,7 @@ describe("organizing pages over MCP", () => {
 		// Deleting a folder moves what's in it up a level.
 		const deleted = await call("delete_folder", { folder_id: drafts.id });
 		expect(deleted.data.movedUp).toEqual({ pages: 2, folders: 0 });
-		const after = (await call("list_pages", {})).data as unknown as Json[];
+		const after = (await call("list_pages", {})).data.pages as Json[];
 		expect(after.find((p) => p.id === a)?.folder).toBeNull();
 	});
 
