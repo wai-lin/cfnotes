@@ -13,6 +13,7 @@ import * as Sessions from "#modules/auth/sessions.ts";
 import * as Tokens from "#modules/auth/tokens.ts";
 import { SAVE_LIMITS } from "#modules/pages/pages.ts";
 
+import { countCall, limitText } from "./limits.ts";
 import { DATABASE_TOOLS } from "./tools/databases.ts";
 import { PAGE_TOOLS } from "./tools/pages.ts";
 import { str, toResult, type Tool } from "./tools/tool.ts";
@@ -102,6 +103,21 @@ export const post = Effect.gen(function* () {
 	}
 	const message = decoded.value;
 	if (message.id === undefined) return HttpServerResponse.empty({ status: 202 });
+	// A friend's requests are counted; past the limit, a tool says so to the agent.
+	const limited = yield* countCall.pipe(
+		Effect.as(null),
+		Effect.catchTag("TooManyRequests", (error) => Effect.succeed(error)),
+	);
+	if (limited) {
+		const text = limitText(limited.retryAfterSeconds);
+		if (message.method === "tools/call")
+			return reply(message.id, { content: [{ type: "text", text }], isError: true });
+		return HttpServerResponse.setHeader(
+			replyError(message.id, -32000, text, 429),
+			"retry-after",
+			String(limited.retryAfterSeconds ?? 60),
+		);
+	}
 	const params = (
 		message.params && typeof message.params === "object" ? message.params : {}
 	) as Record<string, unknown>;

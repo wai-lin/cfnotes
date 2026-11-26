@@ -5,6 +5,8 @@ import { icon } from "#lib/icons.ts";
 import { appearanceHead } from "#modules/appearance/views.ts";
 import { MAX_FRIEND_TOKENS, type TokenInfo } from "#modules/auth/tokens.ts";
 
+import { FRIEND_LIMITS } from "./limits.ts";
+
 const day = (ms: number, now: number) => {
 	const when = new Date(ms);
 	return when.toLocaleDateString("en", {
@@ -50,7 +52,8 @@ export function tokensView({
 			guest
 				? html`<p class="page-intro">
 						Yours reach only what's shared with you, as you can in the app. You can have
-						${MAX_FRIEND_TOKENS} tokens.
+						${MAX_FRIEND_TOKENS} tokens, and together they make up to ${FRIEND_LIMITS.perMinute}
+						requests a minute and ${FRIEND_LIMITS.perDay.toLocaleString("en")} a day.
 					</p>`
 				: ""
 		}

@@ -13,10 +13,12 @@ import * as Files from "#modules/files/files.ts";
 import { SAVE_LIMITS } from "#modules/pages/pages.ts";
 
 import * as Api from "./api.ts";
+import { countCall } from "./limits.ts";
 
-/** Anything but reading needs a token that may write. */
-export const writesNeedScope = middleware((next) =>
+/** Each request counts towards a friend's limits, and anything but reading needs a token that may write. */
+export const tokenRules = middleware((next) =>
 	Effect.gen(function* () {
+		yield* countCall;
 		const { method } = yield* HttpServerRequest.HttpServerRequest;
 		if (method !== "GET" && method !== "HEAD") yield* Tokens.requireWrite;
 		return yield* next;

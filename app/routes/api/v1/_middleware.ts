@@ -1,3 +1,3 @@
-import { writesNeedScope } from "#modules/api/http.ts";
+import { tokenRules } from "#modules/api/http.ts";
 
-export default writesNeedScope;
+export default tokenRules;

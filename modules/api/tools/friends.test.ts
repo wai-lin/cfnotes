@@ -130,3 +130,44 @@ describe("the tokens page", () => {
 		expect(html).not.toContain("owner@example.com");
 	});
 });
+
+describe("a friend's limits", () => {
+	/** Shares the first page with FRIEND, and makes them a token. */
+	async function friendToken(app: App) {
+		const { path, id } = await app.open();
+		await app.post(path, "share", { op: "invite", kind: "page", id, email: FRIEND });
+		return app.token("read", FRIEND);
+	}
+	const call = (method: string, params: object = {}) => ({
+		method: "POST",
+		json: { jsonrpc: "2.0", id: 1, method, params },
+	});
+
+	it("stops their tokens together after 60 requests a minute, over REST and MCP", async () => {
+		await using app = cfnotes();
+		const one = await friendToken(app);
+		const two = await app.token("read", FRIEND);
+		for (let i = 0; i < 30; i++) {
+			expect((await app.api(one, "/api/v1/me")).status).toBe(200);
+			expect((await app.api(two, "/api/mcp", call("ping"))).status).toBe(200);
+		}
+		const rest = await app.api(one, "/api/v1/me");
+		expect(rest.status).toBe(429);
+		expect(Number(rest.headers.get("retry-after"))).toBeGreaterThan(0);
+
+		const ping = await app.api(two, "/api/mcp", call("ping"));
+		expect(ping.status).toBe(429);
+		const tool = await app.api(two, "/api/mcp", call("tools/call", { name: "list_pages" }));
+		const { result } = (await tool.json()) as {
+			result: { isError: boolean; content: { text: string }[] };
+		};
+		expect(result.isError).toBe(true);
+		expect(result.content[0]!.text).toMatch(/^Too many requests: .* Try again in \d+ seconds\.$/);
+	});
+
+	it("doesn't limit an owner", async () => {
+		await using app = cfnotes();
+		const token = await app.token("read");
+		for (let i = 0; i < 61; i++) expect((await app.api(token, "/api/v1/me")).status).toBe(200);
+	});
+});
