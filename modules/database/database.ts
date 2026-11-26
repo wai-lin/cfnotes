@@ -375,6 +375,8 @@ export const newDatabase = Effect.fn("Database.create")(function* (options: {
 	title?: string;
 	/** Who makes it: their email, recorded as the creator of it and its rows. */
 	by?: string | null;
+	/** Empty rows to start with, so there's somewhere to type. */
+	rows?: number;
 }) {
 	const id = crypto.randomUUID();
 	const now = yield* Clock.currentTimeMillis;
@@ -388,7 +390,7 @@ export const newDatabase = Effect.fn("Database.create")(function* (options: {
 		now,
 		by,
 	});
-	for (let i = 0; i < STARTER_ROWS; i++) {
+	for (let i = 0; i < (options.rows ?? STARTER_ROWS); i++) {
 		yield* MainDb.databases.createRow({
 			id: crypto.randomUUID(),
 			databaseId: id,

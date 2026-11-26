@@ -132,20 +132,50 @@ const propertiesOf = (state: DatabaseState, row: Row, refs: Refs) =>
 			.map((c) => [c.name, propertyValue(c, row, state, refs)]),
 	);
 
-/** A database's properties: name, type, and the choices of a select. */
-const schemaOf = (state: DatabaseState) =>
-	state.columns.map((c) => ({
+/**
+ * A database's properties: name, type, a select's choices, what a relation
+ * links to, what a rollup works out, and a script's source.
+ */
+const schemaOf = (
+	state: DatabaseState,
+	related: ReadonlyMap<string, DatabaseState> = new Map(),
+) => {
+	const nameOf = (id: string | undefined) => state.columns.find((c) => c.id === id)?.name ?? null;
+	return state.columns.map((c) => ({
 		name: c.name,
 		type: c.type,
-		...(c.options
+		...(c.options ? { options: c.options.map((o) => ({ name: o.name, color: o.color })) } : {}),
+		...(c.relation
 			? {
-					options: c.options.map((o) => ({ name: o.name, color: o.color })),
+					relation: {
+						databaseId: c.relation.databaseId,
+						twoWay: Boolean(c.relation.twinId || c.relation.sourceColumnId),
+					},
 				}
 			: {}),
+		...(c.rollup
+			? {
+					rollup: {
+						relation: nameOf(c.rollup.relationId),
+						property:
+							related
+								.get(
+									state.columns.find((r) => r.id === c.rollup!.relationId)?.relation?.databaseId ??
+										"",
+								)
+								?.columns.find((t) => t.id === c.rollup!.targetId)?.name ?? null,
+						function: c.rollup.fn,
+					},
+				}
+			: {}),
+		...(c.script
+			? { script: c.script.source, ...(c.script.error ? { error: c.script.error } : {}) }
+			: {}),
 	}));
+};
 
 /** The column a property name means (any case), or a 400 naming the ones there are. */
-const columnNamed = (state: DatabaseState, name: string) => {
+export const columnNamed = (state: DatabaseState, name: string) => {
 	const found =
 		state.columns.find((c) => c.name === name) ??
 		state.columns.find((c) => c.name.toLowerCase() === name.toLowerCase());
@@ -276,7 +306,7 @@ export const listFolders = Effect.gen(function* () {
 });
 
 /** A page that isn't in Trash, or a 404. */
-const livePage = Effect.fn("Api.livePage")(function* (id: string) {
+export const livePage = Effect.fn("Api.livePage")(function* (id: string) {
 	if (!isId(id)) return yield* notFound();
 	const page = Option.getOrUndefined(yield* MainDb.pages.find({ id }));
 	if (!page || page.archived_at !== null) return yield* notFound();
@@ -322,11 +352,19 @@ export const listDatabases = Effect.map(MainDb.databases.list(), (rows) =>
 export const getDatabase = Effect.fn("Api.getDatabase")(function* (id: string) {
 	const state = isId(id) ? yield* databaseState(id) : null;
 	if (!state) return yield* notFound("database");
+	// The databases its relations link to, for naming what its rollups roll up.
+	const related = new Map<string, DatabaseState>();
+	for (const c of state.columns) {
+		const other = c.relation?.databaseId;
+		if (!other || related.has(other)) continue;
+		const found = other === id ? state : yield* databaseState(other, { rollups: false });
+		if (found) related.set(other, found);
+	}
 	return {
 		id: state.id,
 		title: state.title,
 		hostId: state.hostId,
-		properties: schemaOf(state),
+		properties: schemaOf(state, related),
 		views: state.views.map((v) => ({ id: v.id, name: v.name, layout: v.layout })),
 		people: state.people,
 		rows: state.rows.length,
@@ -534,24 +572,30 @@ export const updatePage = Effect.fn("Api.updatePage")(function* (
 	if (input.icon !== undefined) yield* Pages.setIcon(id, { icon: input.icon });
 	if (input.doc !== undefined) yield* saveDoc(id, input.doc);
 	else if (input.markdown !== undefined) yield* saveDoc(id, fromMarkdown(input.markdown));
-	if (input.append !== undefined) {
-		const current = (parseJson((yield* livePage(id)).content) ?? fromMarkdown("")) as {
-			root: { children?: unknown[] };
-		};
-		const children = (current.root.children ?? []).filter(
-			(node, i, all) =>
-				// A trailing empty paragraph is where the cursor waits; the new blocks go before it.
-				!(i === all.length - 1 && isEmptyParagraph(node)),
-		);
-		yield* saveDoc(id, {
-			...current,
-			root: { ...current.root, children: [...children, ...markdownBlocks(input.append)] },
-		});
-	}
+	if (input.append !== undefined) yield* appendNodes(id, markdownBlocks(input.append));
 	if (input.properties) {
 		if (!page.database_id) return yield* bad("Only database rows have properties");
 		yield* setProperties(page.database_id, id, input.properties);
 	}
+});
+
+/** Adds blocks (the editor's nodes) to the end of a page's content. */
+export const appendNodes = Effect.fn("Api.appendNodes")(function* (
+	id: string,
+	nodes: readonly unknown[],
+) {
+	const current = (parseJson((yield* livePage(id)).content) ?? fromMarkdown("")) as {
+		root: { children?: unknown[] };
+	};
+	const children = (current.root.children ?? []).filter(
+		(node, i, all) =>
+			// A trailing empty paragraph is where the cursor waits; the new blocks go before it.
+			!(i === all.length - 1 && isEmptyParagraph(node)),
+	);
+	yield* saveDoc(id, {
+		...current,
+		root: { ...current.root, children: [...children, ...nodes] },
+	});
 });
 
 const isEmptyParagraph = (node: unknown) =>
