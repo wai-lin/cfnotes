@@ -141,6 +141,7 @@ Tools:
 | `update_database`                              | Title, and add, rename, convert, move or delete properties and options. _(write)_     |
 | `create_view`, `update_view`, `delete_view`    | A database's views: layout, filters, sorts, grouping, dates. _(write)_                |
 | `update_page`                                  | Title, icon, properties, and replace or append content. _(write)_                     |
+| `edit_page`                                    | Changes one heading's section, or finds and replaces text; all or nothing. _(write)_  |
 | `add_comment`                                  | A comment on a page, or a reply in a thread. _(write)_                                |
 | `trash_page`                                   | Moves a page to Trash. _(write)_                                                      |
 | `move_page`                                    | Moves a page to a folder, and to a place among its pages. _(write)_                   |
@@ -156,6 +157,7 @@ A read-only token isn't offered the write tools. A request whose `Origin` isn't 
 - `modules/auth/tokens.ts`: tokens. `Sessions.user` answers with a token's owner on `/api/…`.
 - `modules/api/api.ts`: what both the REST API and MCP do, built on the app's own modules (pages, database, comments, search).
 - `modules/api/render.ts` and `markdown.ts`: the editor's saved state to HTML and Markdown, and Markdown back.
+- `modules/api/sections.ts`: editing part of a page: a heading's section, or find-and-replace.
 - `modules/api/organize.ts`: moving pages, folders and Trash, through the sidebar's and Trash's own functions.
 - `modules/api/table-views.ts`: a database's views, by property name, through the table's own view ops.
 - `modules/api/schema.ts`: making databases and changing their properties, by name, through the table's own ops.

@@ -81,7 +81,7 @@ const refsFor = Effect.fn("Api.refsFor")(function* (states: unknown[], links: Li
 	return { titles, synced, ...(yield* hrefs(links)) } satisfies Refs;
 });
 
-const parseJson = (text: string | null): unknown => {
+export const parseJson = (text: string | null): unknown => {
 	if (!text) return null;
 	try {
 		return JSON.parse(text) as unknown;
@@ -635,7 +635,7 @@ export const PageChanges = Schema.Struct({
 });
 
 /** Stores a document through the editor's own save, which keeps search and backlinks in step. */
-const saveDoc = (id: string, state: unknown) =>
+export const saveDoc = (id: string, state: unknown) =>
 	Effect.gen(function* () {
 		if (!state || typeof state !== "object" || !("root" in state))
 			return yield* bad("`doc` must be the editor's state: {root: …}");

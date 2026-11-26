@@ -2,8 +2,10 @@
 import { Effect } from "effect";
 
 import * as Api from "../api.ts";
+import * as Sections from "../sections.ts";
 import {
 	adds,
+	array,
 	changes,
 	json,
 	MARKDOWN_LINKS,
@@ -52,6 +54,55 @@ export const pageText = (
 /** A page as it is now, after a change. */
 export const pageNow = (id: string) =>
 	Effect.map(Api.getPage(id, MARKDOWN_LINKS), (page) => pageText(page, []));
+
+const heading = {
+	heading: string('A top-level heading\'s text; "## Text" also matches its level.'),
+	occurrence: { type: "integer", minimum: 1, description: "Which one, when several say the same." },
+};
+const edit = (
+	action: string,
+	description: string,
+	fields: Record<string, unknown>,
+	required: string[],
+) => ({
+	...object({ action: { const: action }, ...fields }, ["action", ...required]),
+	description,
+});
+const pageEdit = {
+	oneOf: [
+		edit(
+			"replace_section",
+			"Replaces what's under a heading (up to the next heading of its level or higher); the heading stays.",
+			{ ...heading, markdown },
+			["heading", "markdown"],
+		),
+		edit("append_to_section", "Adds to the end of a heading's section.", { ...heading, markdown }, [
+			"heading",
+			"markdown",
+		]),
+		edit(
+			"insert_after",
+			"Adds right below a heading, before the rest of its section.",
+			{ ...heading, markdown },
+			["heading", "markdown"],
+		),
+		edit("insert_before", "Adds just above a heading.", { ...heading, markdown }, [
+			"heading",
+			"markdown",
+		]),
+		edit("delete_section", "Deletes a heading and its section.", heading, ["heading"]),
+		edit(
+			"replace_text",
+			"Finds and replaces text, keeping its formatting. Without all, it must match exactly once.",
+			{
+				find: string("The text to find (case-sensitive, within one run of formatting)."),
+				replace: string("What to put instead."),
+				all: { type: "boolean", description: "Replace every match." },
+			},
+			["find", "replace"],
+		),
+	],
+};
 
 export const PAGE_TOOLS: Tool[] = [
 	{
@@ -171,6 +222,24 @@ export const PAGE_TOOLS: Tool[] = [
 					icon: str(args.icon),
 					properties: record(args.properties),
 				});
+				return yield* pageNow(id);
+			}),
+	},
+	{
+		name: "edit_page",
+		title: "Edit part of a page",
+		description:
+			"Changes part of a page's content without rewriting the rest: a heading's section (replace, add to, delete, or add before or after it), or find-and-replace in its text. Edits run in order and are saved together; if one fails, nothing is changed. Safer than update_page's markdown while someone has the page open. Answers with the page as it is now.",
+		inputSchema: object({ page_id: pageId, edits: array(pageEdit, "What to change, in order.") }, [
+			"page_id",
+			"edits",
+		]),
+		annotations: changes,
+		write: true,
+		run: (args) =>
+			Effect.gen(function* () {
+				const id = str(args.page_id) ?? "";
+				yield* Sections.editPage(id, args.edits);
 				return yield* pageNow(id);
 			}),
 	},

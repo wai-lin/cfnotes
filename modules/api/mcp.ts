@@ -28,7 +28,7 @@ const INSTRUCTIONS = `cfnotes is a private notes workspace, like Notion: pages i
 - Write content as Markdown (GitHub's). Link to another page with [Title](/p/<id>). Toggles are <details><summary>…</summary>…</details>; equations $…$ or $$…$$.
 - Properties are set by name: a select by its option name (a new name adds an option), multi-select as a list of names, dates as YYYY-MM-DD, dates & times as YYYY-MM-DDTHH:MM (no time zone), times as HH:MM, people as emails, relations as row ids.
 - move_page, create_folder, update_folder and delete_folder organize the sidebar; list_trash and restore_page bring back what was trashed.
-- update_page with "markdown" replaces the whole content; "append_markdown" adds to the end. Someone may have the page open: prefer appending.`;
+- update_page with "markdown" replaces the whole content; "append_markdown" adds to the end. edit_page changes one heading's section, or finds and replaces text. Someone may have the page open: prefer appending or edit_page to replacing everything.`;
 
 // ---------------------------------------------------------------- tools
 
