@@ -30,6 +30,7 @@ import MainDb from "#space/db/main.ts";
 
 import { fromMarkdown, markdownBlocks } from "./markdown.ts";
 import { refsIn, toHtml, toMarkdown, type Refs } from "./render.ts";
+import { markQuote } from "./sections.ts";
 
 export const FORMATS = ["html", "markdown", "json"] as const;
 export type Format = (typeof FORMATS)[number];
@@ -787,19 +788,61 @@ export const NewComment = Schema.Struct({
 	body: Schema.String,
 	/** A thread to reply to; a new comment on the whole page otherwise. */
 	thread: Schema.optional(Schema.String),
+	/** For a new thread: text of the page to comment on, which gets marked. */
+	quote: Schema.optional(Schema.String),
 });
 
 export const addComment = Effect.fn("Api.addComment")(function* (
 	id: string,
 	input: typeof NewComment.Type,
 ) {
-	yield* livePage(id);
-	const thread = input.thread ?? crypto.randomUUID();
-	yield* Comments.run(
-		id,
-		input.thread
-			? { op: "reply", thread, body: input.body }
-			: { op: "start", thread, quote: null, body: input.body },
-	);
+	const page = yield* livePage(id);
+	if (input.thread) {
+		if (input.quote)
+			return yield* bad("A reply goes in its thread; only a new comment quotes text");
+		yield* Comments.run(id, { op: "reply", thread: input.thread, body: input.body });
+		return input.thread;
+	}
+	const thread = crypto.randomUUID();
+	const quote = input.quote?.trim() ? input.quote : null;
+	// The quoted text is found (and marked) before the thread is made, so a quote that
+	// isn't there makes nothing.
+	let marked: unknown = null;
+	if (quote) {
+		if (page.kind === "database") return yield* bad("A database has rows, not text to quote");
+		const state = (parseJson(page.content) ?? fromMarkdown("")) as {
+			root: { children?: unknown[] };
+		};
+		const blocks = structuredClone(state.root.children ?? []) as Parameters<typeof markQuote>[0];
+		const problem = markQuote(blocks, quote, thread);
+		if (problem) return yield* bad(problem);
+		marked = { ...state, root: { ...state.root, children: blocks } };
+	}
+	yield* Comments.run(id, { op: "start", thread, quote, body: input.body });
+	if (marked) yield* saveDoc(id, marked);
 	return thread;
 });
+
+/** Resolves (or reopens) a thread, or edits or deletes one of the token owner's comments. */
+export const changeComment = Effect.fn("Api.changeComment")(function* (
+	id: string,
+	change:
+		| { op: "resolve"; thread: string; resolved: boolean }
+		| { op: "edit"; comment: string; body: string }
+		| { op: "delete"; comment: string },
+) {
+	yield* livePage(id);
+	yield* Comments.run(id, change).pipe(
+		Effect.catchTag("BadRequest", (error) =>
+			Effect.fail(bad(COMMENT_PROBLEMS[error.message] ?? error.message)),
+		),
+	);
+});
+
+/** What the comments' error codes mean. */
+const COMMENT_PROBLEMS: Record<string, string> = {
+	empty_comment: "A comment can't be empty",
+	comment_too_long: "A comment is at most 10,000 characters",
+	invalid_thread: "That isn't a thread's id (see read_page)",
+	invalid_comment: "That isn't a comment's id (see read_page)",
+};

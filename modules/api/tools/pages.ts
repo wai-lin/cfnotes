@@ -247,11 +247,14 @@ export const PAGE_TOOLS: Tool[] = [
 		name: "add_comment",
 		title: "Comment on a page",
 		description:
-			"Adds a comment on the whole page, or a reply in one of its threads (see read_page).",
+			"Adds a comment: on the whole page, on some of its text (quote, which gets highlighted as the editor does), or as a reply in one of its threads (see read_page). Answers with the thread.",
 		inputSchema: object(
 			{
 				page_id: pageId,
 				body: string("The comment, as plain text."),
+				quote: string(
+					"Text of the page to comment on, exactly as written (within one run of formatting, there once).",
+				),
 				thread_id: string("A thread to reply in."),
 			},
 			["page_id", "body"],
@@ -264,9 +267,77 @@ export const PAGE_TOOLS: Tool[] = [
 				const thread = yield* Api.addComment(id, {
 					body: str(args.body) ?? "",
 					thread: str(args.thread_id),
+					quote: str(args.quote),
 				});
 				return json((yield* Api.pageComments(id)).find((t) => t.id === thread));
 			}),
+	},
+	{
+		name: "resolve_thread",
+		title: "Resolve a comment thread",
+		description:
+			"Resolves a page's comment thread, or reopens it (resolved: false). Answers with the thread.",
+		inputSchema: object(
+			{
+				page_id: pageId,
+				thread_id: string("The thread (see read_page)."),
+				resolved: { type: "boolean", description: "false reopens it; true if unset." },
+			},
+			["page_id", "thread_id"],
+		),
+		annotations: { ...changes, destructiveHint: false, idempotentHint: true },
+		write: true,
+		run: (args) =>
+			Effect.gen(function* () {
+				const id = str(args.page_id) ?? "";
+				const thread = str(args.thread_id) ?? "";
+				yield* Api.changeComment(id, { op: "resolve", thread, resolved: args.resolved !== false });
+				return json((yield* Api.pageComments(id)).find((t) => t.id === thread));
+			}),
+	},
+	{
+		name: "edit_comment",
+		title: "Edit a comment",
+		description: "Changes the text of a comment the token's owner wrote.",
+		inputSchema: object(
+			{
+				page_id: pageId,
+				comment_id: string("The comment (see read_page)."),
+				body: string("Its new text."),
+			},
+			["page_id", "comment_id", "body"],
+		),
+		annotations: changes,
+		write: true,
+		run: (args) =>
+			Effect.as(
+				Api.changeComment(str(args.page_id) ?? "", {
+					op: "edit",
+					comment: str(args.comment_id) ?? "",
+					body: str(args.body) ?? "",
+				}),
+				"Edited the comment.",
+			),
+	},
+	{
+		name: "delete_comment",
+		title: "Delete a comment",
+		description:
+			"Deletes a comment the token's owner wrote; a thread left with no comments goes too.",
+		inputSchema: object({ page_id: pageId, comment_id: string("The comment (see read_page).") }, [
+			"page_id",
+			"comment_id",
+		]),
+		annotations: { ...changes, idempotentHint: true },
+		write: true,
+		run: (args) =>
+			Effect.as(
+				Api.changeComment(str(args.page_id) ?? "", {
+					op: "delete",
+					comment: str(args.comment_id) ?? "",
+				}),
+				"Deleted the comment.",
+			),
 	},
 	{
 		name: "trash_page",

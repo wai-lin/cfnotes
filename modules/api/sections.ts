@@ -176,6 +176,47 @@ function apply(blocks: Node[], edit: PageEdit): string | null {
 	return null;
 }
 
+/**
+ * Marks the one place `quote` is in the page's text for comment thread `id`,
+ * as selecting it and commenting in the editor does. It has to be within one
+ * run of formatting, outside code, and there only once.
+ */
+export function markQuote(blocks: Node[], quote: string, id: string): string | null {
+	const found: { list: Node[]; index: number; at: number }[] = [];
+	const walk = (list: Node[], inCode: boolean) => {
+		for (const [index, node] of list.entries()) {
+			if (node.type === "text" && !inCode && typeof node.text === "string")
+				for (let at = node.text.indexOf(quote); at >= 0; at = node.text.indexOf(quote, at + 1))
+					found.push({ list, index, at });
+			if (Array.isArray(node.children)) walk(node.children, inCode || node.type === "code");
+		}
+	};
+	walk(blocks, false);
+	if (found.length === 0)
+		return `"${quote}" isn't in the page's text (outside code, within one run of formatting)`;
+	if (found.length > 1) return `"${quote}" is in the page ${found.length} times: quote more of it`;
+	const { list, index, at } = found[0]!;
+	const node = list[index]!;
+	const text = node.text!;
+	const piece = (part: string): Node => ({ ...node, text: part });
+	list.splice(
+		index,
+		1,
+		...(at > 0 ? [piece(text.slice(0, at))] : []),
+		{
+			type: "mark",
+			version: 1,
+			ids: [id],
+			direction: null,
+			format: "",
+			indent: 0,
+			children: [piece(quote)],
+		},
+		...(at + quote.length < text.length ? [piece(text.slice(at + quote.length))] : []),
+	);
+	return null;
+}
+
 /** Makes `edits` to page `id`'s content, in order, and saves it once. */
 export const editPage = Effect.fn("Sections.editPage")(function* (id: string, input: unknown) {
 	const edits = yield* Schema.decodeUnknownEffect(Schema.Array(PageEdit))(input);

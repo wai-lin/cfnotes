@@ -20,22 +20,22 @@ curl -H "Authorization: Bearer cfn_…" https://notes.example.com/api/v1/pages
 
 Answers are JSON. Errors look like `{"error": "NotFound", "message": "No such page"}`, with the matching status code. Times are ISO strings.
 
-| Request                                                    | What it does                                                                  |
-| ---------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `GET /api/v1/me`                                           | Who the token acts as, and its scope.                                         |
-| `GET /api/v1/pages?kind=page\|database\|row&database=<id>` | Every page not in Trash.                                                      |
-| `GET /api/v1/pages/:id?format=html\|markdown\|json`        | One page: properties (if it's a row) and content. The default format is HTML. |
-| `POST /api/v1/pages`                                       | Creates a page; answers `201` with it, as Markdown.                           |
-| `PATCH /api/v1/pages/:id`                                  | Changes a page.                                                               |
-| `DELETE /api/v1/pages/:id`                                 | Moves a page to Trash.                                                        |
-| `GET /api/v1/pages/:id/comments`                           | The page's threads.                                                           |
-| `POST /api/v1/pages/:id/comments`                          | `{body, thread?}`: a comment on the whole page, or a reply.                   |
-| `GET /api/v1/folders`                                      | Folders, with their paths.                                                    |
-| `GET /api/v1/databases`                                    | The databases.                                                                |
-| `GET /api/v1/databases/:id`                                | A database's properties (types, select options), views and row count.         |
-| `GET /api/v1/databases/:id/rows`                           | Rows with their properties (below).                                           |
-| `GET /api/v1/search?q=…`                                   | Search by title and text, as the app's quick find does.                       |
-| `GET /api/v1/files/<key>`                                  | An uploaded file (images, attachments, media). Supports byte ranges.          |
+| Request                                                    | What it does                                                                          |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `GET /api/v1/me`                                           | Who the token acts as, and its scope.                                                 |
+| `GET /api/v1/pages?kind=page\|database\|row&database=<id>` | Every page not in Trash.                                                              |
+| `GET /api/v1/pages/:id?format=html\|markdown\|json`        | One page: properties (if it's a row) and content. The default format is HTML.         |
+| `POST /api/v1/pages`                                       | Creates a page; answers `201` with it, as Markdown.                                   |
+| `PATCH /api/v1/pages/:id`                                  | Changes a page.                                                                       |
+| `DELETE /api/v1/pages/:id`                                 | Moves a page to Trash.                                                                |
+| `GET /api/v1/pages/:id/comments`                           | The page's threads.                                                                   |
+| `POST /api/v1/pages/:id/comments`                          | `{body, thread?, quote?}`: a comment on the whole page or on quoted text, or a reply. |
+| `GET /api/v1/folders`                                      | Folders, with their paths.                                                            |
+| `GET /api/v1/databases`                                    | The databases.                                                                        |
+| `GET /api/v1/databases/:id`                                | A database's properties (types, select options), views and row count.                 |
+| `GET /api/v1/databases/:id/rows`                           | Rows with their properties (below).                                                   |
+| `GET /api/v1/search?q=…`                                   | Search by title and text, as the app's quick find does.                               |
+| `GET /api/v1/files/<key>`                                  | An uploaded file (images, attachments, media). Supports byte ranges.                  |
 
 ### Reading content
 
@@ -129,27 +129,28 @@ claude mcp add --transport http cfnotes https://notes.example.com/api/mcp \
 
 Tools:
 
-| Tool                                           | Does                                                                                  |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `search`                                       | Finds pages by words.                                                                 |
-| `list_pages`, `list_folders`, `list_databases` | Lists what's there.                                                                   |
-| `read_page`                                    | A page as Markdown, with its properties and comments.                                 |
-| `get_database`                                 | A database's properties (options, relations, rollups, scripts) and views.             |
-| `query_database`                               | Rows filtered with `where` (values or operators) and `where_any` (OR), sorted, paged. |
-| `create_page`                                  | A page or row from Markdown, with properties. _(write)_                               |
-| `create_rows`, `update_rows`                   | Up to 100 rows at once, with each failure reported by index. _(write)_                |
-| `create_database`                              | A database with properties, full-page or inline in a page. _(write)_                  |
-| `update_database`                              | Title, and add, rename, convert, move or delete properties and options. _(write)_     |
-| `create_view`, `update_view`, `delete_view`    | A database's views: layout, filters, sorts, grouping, dates. _(write)_                |
-| `update_page`                                  | Title, icon, properties, and replace or append content. _(write)_                     |
-| `edit_page`                                    | Changes one heading's section, or finds and replaces text; all or nothing. _(write)_  |
-| `add_comment`                                  | A comment on a page, or a reply in a thread. _(write)_                                |
-| `trash_page`                                   | Moves a page to Trash. _(write)_                                                      |
-| `move_page`                                    | Moves a page to a folder, and to a place among its pages. _(write)_                   |
-| `create_folder`, `update_folder`               | Makes, renames and nests folders. _(write)_                                           |
-| `delete_folder`                                | Deletes a folder; what's in it moves up a level. _(write)_                            |
-| `list_trash`                                   | What's in Trash, and when each is deleted for good.                                   |
-| `restore_page`                                 | Brings something back from Trash. _(write)_                                           |
+| Tool                                               | Does                                                                                  |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `search`                                           | Finds pages by words.                                                                 |
+| `list_pages`, `list_folders`, `list_databases`     | Lists what's there.                                                                   |
+| `read_page`                                        | A page as Markdown, with its properties and comments.                                 |
+| `get_database`                                     | A database's properties (options, relations, rollups, scripts) and views.             |
+| `query_database`                                   | Rows filtered with `where` (values or operators) and `where_any` (OR), sorted, paged. |
+| `create_page`                                      | A page or row from Markdown, with properties. _(write)_                               |
+| `create_rows`, `update_rows`                       | Up to 100 rows at once, with each failure reported by index. _(write)_                |
+| `create_database`                                  | A database with properties, full-page or inline in a page. _(write)_                  |
+| `update_database`                                  | Title, and add, rename, convert, move or delete properties and options. _(write)_     |
+| `create_view`, `update_view`, `delete_view`        | A database's views: layout, filters, sorts, grouping, dates. _(write)_                |
+| `update_page`                                      | Title, icon, properties, and replace or append content. _(write)_                     |
+| `edit_page`                                        | Changes one heading's section, or finds and replaces text; all or nothing. _(write)_  |
+| `add_comment`                                      | A comment on a page or on quoted text (marked), or a reply in a thread. _(write)_     |
+| `resolve_thread`, `edit_comment`, `delete_comment` | Resolves or reopens threads; edits or deletes your comments. _(write)_                |
+| `trash_page`                                       | Moves a page to Trash. _(write)_                                                      |
+| `move_page`                                        | Moves a page to a folder, and to a place among its pages. _(write)_                   |
+| `create_folder`, `update_folder`                   | Makes, renames and nests folders. _(write)_                                           |
+| `delete_folder`                                    | Deletes a folder; what's in it moves up a level. _(write)_                            |
+| `list_trash`                                       | What's in Trash, and when each is deleted for good.                                   |
+| `restore_page`                                     | Brings something back from Trash. _(write)_                                           |
 
 A read-only token isn't offered the write tools. A request whose `Origin` isn't the app's own is refused, which guards against DNS rebinding from a browser.
 
