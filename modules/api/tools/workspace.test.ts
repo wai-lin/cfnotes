@@ -69,10 +69,13 @@ describe("Trash over MCP", () => {
 		await call("trash_page", { page_id: page });
 		await call("trash_page", { page_id: db.id });
 
-		const trash = (await call("list_trash", {})).data as unknown as Json[];
+		// Newest first; both may be trashed in the same millisecond, so compare by title.
+		const trash = ((await call("list_trash", {})).data as unknown as Json[]).toSorted((a, b) =>
+			String(a.title).localeCompare(String(b.title)),
+		);
 		expect(trash.map((t) => [t.title, t.kind, t.with])).toEqual([
-			["Reading", "database", 1],
 			["Notes", "page", 0],
+			["Reading", "database", 1],
 		]);
 		expect(trash[0]!.deletedForGoodAt > trash[0]!.trashedAt).toBe(true);
 
