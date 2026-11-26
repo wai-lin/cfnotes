@@ -222,3 +222,22 @@ describe("paging over MCP", () => {
 		expect((await get("/api/v1/search?q=page&limit=2")).nextOffset).toBe(2);
 	});
 });
+
+describe("structured answers over MCP", () => {
+	it("sends data as structuredContent beside the text", async () => {
+		await using app = cfnotes();
+		const { id, call } = await trip(app);
+		const read = await call("read_page", { page_id: id });
+		// The text is Markdown for reading; the data is the same page, for code.
+		expect(read.text.startsWith("# Trip")).toBe(true);
+		expect(read.structured).toMatchObject({ id, title: "Trip", kind: "page", comments: [] });
+		expect(read.structured!.markdown).toContain("## Packing");
+
+		const folders = await call("list_folders", {});
+		expect(folders.structured).toEqual({ folders: [] });
+		expect(JSON.parse(folders.text)).toEqual(folders.structured);
+		// A plain message has no data.
+		const gone = await call("trash_page", { page_id: id });
+		expect(gone).toMatchObject({ text: "Moved to Trash.", structured: undefined });
+	});
+});

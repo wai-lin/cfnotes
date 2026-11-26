@@ -2,7 +2,7 @@
 import { Effect } from "effect";
 
 import * as Organize from "../organize.ts";
-import { adds, changes, json, object, pageId, readOnly, str, string, type Tool } from "./tool.ts";
+import { adds, changes, object, pageId, readOnly, str, string, type Tool } from "./tool.ts";
 
 const folderId = string("The folder's id (see list_folders).");
 const parent = {
@@ -34,7 +34,7 @@ export const WORKSPACE_TOOLS: Tool[] = [
 		),
 		annotations: { ...changes, destructiveHint: false, idempotentHint: true },
 		write: true,
-		run: (args) => Effect.map(Organize.movePage(args), json),
+		run: (args) => Organize.movePage(args),
 	},
 	{
 		name: "create_folder",
@@ -43,11 +43,7 @@ export const WORKSPACE_TOOLS: Tool[] = [
 		inputSchema: object({ name: string("The folder's name."), parent_id: parent }, ["name"]),
 		annotations: adds,
 		write: true,
-		run: (args) =>
-			Effect.map(
-				Organize.createFolder(str(args.name) ?? "", nullable(args.parent_id) ?? null),
-				json,
-			),
+		run: (args) => Organize.createFolder(str(args.name) ?? "", nullable(args.parent_id) ?? null),
 	},
 	{
 		name: "update_folder",
@@ -60,13 +56,10 @@ export const WORKSPACE_TOOLS: Tool[] = [
 		annotations: { ...changes, destructiveHint: false },
 		write: true,
 		run: (args) =>
-			Effect.map(
-				Organize.updateFolder(str(args.folder_id) ?? "", {
-					name: str(args.name),
-					parentId: args.parent_id === undefined ? undefined : nullable(args.parent_id),
-				}),
-				json,
-			),
+			Organize.updateFolder(str(args.folder_id) ?? "", {
+				name: str(args.name),
+				parentId: args.parent_id === undefined ? undefined : nullable(args.parent_id),
+			}),
 	},
 	{
 		name: "delete_folder",
@@ -76,7 +69,7 @@ export const WORKSPACE_TOOLS: Tool[] = [
 		inputSchema: object({ folder_id: folderId }, ["folder_id"]),
 		annotations: changes,
 		write: true,
-		run: (args) => Effect.map(Organize.deleteFolder(str(args.folder_id) ?? ""), json),
+		run: (args) => Organize.deleteFolder(str(args.folder_id) ?? ""),
 	},
 	{
 		name: "list_trash",
@@ -85,7 +78,7 @@ export const WORKSPACE_TOOLS: Tool[] = [
 			"Lists what's in Trash, newest first: what each thing was, when it was trashed and when it's deleted for good. Restore with restore_page.",
 		inputSchema: object({}),
 		annotations: readOnly,
-		run: () => Effect.map(Organize.listTrash, json),
+		run: () => Effect.map(Organize.listTrash, (items) => ({ items })),
 	},
 	{
 		name: "restore_page",

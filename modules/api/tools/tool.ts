@@ -11,8 +11,32 @@ export interface Tool {
 	annotations: Json;
 	/** Needs a token that may write. */
 	write?: boolean;
-	run: (args: Record<string, unknown>) => Effect.Effect<string, unknown, any>;
+	run: (args: Record<string, unknown>) => Effect.Effect<Answer, unknown, any>;
 }
+
+/** Text the agent reads, and the same as data (MCP's `structuredContent`). */
+export interface Rich {
+	readonly _tag: "Rich";
+	readonly text: string;
+	readonly structured: Json;
+}
+
+/**
+ * What a tool answers with: a message, data (sent as JSON text and as
+ * `structuredContent`), or text with its data beside it.
+ */
+export type Answer = string | Json | Rich;
+
+export const rich = (text: string, structured: Json): Rich => ({ _tag: "Rich", text, structured });
+
+/** An answer as MCP sends it. */
+export const toResult = (answer: Answer | undefined | null) => {
+	if (typeof answer === "string") return { content: [{ type: "text", text: answer }] };
+	if (!answer) return { content: [{ type: "text", text: "null" }] };
+	if (answer._tag === "Rich")
+		return { content: [{ type: "text", text: answer.text }], structuredContent: answer.structured };
+	return { content: [{ type: "text", text: json(answer) }], structuredContent: answer };
+};
 
 export const string = (description: string): Json => ({ type: "string", description });
 export const integer = (description: string, minimum = 0, maximum?: number): Json => ({

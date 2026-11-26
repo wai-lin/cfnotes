@@ -154,6 +154,8 @@ Tools:
 | `list_trash`                                       | What's in Trash, and when each is deleted for good.                                   |
 | `restore_page`                                     | Brings something back from Trash. _(write)_                                           |
 
+Answers are text for the agent to read. Data also comes as `structuredContent`: lists and records as the same JSON, and pages as their Markdown and details. A list answers with an object, such as `{folders: […]}`.
+
 A read-only token isn't offered the write tools. A request whose `Origin` isn't the app's own is refused, which guards against DNS rebinding from a browser.
 
 ## Code

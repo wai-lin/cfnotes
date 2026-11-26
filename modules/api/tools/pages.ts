@@ -14,6 +14,7 @@ import {
 	pageId,
 	readOnly,
 	record,
+	rich,
 	str,
 	string,
 	type Json,
@@ -28,7 +29,7 @@ export const properties: Json = {
 	additionalProperties: true,
 };
 
-/** The page as an agent reads it: what it is, then its content. */
+/** The page as an agent reads it: what it is, then its content; and all of that as data. */
 export const pageText = (
 	page: Effect.Success<ReturnType<typeof Api.getPage>>,
 	threads: unknown[],
@@ -51,7 +52,13 @@ export const pageText = (
 		String(page.content || "_(empty)_"),
 	];
 	if (threads.length > 0) parts.push(`## Comments\n\n\`\`\`json\n${json(threads)}\n\`\`\``);
-	return parts.join("\n\n");
+	return rich(parts.join("\n\n"), {
+		...meta,
+		title: page.title,
+		icon: page.icon,
+		markdown: String(page.content ?? ""),
+		comments: threads,
+	});
 };
 
 /** A tool's limit and offset. */
@@ -128,7 +135,7 @@ export const PAGE_TOOLS: Tool[] = [
 			["query"],
 		),
 		annotations: readOnly,
-		run: (args) => Effect.map(Api.search(str(args.query) ?? "", paging(args)), json),
+		run: (args) => Api.search(str(args.query) ?? "", paging(args)),
 	},
 	{
 		name: "list_pages",
@@ -159,7 +166,7 @@ export const PAGE_TOOLS: Tool[] = [
 										(args.folder_id !== null || (p.kind !== "row" && !p.hostId)),
 								);
 					const { items, ...page } = Api.paged(inFolder, paging(args), 200);
-					return json({
+					return {
 						...page,
 						pages: items.map(({ id, title, kind, icon, folder, databaseId, updatedAt }) => ({
 							id,
@@ -170,7 +177,7 @@ export const PAGE_TOOLS: Tool[] = [
 							databaseId,
 							updatedAt,
 						})),
-					});
+					};
 				},
 			),
 	},
@@ -180,7 +187,7 @@ export const PAGE_TOOLS: Tool[] = [
 		description: "Lists the folders, with their ids and paths, for putting new pages in.",
 		inputSchema: object({}),
 		annotations: readOnly,
-		run: () => Effect.map(Api.listFolders, json),
+		run: () => Effect.map(Api.listFolders, (folders) => ({ folders })),
 	},
 	{
 		name: "read_page",
@@ -306,7 +313,7 @@ export const PAGE_TOOLS: Tool[] = [
 					thread: str(args.thread_id),
 					quote: str(args.quote),
 				});
-				return json((yield* Api.pageComments(id)).find((t) => t.id === thread));
+				return (yield* Api.pageComments(id)).find((t) => t.id === thread) ?? {};
 			}),
 	},
 	{
@@ -329,7 +336,7 @@ export const PAGE_TOOLS: Tool[] = [
 				const id = str(args.page_id) ?? "";
 				const thread = str(args.thread_id) ?? "";
 				yield* Api.changeComment(id, { op: "resolve", thread, resolved: args.resolved !== false });
-				return json((yield* Api.pageComments(id)).find((t) => t.id === thread));
+				return (yield* Api.pageComments(id)).find((t) => t.id === thread) ?? {};
 			}),
 	},
 	{

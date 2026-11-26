@@ -13,14 +13,14 @@ export async function mcp(app: App) {
 			json: { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } },
 		});
 		const { result } = (await res.json()) as {
-			result: { content: { text: string }[]; isError?: boolean };
+			result: { content: { text: string }[]; isError?: boolean; structuredContent?: Json };
 		};
 		const text = result.content[0]!.text;
 		let data: Json = {};
 		try {
 			data = JSON.parse(text) as Json;
 		} catch {}
-		return { text, data, error: result.isError === true };
+		return { text, data, structured: result.structuredContent, error: result.isError === true };
 	};
 }
 

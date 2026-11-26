@@ -68,7 +68,7 @@ describe("Trash over MCP", () => {
 		await call("trash_page", { page_id: db.id });
 
 		// Newest first; both may be trashed in the same millisecond, so compare by title.
-		const trash = ((await call("list_trash", {})).data as unknown as Json[]).toSorted((a, b) =>
+		const trash = ((await call("list_trash", {})).data.items as Json[]).toSorted((a, b) =>
 			String(a.title).localeCompare(String(b.title)),
 		);
 		expect(trash.map((t) => [t.title, t.kind, t.with])).toEqual([
@@ -84,6 +84,6 @@ describe("Trash over MCP", () => {
 		expect((await call("restore_page", { page_id: db.id })).text).toBe(
 			"BadRequest: That item isn't in Trash any more.",
 		);
-		expect((await call("list_trash", {})).data).toHaveLength(1);
+		expect((await call("list_trash", {})).data.items).toHaveLength(1);
 	});
 });

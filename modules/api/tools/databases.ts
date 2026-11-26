@@ -15,7 +15,6 @@ import {
 	changes,
 	databaseId,
 	enumOf,
-	json,
 	object,
 	readOnly,
 	record,
@@ -225,7 +224,7 @@ export const DATABASE_TOOLS: Tool[] = [
 		description: "Lists the databases, with their ids.",
 		inputSchema: object({}),
 		annotations: readOnly,
-		run: () => Effect.map(Api.listDatabases, json),
+		run: () => Effect.map(Api.listDatabases, (databases) => ({ databases })),
 	},
 	{
 		name: "get_database",
@@ -234,7 +233,7 @@ export const DATABASE_TOOLS: Tool[] = [
 			"A database's properties (name, type, a select's options, what a relation links to, a rollup's settings, a script's code), its views and its number of rows.",
 		inputSchema: object({ database_id: databaseId }, ["database_id"]),
 		annotations: readOnly,
-		run: (args) => Effect.map(Api.getDatabase(str(args.database_id) ?? ""), json),
+		run: (args) => Api.getDatabase(str(args.database_id) ?? ""),
 	},
 	{
 		name: "query_database",
@@ -279,7 +278,7 @@ export const DATABASE_TOOLS: Tool[] = [
 					content: args.include_content === true ? "markdown" : undefined,
 					pageUrl: "/p/{id}",
 				});
-				return json(yield* Api.queryRows(str(args.database_id) ?? "", query));
+				return yield* Api.queryRows(str(args.database_id) ?? "", query);
 			}),
 	},
 	{
@@ -302,7 +301,7 @@ export const DATABASE_TOOLS: Tool[] = [
 		run: (args) =>
 			Effect.gen(function* () {
 				const id = yield* DbSchema.createDatabase(args);
-				return json(yield* Api.getDatabase(id));
+				return yield* Api.getDatabase(id);
 			}),
 	},
 	{
@@ -324,7 +323,7 @@ export const DATABASE_TOOLS: Tool[] = [
 			Effect.gen(function* () {
 				const id = str(args.database_id) ?? "";
 				yield* DbSchema.updateDatabase(id, { title: args.title, changes: args.changes });
-				return json(yield* Api.getDatabase(id));
+				return yield* Api.getDatabase(id);
 			}),
 	},
 	{
@@ -337,7 +336,7 @@ export const DATABASE_TOOLS: Tool[] = [
 		write: true,
 		run: (args) => {
 			const { database_id, ...settings } = args;
-			return Effect.map(Views.createView(str(database_id) ?? "", settings), json);
+			return Views.createView(str(database_id) ?? "", settings);
 		},
 	},
 	{
@@ -353,7 +352,7 @@ export const DATABASE_TOOLS: Tool[] = [
 		write: true,
 		run: (args) => {
 			const { database_id, view, ...settings } = args;
-			return Effect.map(Views.updateView(str(database_id) ?? "", str(view) ?? "", settings), json);
+			return Views.updateView(str(database_id) ?? "", str(view) ?? "", settings);
 		},
 	},
 	{
@@ -419,7 +418,7 @@ export const DATABASE_TOOLS: Tool[] = [
 						(id) => ({ id, title: str(r.title) ?? "" }),
 					);
 				});
-				return json({ created: done, failed });
+				return { created: done, failed };
 			}),
 	},
 	{
@@ -463,7 +462,7 @@ export const DATABASE_TOOLS: Tool[] = [
 						id,
 					);
 				});
-				return json({ updated: done, failed });
+				return { updated: done, failed };
 			}),
 	},
 ];

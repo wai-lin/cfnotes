@@ -14,7 +14,7 @@ import { SAVE_LIMITS } from "#modules/pages/pages.ts";
 
 import { DATABASE_TOOLS } from "./tools/databases.ts";
 import { PAGE_TOOLS } from "./tools/pages.ts";
-import { str, type Tool } from "./tools/tool.ts";
+import { str, toResult, type Tool } from "./tools/tool.ts";
 import { WORKSPACE_TOOLS } from "./tools/workspace.ts";
 
 const VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
@@ -138,8 +138,7 @@ export const post = Effect.gen(function* () {
 				params.arguments && typeof params.arguments === "object" ? params.arguments : {}
 			) as Record<string, unknown>;
 			const result = yield* Effect.result(tool.run(args));
-			if (result._tag === "Success")
-				return reply(message.id, { content: [{ type: "text", text: result.success }] });
+			if (result._tag === "Success") return reply(message.id, toResult(result.success));
 			return reply(message.id, {
 				content: [{ type: "text", text: yield* failureText(result.failure) }],
 				isError: true,
