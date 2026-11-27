@@ -108,7 +108,7 @@ Properties come back by name:
 
 `PATCH /api/v1/pages/:id` takes `title`, `icon`, `cover` (`g1` to `g6` for a gradient, an uploaded image's `/files/img/…` path or URL, or `""` to remove it), `properties`, and one of `markdown` (replaces the content), `doc`, or `append` (Markdown added at the end).
 
-- Properties are set by name, through the same checks as the table. A select takes an option's name, and a new name adds the option. Relations take row ids, and people take emails of people on the allowlist.
+- Properties are set by name, through the same checks as the table. A select takes an option's name, and a new name adds the option. Relations take row ids, and people take emails: an owner's, or of someone the database is shared with (`get_database` lists them as `people`).
 - A value that doesn't fit answers `400`, naming the property.
 
 Markdown that's understood:

@@ -125,6 +125,16 @@ export const Op = Schema.Struct({
 const findDatabase = (id: string) =>
 	Effect.map(MainDb.databases.find({ id }), Option.getOrUndefined);
 
+/**
+ * Who a Person property of database `id` can name: the owners, then everyone
+ * the database is shared with (on it, what holds it, or a folder above it).
+ */
+const people = Effect.fn("Database.people")(function* (id: string) {
+	const owners = yield* Sessions.people;
+	const shared = (yield* MainDb.shares.people({ id })).map((row) => row.email);
+	return [...owners, ...shared.filter((email) => !owners.includes(email))];
+});
+
 export const databaseState: (
 	id: string,
 	options?: { rollups?: boolean; scripts?: boolean },
@@ -206,7 +216,7 @@ export const databaseState: (
 		views: cleanViews(found.view, columns),
 		rows,
 		titles,
-		people: yield* Sessions.people,
+		people: yield* people(id),
 	};
 	if (rollups) yield* addRollups(state);
 	if (scripts) yield* addScripts(state);
@@ -443,9 +453,15 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 		});
 	const row =
 		typeof body.rowId === "string" ? state.rows.find((r) => r.id === body.rowId) : undefined;
-	/** Whether a Person value names only people who may sign in. */
-	const onlyPeople = (value: unknown) =>
-		value === undefined || (value as string[]).every((email) => state.people.includes(email));
+	/**
+	 * Whether a Person value names only people who can open the database, or
+	 * ones it already named (whose share may since have gone).
+	 */
+	const onlyPeople = (value: unknown, kept: unknown = []) =>
+		value === undefined ||
+		(value as string[]).every(
+			(email) => state.people.includes(email) || (Array.isArray(kept) && kept.includes(email)),
+		);
 	const reply = (extra: Record<string, unknown> = {}) =>
 		Effect.map(databaseState(databaseId), (next) => ({ state: next, ...extra }));
 
@@ -465,7 +481,7 @@ export const runOp = Effect.fn("Database.runOp")(function* (pageId: string, body
 		} else {
 			const result = cleanCell(column, value);
 			if (!result.ok) return yield* bad(result.error);
-			if (column.type === "person" && !onlyPeople(result.value.value))
+			if (column.type === "person" && !onlyPeople(result.value.value, row.cells[column.id]))
 				return yield* bad("invalid_person");
 			if (result.value.column !== column) {
 				yield* saveColumns(

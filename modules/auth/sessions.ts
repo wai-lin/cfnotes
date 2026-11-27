@@ -77,7 +77,7 @@ export const editor = Effect.map(user, (found) =>
 	Option.match(found, { onNone: () => null, onSome: (it) => it.email }),
 );
 
-/** Everyone who may sign in: the choices for a Person property. */
+/** The owners: everyone on ALLOWED_EMAILS (a Person property adds who its database is shared with). */
 export const people = Effect.map(Env, (env) => emails(env.ALLOWED_EMAILS));
 
 /** Who is signed in, or a 401. */

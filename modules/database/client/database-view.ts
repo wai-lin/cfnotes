@@ -3145,7 +3145,7 @@ export class DatabaseView extends HTMLElement {
 	}
 
 	/** Link a row to rows of the related database: search, toggle, or create one. */
-	/** Picks people for a Person cell, from everyone who may sign in. */
+	/** Picks people for a Person cell: the owners, and who the database is shared with. */
 	#personMenu(rowId: string, columnId: string, cell: HTMLElement) {
 		let query = "";
 		let active = 0;

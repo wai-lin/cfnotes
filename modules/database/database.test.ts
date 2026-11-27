@@ -107,6 +107,35 @@ describe("database", () => {
 		expect(await status({ op: "setCell", databaseId, rowId, columnId, value: stranger })).toBe(400);
 	});
 
+	it("names who the database is shared with too, and keeps them once the share goes", async () => {
+		const { app, path, op, status, create } = await setup();
+		await using _ = app;
+		const db = await create();
+		const databaseId = db.id;
+		const share = (body: object) => app.post(path, "share", { kind: "page", ...body });
+		// Shared through the page holding it; someone with something else shared isn't named.
+		await share({ op: "invite", id: path.split("/").pop(), email: "friend@example.com" });
+		const other = await create();
+		await share({ op: "invite", id: other.id, email: "other@example.com" });
+		const { state } = await op({ op: "get", databaseId });
+		expect(state.people).toEqual(["owner@example.com", "friend@example.com"]);
+
+		const { columnId } = await op({ op: "addColumn", databaseId, type: "person" });
+		const [first, second] = [db.rows[0]!.id, db.rows[1]!.id];
+		const friend = ["friend@example.com"];
+		expect(await status({ op: "setCell", databaseId, rowId: first, columnId, value: friend })).toBe(
+			200,
+		);
+		await share({ op: "remove", id: path.split("/").pop(), email: "friend@example.com" });
+		const kept = ["friend@example.com", "owner@example.com"];
+		expect(await status({ op: "setCell", databaseId, rowId: first, columnId, value: kept })).toBe(
+			200,
+		);
+		expect(
+			await status({ op: "setCell", databaseId, rowId: second, columnId, value: friend }),
+		).toBe(400);
+	});
+
 	it("renames, recolours and deletes a select's options", async () => {
 		const { app, op, status, create } = await setup();
 		await using _ = app;
