@@ -49,6 +49,8 @@ export const pageText = (
 		...(page.cover ? { cover: page.cover } : {}),
 		...(page.backlinks.length > 0 ? { linkedFrom: page.backlinks } : {}),
 		...(page.lock ? { lockedBy: page.lock } : {}),
+		access: page.access,
+		people: page.people,
 	};
 	const parts = [
 		`# ${page.icon ? `${page.icon} ` : ""}${page.title || "Untitled"}`,
@@ -197,7 +199,7 @@ export const PAGE_TOOLS: Tool[] = [
 		name: "read_page",
 		title: "Read a page",
 		description:
-			"Reads a page as Markdown: its title, properties (for a database row), cover, the pages linking to it (linkedFrom), its content and comments.",
+			"Reads a page as Markdown: its title, properties (for a database row), cover, the pages linking to it (linkedFrom), what locks it (lockedBy), what the token may do on it (access: owner, edit, comment or view), who can be mentioned or set in a Person property (people, as emails), its content and comments.",
 		inputSchema: object({ page_id: pageId }, ["page_id"]),
 		annotations: readOnly,
 		run: (args) =>

@@ -12,7 +12,7 @@ curl -H "Authorization: Bearer cfn_…" https://notes.example.com/api/v1/pages
 
 - A token acts as the person who made it. Pages and comments it writes are recorded as theirs.
 - A token stops working when its maker can no longer sign in (taken off `ALLOWED_EMAILS`, or a friend's last share removed), or when it's revoked. An owner may revoke any token; a friend only their own.
-- A friend (someone a page or folder is shared with) may make up to 3 tokens. Theirs reach only what's shared with them, as in the app: lists, search and reads leave out the rest, and changes need the share's role. They make pages, databases and folders, and move or trash things, only inside folders shared with them to edit, never at the top level. `list_folders` and `GET /api/v1/folders` give each folder's `access`.
+- A friend (someone a page or folder is shared with) may make up to 3 tokens. Theirs reach only what's shared with them, as in the app: lists, search and reads leave out the rest, and changes need the share's role. They make pages, databases and folders, and move or trash things, only inside folders shared with them to edit, never at the top level. `list_folders` and `GET /api/v1/folders` give each folder's `access`, and `read_page` and `GET /api/v1/pages/:id` a page's (`owner`, `edit`, `comment` or `view`, after any lock).
 - An owner can lock a page, database or folder (`update_page` or `update_folder` with `locked`, or `PATCH /api/v1/pages/:id` with `{"locked": true}`). Then the people it's shared with may read it and comment, but not change, move or delete it or anything in it: a database's rows, a page's inline databases, a folder's pages and subfolders. `read_page` names what locks a page (`lockedBy`), and `list_folders` says which folders are `locked`.
 - A friend's tokens together make up to 60 requests a minute and 2,000 a day (owners have no limit). Past that, the REST API answers `429` with `Retry-After`, and an MCP tool call answers with an error saying when to try again.
 - A **read only** token can use `GET`. Anything else needs **read and write**.
@@ -40,7 +40,7 @@ Answers are JSON. Errors look like `{"error": "NotFound", "message": "No such pa
 | `GET /api/v1/search?q=…&limit=&offset=`                                   | Search by title and text, as the app's quick find does, best first (20 by default).   |
 | `GET /api/v1/files/<key>`                                                 | An uploaded file (images, attachments, media). Supports byte ranges.                  |
 
-Comments are Markdown. `[@name](mailto:email)` mentions someone (the owners, or someone the page is shared with), and `[Title](/p/<id>)` links to a page or database, which then lists the commented page under its backlinks. Each comment comes with its `reactions` (`[{emoji, people}]`).
+Comments are Markdown. `[@name](mailto:email)` mentions someone (the owners, or someone the page is shared with: a page's `people`), and `[Title](/p/<id>)` links to a page or database, which then lists the commented page under its backlinks. Each comment comes with its `reactions` (`[{emoji, people}]`).
 
 ### Reading content
 

@@ -54,6 +54,19 @@ describe("a friend's token", () => {
 		expect(edited.text).toMatch(/^Forbidden/);
 	});
 
+	it("reads what they may do on a page, and who can be named there", async () => {
+		await using app = cfnotes();
+		const { owner, friend, plan } = await setUp(app);
+		const read = async (call: typeof owner) =>
+			(await call("read_page", { page_id: plan })).structured!;
+		expect(await read(friend)).toMatchObject({ access: "edit" });
+		expect((await read(friend)).people).toEqual([expect.any(String), FRIEND]);
+		expect(await read(owner)).toMatchObject({ access: "owner" });
+		// A lock leaves them commenting.
+		await owner("update_page", { page_id: plan, locked: true });
+		expect(await read(friend)).toMatchObject({ access: "comment" });
+	});
+
 	it("makes and changes things only in folders shared with them to edit", async () => {
 		await using app = cfnotes();
 		const { owner, friend, trip, mine, plan, secret } = await setUp(app);

@@ -500,6 +500,10 @@ export const getPage = Effect.fn("Api.getPage")(function* (
 		properties: database && row ? propertiesOf(database, row, refs) : null,
 		/** What locks it for the people it's shared with: itself, what holds it, or a folder above it. */
 		lock: Option.getOrNull(yield* MainDb.pages.findLock({ id })),
+		/** What the caller may do here: owner, edit, comment or view. */
+		access: (yield* Sharing.accessTo(id)) ?? "view",
+		/** Who can be mentioned or named in a Person property here (emails). */
+		people: yield* Sharing.peopleOf(id),
 		/** The pages that link to this one. */
 		backlinks: (yield* Sharing.visible(yield* MainDb.links.listBacklinks({ id }))).map((link) => ({
 			id: link.id,
