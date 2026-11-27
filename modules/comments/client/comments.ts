@@ -7,11 +7,14 @@
  * keeps the threads, through the page's `comments` action, and tells the
  * editor which marks to highlight. `editorComments()` connects the two.
  */
-import type { CommentMarks, CommentsOptions } from "#lib/editor/index.ts";
+import type { CommentMarks, CommentsOptions, Person } from "#lib/editor/index.ts";
 import { icon, type IconName } from "#lib/icons.ts";
 import { alertDialog, confirmDialog } from "#lib/ui/dialog.ts";
 
-import type { Thread } from "../comments.ts";
+import type { Comment, Thread } from "../comments.ts";
+import { REACTIONS } from "../reactions.ts";
+import { commentBody } from "./body.ts";
+import { composer, type Composer, type ComposerOptions } from "./composer.ts";
 
 const tryAgain = "Check your connection and try again.";
 
@@ -69,77 +72,14 @@ export function when(ms: number, now = Date.now()): string {
 /** The name an email is shown by: the part before the @. */
 const nameOf = (email: string | null) => (email ? email.split("@")[0]! : "Someone");
 
-/** A textarea that grows with its text; Enter sends, Shift+Enter is a new line, Escape cancels. */
-function composer(options: {
-	placeholder: string;
-	value?: string;
-	label: string;
-	onSend: (text: string) => Promise<boolean>;
-	onCancel?: () => void;
-}): HTMLFormElement {
-	const form = h("form", "cm-compose");
-	const input = h("textarea", "cm-input");
-	input.rows = 1;
-	input.placeholder = options.placeholder;
-	input.value = options.value ?? "";
-	input.maxLength = 10_000;
-	const send = iconButton("send", options.label, "cm-send");
-	send.type = "submit";
-	const grow = () => {
-		input.style.height = "auto";
-		input.style.height = `${input.scrollHeight}px`;
-		send.disabled = input.value.trim() === "";
-	};
-	input.addEventListener("input", grow);
-	input.addEventListener("keydown", (event) => {
-		if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
-			event.preventDefault();
-			form.requestSubmit();
-		} else if (event.key === "Escape" && options.onCancel) {
-			event.preventDefault();
-			event.stopPropagation();
-			options.onCancel();
-		}
-	});
-	let busy = false;
-	form.addEventListener("submit", (event) => {
-		event.preventDefault();
-		const text = input.value.trim();
-		if (!text || busy) return;
-		busy = true;
-		send.disabled = true;
-		// Cleared first: sending redraws the panel, which keeps what boxes hold.
-		input.value = "";
-		void options.onSend(text).then((ok) => {
-			busy = false;
-			const key = form.dataset.key;
-			const live =
-				(key && document.querySelector<HTMLTextAreaElement>(`form[data-key="${key}"] textarea`)) ||
-				input;
-			if (!ok && live.value === "") live.value = text;
-			live.dispatchEvent(new Event("input"));
-		});
-	});
-	form.append(input, send);
-	queueMicrotask(grow);
-	return form;
-}
-
 type Op =
 	| { op: "list" }
 	| { op: "start"; thread: string; quote: string | null; body: string }
 	| { op: "reply"; thread: string; body: string }
 	| { op: "edit"; comment: string; body: string }
 	| { op: "delete"; comment: string }
-	| { op: "resolve"; thread: string; resolved: boolean };
-
-/** A text box being typed in, so a redraw can put it back as it was. */
-interface Typing {
-	key: string;
-	value: string;
-	start: number;
-	end: number;
-}
+	| { op: "resolve"; thread: string; resolved: boolean }
+	| { op: "react"; comment: string; emoji: string };
 
 export class CommentsElement extends HTMLElement {
 	#threads: Thread[] = [];
@@ -162,6 +102,14 @@ export class CommentsElement extends HTMLElement {
 	#pop: HTMLElement | null = null;
 	#popFor: { ids: string[]; mark: HTMLElement } | null = null;
 	#off: (() => void)[] = [];
+	/** Who can be mentioned (not the reader). */
+	#people: Person[] = [];
+	/** The comment boxes, by what they're for (`page`, `reply:<thread>`, `edit:<comment>`). */
+	#composers = new Map<string, Composer>();
+	/** The boxes the redraw under way shows; the rest are let go after it. */
+	#shown = new Set<string>();
+	/** The comment whose reaction picker is open. */
+	#picking: string | null = null;
 
 	connectedCallback() {
 		if (this.#off.length > 0) return;
@@ -173,6 +121,14 @@ export class CommentsElement extends HTMLElement {
 			this.#threads = JSON.parse(this.dataset.state ?? "[]") as Thread[];
 		} catch {
 			this.#threads = [];
+		}
+		try {
+			const emails = JSON.parse(this.dataset.people ?? "[]") as string[];
+			this.#people = emails
+				.filter((email) => email !== this.#me)
+				.map((email) => ({ email, name: nameOf(email) }));
+		} catch {
+			this.#people = [];
 		}
 		this.#button.type = "button";
 		this.#button.title = "Comments";
@@ -186,7 +142,8 @@ export class CommentsElement extends HTMLElement {
 		const onFocus = () => void this.#call({ op: "list" });
 		const onScroll = () => this.#placePop();
 		const onKey = (event: KeyboardEvent) => {
-			if (event.key !== "Escape") return;
+			// A menu in a comment box (`@`, `[[`) took it.
+			if (event.key !== "Escape" || event.defaultPrevented) return;
 			if (this.#pop) this.#closePop();
 			else if (this.#panelOpen && this.#panel.contains(document.activeElement))
 				this.#togglePanel(false);
@@ -196,8 +153,12 @@ export class CommentsElement extends HTMLElement {
 			if (!this.#pop || this.#pop.contains(target)) return;
 			// Clicking other commented text opens its thread instead.
 			if (target.closest?.("mark.is-open")) return;
-			// Don't throw away a comment being written.
-			const typed = [...this.#pop.querySelectorAll("textarea")].some((t) => t.value.trim());
+			// Don't throw away a comment being written (or leave its `@`/`[[` menu).
+			if (target.closest?.(".slash-menu, .link-pop, .link-card")) return;
+			const pop = this.#pop;
+			const typed = [...this.#composers.values()].some(
+				(box) => pop.contains(box.form) && !box.isEmpty(),
+			);
 			if (!typed) this.#closePop();
 		};
 		addEventListener("focus", onFocus);
@@ -221,6 +182,8 @@ export class CommentsElement extends HTMLElement {
 		this.#panel.remove();
 		this.#pop?.remove();
 		this.#button.remove();
+		for (const box of this.#composers.values()) box.destroy();
+		this.#composers.clear();
 	}
 
 	// ---- what the editor calls ----
@@ -257,8 +220,37 @@ export class CommentsElement extends HTMLElement {
 		this.#button.classList.toggle("is-on", this.#panelOpen);
 		this.#button.setAttribute("aria-expanded", String(this.#panelOpen));
 
+		const focused = [...this.#composers.values()].find((box) => box.hasFocus());
+		this.#shown.clear();
 		if (this.#panelOpen) this.#drawPanel();
 		if (this.#pop && this.#popFor) this.#drawPop();
+		for (const [key, box] of this.#composers) {
+			if (this.#shown.has(key)) continue;
+			box.destroy();
+			this.#composers.delete(key);
+		}
+		// Moving a box out and back in loses focus: give it back.
+		if (focused && focused.form.isConnected && !focused.hasFocus()) focused.focus();
+	}
+
+	/** The comment box for `key`, made once and kept while it's shown. */
+	#compose(key: string, options: ComposerOptions): HTMLFormElement {
+		let box = this.#composers.get(key);
+		if (box) box.update(options);
+		else {
+			box = composer(options, () => this.#people);
+			box.form.dataset.key = key;
+			this.#composers.set(key, box);
+		}
+		this.#shown.add(key);
+		return box.form;
+	}
+
+	/** Puts the caret in the first comment box under `root`. */
+	#focusBox(root: HTMLElement) {
+		for (const box of this.#composers.values()) {
+			if (root.contains(box.form)) return box.focus();
+		}
 	}
 
 	// ---- server ----
@@ -317,7 +309,6 @@ export class CommentsElement extends HTMLElement {
 	}
 
 	#drawPanel() {
-		const typing = this.#typing(this.#panel);
 		const open = this.#threads.filter((t) => t.resolvedAt === null);
 		const resolved = this.#threads.filter((t) => t.resolvedAt !== null);
 
@@ -345,14 +336,14 @@ export class CommentsElement extends HTMLElement {
 
 		const body = h("div", "cm-panel-body");
 		if (this.#tab === "open" && this.#canComment) {
-			const page = composer({
-				placeholder: "Comment on this page…",
-				label: "Comment",
-				onSend: (text) =>
-					this.#call({ op: "start", thread: crypto.randomUUID(), quote: null, body: text }),
-			});
-			page.dataset.key = "page";
-			body.append(page);
+			body.append(
+				this.#compose("page", {
+					placeholder: "Comment on this page… (@ to mention, [[ to link)",
+					label: "Comment",
+					onSend: (text) =>
+						this.#call({ op: "start", thread: crypto.randomUUID(), quote: null, body: text }),
+				}),
+			);
 		}
 		const list = this.#ordered(this.#tab === "open" ? open : resolved);
 		for (const thread of list) body.append(this.#card(thread));
@@ -369,7 +360,6 @@ export class CommentsElement extends HTMLElement {
 				),
 			);
 		this.#panel.replaceChildren(head, body);
-		this.#restore(this.#panel, typing);
 	}
 
 	/** Comments on the page first, then the text's in reading order, then those whose text is gone. */
@@ -394,7 +384,7 @@ export class CommentsElement extends HTMLElement {
 		document.body.append(this.#pop);
 		this.paint();
 		this.#placePop();
-		this.#pop.querySelector<HTMLTextAreaElement>("textarea")?.focus({ preventScroll: true });
+		this.#focusBox(this.#pop);
 	}
 
 	#closePop() {
@@ -413,7 +403,6 @@ export class CommentsElement extends HTMLElement {
 
 	#drawPop() {
 		const pop = this.#pop!;
-		const typing = this.#typing(pop);
 		const { ids } = this.#popFor!;
 		const cards: HTMLElement[] = [];
 		for (const id of ids) {
@@ -426,7 +415,6 @@ export class CommentsElement extends HTMLElement {
 		}
 		if (cards.length === 0) return this.#closePop();
 		pop.replaceChildren(...cards);
-		this.#restore(pop, typing);
 		this.#placePop();
 	}
 
@@ -451,14 +439,14 @@ export class CommentsElement extends HTMLElement {
 
 	#draftCard(draft: { id: string; quote: string }): HTMLElement {
 		const card = h("div", "cm-thread is-draft");
-		const form = composer({
-			placeholder: "Add a comment…",
-			label: "Comment",
-			onSend: (text) => this.#send(draft.id, text),
-			onCancel: () => this.#closePop(),
-		});
-		form.dataset.key = `reply:${draft.id}`;
-		card.append(form);
+		card.append(
+			this.#compose(`reply:${draft.id}`, {
+				placeholder: "Add a comment…",
+				label: "Comment",
+				onSend: (text) => this.#send(draft.id, text),
+				onCancel: () => this.#closePop(),
+			}),
+		);
 		return card;
 	}
 
@@ -505,24 +493,31 @@ export class CommentsElement extends HTMLElement {
 			);
 			if (comment.editedAt !== null) head.append(h("span", "cm-edited", "(edited)"));
 			const mine = comment.author === null || comment.author === this.#me;
+			const tools = h("span", "cm-tools");
+			if (this.#canComment && this.#editing !== comment.id) {
+				const add = iconButton("moodSmile", "Add a reaction", "cm-react-add");
+				add.setAttribute("aria-expanded", String(this.#picking === comment.id));
+				add.addEventListener("click", () => {
+					this.#picking = this.#picking === comment.id ? null : comment.id;
+					this.paint();
+				});
+				tools.append(add);
+			}
 			if (mine && this.#editing !== comment.id) {
-				const tools = h("span", "cm-tools");
 				const edit = iconButton("pencil", "Edit");
 				edit.addEventListener("click", () => {
 					this.#editing = comment.id;
 					this.paint();
-					document
-						.querySelector<HTMLTextAreaElement>(`[data-key="edit:${comment.id}"] textarea`)
-						?.focus();
+					this.#composers.get(`edit:${comment.id}`)?.focus();
 				});
 				const del = iconButton("trash", "Delete");
 				del.addEventListener("click", () => void this.#remove(comment.id));
 				tools.append(edit, del);
-				head.append(tools);
 			}
+			if (tools.childElementCount > 0) head.append(tools);
 			item.append(head);
 			if (this.#editing === comment.id) {
-				const form = composer({
+				const form = this.#compose(`edit:${comment.id}`, {
 					placeholder: "Edit the comment…",
 					value: comment.body,
 					label: "Save",
@@ -539,9 +534,12 @@ export class CommentsElement extends HTMLElement {
 						this.paint();
 					},
 				});
-				form.dataset.key = `edit:${comment.id}`;
 				item.append(form);
-			} else item.append(h("div", "cm-body", comment.body));
+			} else {
+				item.append(commentBody(comment.body));
+				const reactions = this.#reactions(comment);
+				if (reactions) item.append(reactions);
+			}
 			card.append(item);
 		}
 
@@ -554,48 +552,54 @@ export class CommentsElement extends HTMLElement {
 				),
 			);
 		} else if (this.#canComment) {
-			const reply = composer({
-				placeholder: "Reply…",
-				label: "Reply",
-				onSend: (text) => this.#send(thread.id, text),
-				onCancel: this.#pop ? () => this.#closePop() : undefined,
-			});
-			reply.dataset.key = `reply:${thread.id}`;
-			card.append(reply);
+			card.append(
+				this.#compose(`reply:${thread.id}`, {
+					placeholder: "Reply…",
+					label: "Reply",
+					onSend: (text) => this.#send(thread.id, text),
+					onCancel: this.#pop ? () => this.#closePop() : undefined,
+				}),
+			);
 		}
 		return card;
 	}
 
-	// ---- keeping what's typed across redraws ----
+	// ---- reactions ----
 
-	#typing(root: HTMLElement): Typing[] {
-		return [...root.querySelectorAll<HTMLFormElement>("form[data-key]")].flatMap((form) => {
-			const input = form.querySelector("textarea");
-			if (!input) return [];
-			const focused = document.activeElement === input;
-			if (!focused && input.value === "") return [];
-			return [
-				{
-					key: form.dataset.key!,
-					value: input.value,
-					start: focused ? input.selectionStart : -1,
-					end: input.selectionEnd,
-				},
-			];
-		});
-	}
-
-	#restore(root: HTMLElement, typing: Typing[]) {
-		for (const { key, value, start, end } of typing) {
-			const input = root.querySelector<HTMLTextAreaElement>(`form[data-key="${key}"] textarea`);
-			if (!input) continue;
-			input.value = value;
-			input.dispatchEvent(new Event("input"));
-			if (start >= 0) {
-				input.focus({ preventScroll: true });
-				input.setSelectionRange(start, end);
-			}
+	/** A comment's reactions, each a toggle for the reader, and the picker when it's open. */
+	#reactions(comment: Comment): HTMLElement | null {
+		const picking = this.#canComment && this.#picking === comment.id;
+		if (comment.reactions.length === 0 && !picking) return null;
+		const row = h("div", "cm-reactions");
+		const react = (emoji: string) => {
+			this.#picking = null;
+			void this.#call({ op: "react", comment: comment.id, emoji });
+		};
+		for (const reaction of comment.reactions) {
+			const mine = this.#me !== null && reaction.people.includes(this.#me);
+			const pill = h("button", `cm-reaction${mine ? " is-mine" : ""}`);
+			pill.type = "button";
+			pill.title = reaction.people.map(nameOf).join(", ");
+			pill.setAttribute("aria-pressed", String(mine));
+			pill.append(reaction.emoji, h("span", "cm-reaction-count", String(reaction.people.length)));
+			pill.disabled = !this.#canComment;
+			pill.addEventListener("click", () => react(reaction.emoji));
+			row.append(pill);
 		}
+		if (picking) {
+			const pick = h("div", "cm-react-pick");
+			pick.setAttribute("role", "group");
+			pick.setAttribute("aria-label", "Reactions");
+			for (const emoji of REACTIONS) {
+				const button = h("button", "cm-react-choice", emoji);
+				button.type = "button";
+				button.title = `React with ${emoji}`;
+				button.addEventListener("click", () => react(emoji));
+				pick.append(button);
+			}
+			row.append(pick);
+		}
+		return row;
 	}
 }
 

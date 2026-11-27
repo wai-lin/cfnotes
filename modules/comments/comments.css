@@ -278,7 +278,6 @@ cf-comments {
 .cm-body {
 	margin: 2px 0 0 26px;
 	line-height: 1.5;
-	white-space: pre-wrap;
 	overflow-wrap: anywhere;
 }
 
@@ -312,19 +311,168 @@ cf-comments {
 	margin-top: 0;
 }
 
-.cm-input {
+/* The comment box: a small editor (composer.ts), without the page's room around blocks. */
+.cm-editor {
+	position: relative;
 	flex: 1;
-	min-height: 26px;
+	min-width: 0;
 	max-height: 240px;
-	padding: 3px 0;
-	border: 0;
-	outline: 0;
-	background: none;
-	color: var(--text);
-	font: inherit;
+	overflow-y: auto;
 	font-size: 14px;
 	line-height: 1.4;
-	resize: none;
+}
+
+.cm-editor .ne-content {
+	min-height: 26px;
+	padding: 3px 0;
+	overflow-wrap: anywhere;
+}
+
+.cm-editor .ne-content > * {
+	margin: 0;
+	padding: 0;
+}
+
+.cm-editor .ne-content :is(h1, h2, h3) {
+	font-size: 15px;
+}
+
+/* ---------- a comment's text (body.ts) ---------- */
+
+.cm-body > * {
+	margin: 0 0 4px;
+}
+
+.cm-body > :last-child {
+	margin-bottom: 0;
+}
+
+.cm-body :is(ul, ol) {
+	padding-left: 20px;
+}
+
+.cm-body :is(h1, h2, h3, h4) {
+	font-size: 14px;
+}
+
+.cm-body blockquote {
+	padding-left: 10px;
+	border-left: 3px solid var(--border);
+	color: var(--muted);
+}
+
+.cm-body code {
+	padding: 1px 4px;
+	border-radius: 4px;
+	background: var(--bg-hover);
+	font-size: 12.5px;
+}
+
+.cm-body a {
+	color: inherit;
+	text-decoration: underline;
+	text-decoration-color: var(--faint);
+}
+
+.cm-body .cm-ref {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 3px;
+	text-decoration: none;
+	font-weight: 500;
+	border-bottom: 1px solid var(--border);
+}
+
+.cm-body .cm-ref .icon {
+	align-self: center;
+	color: var(--muted);
+}
+
+/* A mention, here and in the comment box (a mailto link reading @name). */
+.cm-mention,
+.cm-editor a[href^="mailto:"] {
+	padding: 0 3px;
+	border-radius: 4px;
+	background: var(--bg-active);
+	color: var(--accent);
+	font-weight: 500;
+	text-decoration: none;
+}
+
+/* ---------- reactions ---------- */
+
+.cm-reactions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+	margin: 4px 0 0 26px;
+}
+
+.cm-reaction {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	height: 24px;
+	padding: 0 8px;
+	border: 1px solid var(--border);
+	border-radius: 999px;
+	background: none;
+	color: var(--text);
+	font-size: 13px;
+	cursor: pointer;
+}
+
+.cm-reaction.is-mine {
+	border-color: var(--accent);
+	background: var(--bg-active);
+}
+
+.cm-reaction:disabled {
+	cursor: default;
+}
+
+.cm-reaction-count {
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.cm-react-add[aria-expanded="true"] {
+	background: var(--bg-active);
+}
+
+.cm-comment:has(.cm-react-add[aria-expanded="true"]) .cm-tools {
+	opacity: 1;
+}
+
+@media (hover: none) {
+	.cm-tools {
+		opacity: 1;
+	}
+}
+
+.cm-react-pick {
+	display: flex;
+	gap: 2px;
+	padding: 2px;
+	border-radius: 999px;
+	background: var(--bg);
+	box-shadow: var(--shadow);
+}
+
+.cm-react-choice {
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: 0;
+	border-radius: 999px;
+	background: none;
+	font-size: 16px;
+	cursor: pointer;
+}
+
+.cm-react-choice:hover {
+	background: var(--bg-hover);
 }
 
 .cm-send:not(:disabled) {

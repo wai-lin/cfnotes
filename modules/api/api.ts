@@ -900,6 +900,7 @@ export const pageComments = Effect.fn("Api.pageComments")(function* (id: string)
 			body: c.body,
 			createdAt: iso(c.createdAt),
 			editedAt: iso(c.editedAt),
+			reactions: c.reactions,
 		})),
 	}));
 });

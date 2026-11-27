@@ -25,6 +25,7 @@ export default page({
 		return {
 			...view,
 			threads: yield* Comments.threads(view.page.id),
+			people: yield* Sharing.peopleOf(view.page.id),
 			me: yield* Sessions.editor,
 			user: yield* Sessions.requireUser,
 			embed: yield* Pages.embedded,
@@ -138,7 +139,7 @@ export default page({
 				canTrash: data.canTrash,
 				lock: data.lock,
 				embed: data.embed,
-				comments: { threads: data.threads, me: data.me },
+				comments: { threads: data.threads, me: data.me, people: data.people },
 				urls: {
 					save: actions.save.url,
 					title: actions.title.url,

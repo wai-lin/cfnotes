@@ -301,7 +301,9 @@ export const PAGE_TOOLS: Tool[] = [
 		inputSchema: object(
 			{
 				page_id: pageId,
-				body: string("The comment, as plain text."),
+				body: string(
+					"The comment, as Markdown: [@name](mailto:email) mentions someone who can open the page, [Title](/p/<id>) links to a page or database.",
+				),
 				quote: string(
 					"Text of the page to comment on, exactly as written (within one run of formatting, there once).",
 				),
@@ -353,7 +355,7 @@ export const PAGE_TOOLS: Tool[] = [
 			{
 				page_id: pageId,
 				comment_id: string("The comment (see read_page)."),
-				body: string("Its new text."),
+				body: string("Its new text, as Markdown (as add_comment's)."),
 			},
 			["page_id", "comment_id", "body"],
 		),

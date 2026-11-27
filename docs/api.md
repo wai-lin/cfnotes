@@ -40,6 +40,8 @@ Answers are JSON. Errors look like `{"error": "NotFound", "message": "No such pa
 | `GET /api/v1/search?q=…&limit=&offset=`                                   | Search by title and text, as the app's quick find does, best first (20 by default).   |
 | `GET /api/v1/files/<key>`                                                 | An uploaded file (images, attachments, media). Supports byte ranges.                  |
 
+Comments are Markdown. `[@name](mailto:email)` mentions someone (the owners, or someone the page is shared with), and `[Title](/p/<id>)` links to a page or database, which then lists the commented page under its backlinks. Each comment comes with its `reactions` (`[{emoji, people}]`).
+
 ### Reading content
 
 `format=html` gives semantic HTML:

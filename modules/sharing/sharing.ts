@@ -77,6 +77,16 @@ export const lockedMessage = (lock: { kind: string; name: string | null }) =>
 		? `It's in the locked folder "${lock.name ?? ""}": only an owner can change it`
 		: `"${lock.name || "Untitled"}" is locked: only an owner can change it`;
 
+/**
+ * Who can be named on page `id` (a Person property, a mention): the owners,
+ * then everyone it's shared with (on it, what holds it, or a folder above it).
+ */
+export const peopleOf = Effect.fn("Sharing.peopleOf")(function* (id: string) {
+	const owners = yield* Sessions.people;
+	const shared = (yield* MainDb.shares.people({ id })).map((row) => row.email);
+	return [...owners, ...shared.filter((email) => !owners.includes(email))];
+});
+
 /** Fails unless an owner is signed in. */
 export const requireOwner = Effect.gen(function* () {
 	if (!(yield* me)?.owner) return yield* new Forbidden({ message: DENIED.owner });

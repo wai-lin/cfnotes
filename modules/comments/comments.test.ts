@@ -111,4 +111,73 @@ describe("comments", () => {
 		expect(long.length).toBeLessThanOrEqual(MAX_QUOTE);
 		expect(long.endsWith("…")).toBe(true);
 	});
+
+	it("reacts to a comment, again takes it back, and goes with the comment", async () => {
+		await using app = cfnotes();
+		const { path } = await app.open();
+		const thread = crypto.randomUUID();
+		const op = async (body: object) => {
+			const res = await app.post(path, "comments", body);
+			return { status: res.status, threads: res.ok ? ((await res.json()) as Answer).threads : [] };
+		};
+		await op({ op: "start", thread, quote: null, body: "Lunch?" });
+		const { threads } = await op({ op: "reply", thread, body: "Yes" });
+		const [first, second] = threads[0]!.comments;
+		expect(first!.reactions).toEqual([]);
+
+		let after = await op({ op: "react", comment: first!.id, emoji: "👍" });
+		await op({ op: "react", comment: first!.id, emoji: "🎉" });
+		after = await op({ op: "list" });
+		expect(after.threads[0]!.comments[0]!.reactions).toEqual([
+			{ emoji: "👍", people: ["owner@example.com"] },
+			{ emoji: "🎉", people: ["owner@example.com"] },
+		]);
+		after = await op({ op: "react", comment: first!.id, emoji: "👍" });
+		expect(after.threads[0]!.comments[0]!.reactions).toEqual([
+			{ emoji: "🎉", people: ["owner@example.com"] },
+		]);
+		expect((await op({ op: "react", comment: first!.id, emoji: "🦄" })).status).toBe(400);
+		expect((await op({ op: "react", comment: crypto.randomUUID(), emoji: "👍" })).status).toBe(404);
+
+		// Deleting it takes its reactions; the other comment keeps its own.
+		await op({ op: "react", comment: second!.id, emoji: "👀" });
+		after = await op({ op: "delete", comment: first!.id });
+		expect(after.threads[0]!.comments.map((c) => c.reactions)).toEqual([
+			[{ emoji: "👀", people: ["owner@example.com"] }],
+		]);
+	});
+
+	it("keeps Markdown, and a page it links to lists the commented page", async () => {
+		await using app = cfnotes();
+		const { path } = await app.open();
+		const made = (await (await app.post(path, "linkPage", { title: "Target" })).json()) as {
+			id: string;
+		};
+		const body = `**Look** at [Target](/p/${made.id}), [@friend](mailto:friend@example.com)`;
+		const res = await app.post(path, "comments", {
+			op: "start",
+			thread: crypto.randomUUID(),
+			quote: null,
+			body,
+		});
+		const { threads } = (await res.json()) as Answer;
+		expect(threads[0]!.comments[0]!.body).toBe(body);
+		const target = await (await app.fetch(`/p/${made.id}`)).text();
+		expect(target).toContain("Linked from 1");
+	});
+
+	it("offers the page's owners and the people it's shared with to mention", async () => {
+		await using app = cfnotes();
+		const { path, id } = await app.open();
+		await app.post(path, "share", {
+			op: "invite",
+			kind: "page",
+			id,
+			email: "friend@example.com",
+		});
+		const html = await (await app.fetch(path)).text();
+		expect(html).toContain(
+			`data-people="${JSON.stringify(["owner@example.com", "friend@example.com"]).replace(/"/g, "&quot;")}"`,
+		);
+	});
 });

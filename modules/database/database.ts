@@ -125,16 +125,6 @@ export const Op = Schema.Struct({
 const findDatabase = (id: string) =>
 	Effect.map(MainDb.databases.find({ id }), Option.getOrUndefined);
 
-/**
- * Who a Person property of database `id` can name: the owners, then everyone
- * the database is shared with (on it, what holds it, or a folder above it).
- */
-const people = Effect.fn("Database.people")(function* (id: string) {
-	const owners = yield* Sessions.people;
-	const shared = (yield* MainDb.shares.people({ id })).map((row) => row.email);
-	return [...owners, ...shared.filter((email) => !owners.includes(email))];
-});
-
 export const databaseState: (
 	id: string,
 	options?: { rollups?: boolean; scripts?: boolean },
@@ -216,7 +206,7 @@ export const databaseState: (
 		views: cleanViews(found.view, columns),
 		rows,
 		titles,
-		people: yield* people(id),
+		people: yield* Sharing.peopleOf(id),
 	};
 	if (rollups) yield* addRollups(state);
 	if (scripts) yield* addScripts(state);

@@ -53,8 +53,11 @@ export function pageView({
 	lock?: { kind: string; id: string | null; name: string | null } | null;
 	/** Shown in a row's popup, where links open in the window around it (but Lock stays). */
 	embed?: boolean;
-	/** The page's threads, and who is reading (`null`: no one signed in). */
-	comments: { threads: readonly Thread[]; me: string | null };
+	/**
+	 * The page's threads, who is reading (`null`: no one signed in), and who
+	 * can be mentioned: the owners and the people it's shared with.
+	 */
+	comments: { threads: readonly Thread[]; me: string | null; people?: readonly string[] };
 	urls: PageUrls;
 }): Html {
 	const signals = JSON.stringify({ title: page.title, doc: "", _saving: false, _offline: false });
@@ -154,6 +157,7 @@ export function pageView({
 					data-can="${access}"
 					data-path="${urls.comments}"
 					data-me="${comments.me ?? ""}"
+					data-people="${JSON.stringify(comments.people ?? [])}"
 					data-state="${JSON.stringify(comments.threads)}"
 				></cf-comments>
 				${

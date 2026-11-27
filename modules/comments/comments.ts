@@ -3,7 +3,9 @@
  * that text with the thread's id) or on the whole page. Anyone signed in may
  * comment, reply and resolve, but a friend only where a page is shared with
  * them to comment or edit (and only an editor marks text); only a comment's
- * author may edit or delete it.
+ * author may edit or delete it. Comments are Markdown: `[@name](mailto:email)`
+ * mentions someone, `[Title](/p/<id>)` links to a page or database. Anyone who
+ * may comment may react to a comment with one of `REACTIONS`.
  */
 import { Clock, Effect, Option, Schema } from "effect";
 import { BadRequest, Forbidden, NotFound } from "spacefn";
@@ -13,10 +15,20 @@ import * as Sessions from "#modules/auth/sessions.ts";
 import * as Sharing from "#modules/sharing/sharing.ts";
 import MainDb from "#space/db/main.ts";
 
+import { REACTIONS } from "./reactions.ts";
+
+export { REACTIONS } from "./reactions.ts";
+
 /** Longest comment, in characters. */
 export const MAX_BODY = 10_000;
 /** Longest quote kept for an inline thread; the rest is cut with an ellipsis. */
 export const MAX_QUOTE = 300;
+
+export interface Reaction {
+	emoji: string;
+	/** Who reacted with it, first first. */
+	people: string[];
+}
 
 export interface Comment {
 	id: string;
@@ -24,6 +36,8 @@ export interface Comment {
 	author: string | null;
 	createdAt: number;
 	editedAt: number | null;
+	/** In the order they were first given. */
+	reactions: Reaction[];
 }
 
 export interface Thread {
@@ -39,11 +53,12 @@ export interface Thread {
 /**
  * `start` a thread (its id comes from the browser, which marks the text with
  * it first), `reply` to one, `edit` or `delete` a comment, `resolve` (or with
- * `resolved: false` reopen) a thread, or just `list` them. Every op answers
- * with the page's threads.
+ * `resolved: false` reopen) a thread, `react` to a comment with `emoji` (again
+ * takes it back), or just `list` them. Every op answers with the page's threads.
  */
 export const Op = Schema.Struct({
-	op: Schema.Literals(["list", "start", "reply", "edit", "delete", "resolve"]),
+	op: Schema.Literals(["list", "start", "reply", "edit", "delete", "resolve", "react"]),
+	emoji: Schema.optional(Schema.String),
 	thread: Schema.optional(Schema.String),
 	comment: Schema.optional(Schema.String),
 	quote: Schema.optional(Schema.NullOr(Schema.String)),
@@ -72,6 +87,14 @@ export const cleanQuote = (quote: string | null | undefined): string | null => {
 export const threads = Effect.fn("Comments.threads")(function* (pageId: string) {
 	const found = yield* MainDb.comments.listThreads({ pageId });
 	const comments = yield* MainDb.comments.list({ pageId });
+	const reactions = new Map<string, Reaction[]>();
+	for (const row of yield* MainDb.comments.listReactions({ pageId })) {
+		const list = reactions.get(row.comment_id) ?? [];
+		const same = list.find((reaction) => reaction.emoji === row.emoji);
+		if (same) same.people.push(row.email);
+		else list.push({ emoji: row.emoji, people: [row.email] });
+		reactions.set(row.comment_id, list);
+	}
 	const byThread = new Map<string, Comment[]>();
 	for (const row of comments) {
 		const list = byThread.get(row.thread_id) ?? [];
@@ -81,6 +104,7 @@ export const threads = Effect.fn("Comments.threads")(function* (pageId: string) 
 			author: row.author,
 			createdAt: row.created_at,
 			editedAt: row.edited_at,
+			reactions: reactions.get(row.id) ?? [],
 		});
 		byThread.set(row.thread_id, list);
 	}
@@ -173,8 +197,22 @@ export const run = Effect.fn("Comments.run")(function* (pageId: string, body: ty
 		}
 		case "delete": {
 			const comment = yield* ownComment(pageId, body.comment);
+			yield* MainDb.comments.forgetReactions({ id: comment.id });
 			yield* MainDb.comments.delete({ id: comment.id });
 			yield* MainDb.comments.deleteEmptyThread({ id: comment.thread_id });
+			break;
+		}
+		case "react": {
+			if (!isId(body.comment)) return yield* bad("invalid_comment");
+			const comment = Option.getOrUndefined(yield* MainDb.comments.find({ id: body.comment }));
+			if (!comment || comment.page_id !== pageId)
+				return yield* new NotFound({ message: "No such comment" });
+			const emoji = REACTIONS.find((one) => one === body.emoji);
+			if (!emoji || !by) return yield* bad("invalid_reaction");
+			const reaction = { commentId: comment.id, email: by, emoji };
+			if ((yield* MainDb.comments.findReaction(reaction)).length > 0)
+				yield* MainDb.comments.removeReaction(reaction);
+			else yield* MainDb.comments.addReaction({ ...reaction, now });
 			break;
 		}
 		case "resolve": {
@@ -193,6 +231,7 @@ export const run = Effect.fn("Comments.run")(function* (pageId: string, body: ty
 
 /** Deletes every comment on these pages (when they are deleted for good). */
 export const forget = Effect.fn("Comments.forget")(function* (ids: string) {
+	yield* MainDb.comments.forgetPagesReactions({ ids });
 	yield* MainDb.comments.forgetPages({ ids });
 	yield* MainDb.comments.forgetPagesThreads({ ids });
 });
