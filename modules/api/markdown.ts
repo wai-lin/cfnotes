@@ -218,6 +218,26 @@ const FENCE = /^(\s*)(`{3,}|~{3,})\s*([\w+#.-]*)\s*$/;
 const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
 const RULE = /^\s*([-*_])(?:\s*\1){2,}\s*$/;
 const TABLE_RULE = /^\s*\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$/;
+/** A link alone on its line. */
+const LINK_LINE = /^\[((?:[^\]\\]|\\.)*)\]\(\s*(<[^>]*>|\S+?)\s*\)$/;
+
+/** What a media file plays as, by its extension (as `Files.store` names them). */
+const mediaKind = (path: string) =>
+	/\.(m4a|mp3|aac|ogg|flac|wav)$/i.test(path) ? "audio" : /\.pdf$/i.test(path) ? "pdf" : "video";
+
+/**
+ * A link alone on its line to an attachment or a media file of the app's: the
+ * file or media block it was written from (its size isn't known, so it's 0).
+ */
+function fileBlock(line: string): Node | null {
+	const link = LINK_LINE.exec(line);
+	const src = link ? FILE_PATH.exec(link[2]!.replace(/^<|>$/g, ""))?.[1] : undefined;
+	if (!link || !src || src.startsWith("/files/img/")) return null;
+	const name = link[1]!.replace(/\\(.)/g, "$1");
+	if (src.startsWith("/files/file/")) return { type: "file", version: 1, src, name, size: 0 };
+	return { type: "media", version: 1, media: mediaKind(src), src, name, size: 0 };
+}
+
 const IMAGE = /^!\[((?:[^\]\\]|\\.)*)\]\(\s*(<[^>]*>|\S+?)(?:\s+"((?:[^"\\]|\\.)*)")?\s*\)$/;
 
 const indentOf = (line: string) => /^\s*/.exec(line.replace(/\t/g, "    "))![0].length;
@@ -357,6 +377,13 @@ function parseBlocks(lines: string[]): Node[] {
 			while (i < lines.length && lines[i]!.includes("|") && !blank(lines[i]!))
 				rows.push(lines[i++]!);
 			out.push(table(rows));
+			continue;
+		}
+
+		const attached = fileBlock(line.trim());
+		if (attached) {
+			out.push(attached);
+			i++;
 			continue;
 		}
 
