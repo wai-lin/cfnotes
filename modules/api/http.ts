@@ -93,6 +93,18 @@ export const addComment = Effect.gen(function* () {
 	return created(threads.find((t) => t.id === thread));
 });
 
+/** `GET /api/v1/comments?status=open|resolved|all&mentions=me&limit=&offset=` */
+export const listAllComments = Effect.gen(function* () {
+	const { mentions, ...query } = yield* Input.query(
+		Schema.Struct({
+			status: Schema.optional(Schema.Literals(["open", "resolved", "all"])),
+			mentions: Schema.optional(Schema.Literal("me")),
+			...Paging,
+		}),
+	);
+	return yield* Api.listComments({ ...query, mentionsMe: mentions === "me" });
+});
+
 /** `GET /api/v1/folders` */
 export const listFolders = Effect.map(Api.listFolders, (folders) => ({ folders }));
 

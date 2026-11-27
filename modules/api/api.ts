@@ -12,6 +12,7 @@ import { BadRequest, NotFound } from "spacefn";
 import Env from "#configs/env.ts";
 import { isId } from "#lib/ids.ts";
 import { cleanTitle } from "#lib/titles.ts";
+import { normalize } from "#modules/auth/access.ts";
 import * as Sessions from "#modules/auth/sessions.ts";
 import * as Comments from "#modules/comments/comments.ts";
 import { REACTIONS } from "#modules/comments/reactions.ts";
@@ -908,6 +909,42 @@ export const pageComments = Effect.fn("Api.pageComments")(function* (id: string)
 			reactions: c.reactions,
 		})),
 	}));
+});
+
+export const CommentsQuery = Schema.Struct({
+	/** Open threads (the default), resolved ones, or all. */
+	status: Schema.optional(Schema.Literals(["open", "resolved", "all"])),
+	/** Only threads where a comment mentions the caller. */
+	mentionsMe: Schema.optional(Schema.Boolean),
+	limit: Schema.optional(Schema.Number),
+	offset: Schema.optional(Schema.Number),
+});
+
+/** Comment threads across the pages the caller can see, the latest commented on first. */
+export const listComments = Effect.fn("Api.listComments")(function* (
+	query: typeof CommentsQuery.Type = {},
+) {
+	const email = normalize((yield* Sharing.me)?.email ?? "");
+	const rows = yield* MainDb.comments.listAllThreads({ email });
+	const seen = yield* Sharing.accessToAll(rows.map((row) => row.page_id));
+	const status = query.status ?? "open";
+	const picked = rows.filter(
+		(row) =>
+			seen.has(row.page_id) &&
+			(status === "all" || (status === "open") === (row.resolved_at === null)) &&
+			(!query.mentionsMe || row.mentions > 0),
+	);
+	const { items, ...page } = paged(picked, query, 20);
+	const onPage = new Map<string, Effect.Success<ReturnType<typeof pageComments>>>();
+	for (const id of new Set(items.map((row) => row.page_id)))
+		onPage.set(id, yield* pageComments(id));
+	return {
+		...page,
+		threads: items.flatMap((row) => {
+			const thread = onPage.get(row.page_id)?.find((t) => t.id === row.id);
+			return thread ? [{ page: { id: row.page_id, title: row.page_title }, ...thread }] : [];
+		}),
+	};
 });
 
 export const NewComment = Schema.Struct({

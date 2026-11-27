@@ -298,6 +298,28 @@ export const PAGE_TOOLS: Tool[] = [
 			}),
 	},
 	{
+		name: "list_comments",
+		title: "List comment threads",
+		description:
+			"Lists comment threads across every page the token can see, the latest commented on first, each with its page and comments. Open threads unless status says otherwise; mentions_me keeps only threads where someone mentioned the token's owner. Pages through them with limit and offset (nextOffset is where the next page starts).",
+		inputSchema: object({
+			status: { type: "string", enum: ["open", "resolved", "all"], description: "open if unset." },
+			mentions_me: boolean("Only threads where a comment mentions the token's owner."),
+			limit: integer("At most this many threads (20 if unset).", 1, 200),
+			offset: integer("Skip this many first."),
+		}),
+		annotations: readOnly,
+		run: (args) =>
+			Api.listComments({
+				status:
+					args.status === "resolved" || args.status === "all" || args.status === "open"
+						? args.status
+						: undefined,
+				mentionsMe: args.mentions_me === true,
+				...paging(args),
+			}),
+	},
+	{
 		name: "add_comment",
 		title: "Comment on a page",
 		description:

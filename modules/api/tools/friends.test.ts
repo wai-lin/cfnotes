@@ -67,6 +67,39 @@ describe("a friend's token", () => {
 		expect(await read(friend)).toMatchObject({ access: "comment" });
 	});
 
+	it("lists the comment threads they can see, and those that mention them", async () => {
+		await using app = cfnotes();
+		const { owner, friend, plan, secret } = await setUp(app);
+		await owner("add_comment", { page_id: secret, body: "Not for friends" });
+		await owner("add_comment", { page_id: plan, body: "Any thoughts?" });
+		const asked = (
+			await owner("add_comment", {
+				page_id: plan,
+				body: `[@Friend](mailto:${FRIEND}) can you book it?`,
+			})
+		).data;
+		const listed = (await friend("list_comments", {})).data;
+		expect(listed).toMatchObject({ total: 2, nextOffset: null });
+		expect(listed.threads[0]).toMatchObject({ id: asked.id, page: { id: plan, title: "Plan" } });
+		const mine = (await friend("list_comments", { mentions_me: true })).data;
+		expect(mine.threads.map((t: Json) => t.id)).toEqual([asked.id]);
+		// The owner sees theirs too; resolved ones only when asked for.
+		expect((await owner("list_comments", { limit: 1 })).data).toMatchObject({
+			total: 3,
+			nextOffset: 1,
+		});
+		await friend("resolve_thread", { page_id: plan, thread_id: asked.id });
+		expect((await friend("list_comments", {})).data.total).toBe(1);
+		const resolved = (await friend("list_comments", { status: "resolved" })).data;
+		expect(resolved.threads.map((t: Json) => t.id)).toEqual([asked.id]);
+		// Over REST too.
+		const token = await app.token("read", FRIEND);
+		const rest = (await (
+			await app.api(token, "/api/v1/comments?status=all&mentions=me")
+		).json()) as Json;
+		expect(rest.threads.map((t: Json) => t.id)).toEqual([asked.id]);
+	});
+
 	it("makes and changes things only in folders shared with them to edit", async () => {
 		await using app = cfnotes();
 		const { owner, friend, trip, mine, plan, secret } = await setUp(app);
