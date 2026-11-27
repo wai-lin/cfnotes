@@ -791,10 +791,11 @@ a.new-page {
 	min-width: 0;
 }
 
+/* About 710px of text on a wide screen (75 to 80 characters a line); the sides narrow before the text does. */
 .page {
-	max-width: 760px;
+	max-width: 900px;
 	margin: 0 auto;
-	padding: 12px 96px 30vh;
+	padding: 12px clamp(48px, 8vw, 96px) 30vh;
 }
 
 .page-bar {
