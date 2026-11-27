@@ -8,7 +8,16 @@ import type { DatabaseState } from "#modules/database/columns.ts";
 import type { Access } from "#modules/sharing/roles.ts";
 
 type PageUrls = Record<
-	"save" | "title" | "linkPage" | "dbOp" | "synced" | "comments" | "icon" | "cover" | "remove",
+	| "save"
+	| "title"
+	| "linkPage"
+	| "dbOp"
+	| "synced"
+	| "comments"
+	| "icon"
+	| "cover"
+	| "remove"
+	| "lock",
 	string
 >;
 
@@ -20,6 +29,7 @@ export function pageView({
 	backlinks,
 	access = "owner",
 	canTrash = access === "owner",
+	lock = null,
 	comments,
 	urls,
 }: {
@@ -38,6 +48,8 @@ export function pageView({
 	access?: Access;
 	/** Whether Delete shows: an owner's, or a friend's who may edit where the page lives. */
 	canTrash?: boolean;
+	/** What locks it, nearest first: itself, what holds it, or a folder above it. */
+	lock?: { kind: string; id: string | null; name: string | null } | null;
 	/** The page's threads, and who is reading (`null`: no one signed in). */
 	comments: { threads: readonly Thread[]; me: string | null };
 	urls: PageUrls;
@@ -121,6 +133,19 @@ export function pageView({
 								>${access === "comment" ? "Can comment" : "View only"}</span
 							>`
 				}
+				${
+					lock
+						? html`<span
+								class="page-access page-locked"
+								title="${
+									lock.id === page.id
+										? "Locked: only an owner can change it"
+										: `Locked by ${lock.kind === "folder" ? "the folder" : ""} “${lock.name || "Untitled"}”`
+								}"
+								>${raw(icon("lock", 12))} Locked</span
+							>`
+						: ""
+				}
 				<cf-comments
 					data-ignore
 					data-can="${access}"
@@ -133,6 +158,20 @@ export function pageView({
 						? html`<button class="ghost page-share" type="button" data-page-id="${page.id}">
 								Share
 							</button>`
+						: ""
+				}
+				${
+					access === "owner" && (!lock || lock.id === page.id)
+						? html`<form method="post" action="${urls.lock}">
+								<input type="hidden" name="locked" value="${lock ? "false" : "true"}" />
+								<button
+									class="ghost"
+									type="submit"
+									title="${lock ? "Let the people it's shared with change it again" : "Stop the people it's shared with from changing it"}"
+								>
+									${lock ? "Unlock" : "Lock"}
+								</button>
+							</form>`
 						: ""
 				}
 				<button class="ghost page-export" type="button" title="Export as PDF">Export PDF</button>

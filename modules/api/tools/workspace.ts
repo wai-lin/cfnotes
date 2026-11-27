@@ -2,7 +2,17 @@
 import { Effect } from "effect";
 
 import * as Organize from "../organize.ts";
-import { adds, changes, object, pageId, readOnly, str, string, type Tool } from "./tool.ts";
+import {
+	boolean,
+	adds,
+	changes,
+	object,
+	pageId,
+	readOnly,
+	str,
+	string,
+	type Tool,
+} from "./tool.ts";
 
 const folderId = string("The folder's id (see list_folders).");
 const parent = {
@@ -49,16 +59,25 @@ export const WORKSPACE_TOOLS: Tool[] = [
 		name: "update_folder",
 		title: "Change a folder",
 		description:
-			"Renames a folder, or moves it inside another (or to the top level). Answers with it.",
-		inputSchema: object({ folder_id: folderId, name: string("A new name."), parent_id: parent }, [
-			"folder_id",
-		]),
+			"Renames a folder, moves it inside another (or to the top level), or locks it. Answers with it.",
+		inputSchema: object(
+			{
+				folder_id: folderId,
+				name: string("A new name."),
+				parent_id: parent,
+				locked: boolean(
+					"Owners only: true locks it and everything in it, so the people it's shared with can read and comment but not change, move or delete anything there; false unlocks it.",
+				),
+			},
+			["folder_id"],
+		),
 		annotations: { ...changes, destructiveHint: false },
 		write: true,
 		run: (args) =>
 			Organize.updateFolder(str(args.folder_id) ?? "", {
 				name: str(args.name),
 				parentId: args.parent_id === undefined ? undefined : nullable(args.parent_id),
+				locked: typeof args.locked === "boolean" ? args.locked : undefined,
 			}),
 	},
 	{

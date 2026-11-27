@@ -11,6 +11,7 @@ import { BadRequest, Forbidden, NotFound } from "spacefn";
 import { Id } from "#lib/ids.ts";
 import { normalize } from "#modules/auth/access.ts";
 import * as Sessions from "#modules/auth/sessions.ts";
+import type { FolderRow } from "#modules/sidebar/tree.ts";
 import MainDb from "#space/db/main.ts";
 
 import { atLeast, folderRoles, ROLES, roleOfRank, sharedTree, type Access } from "./roles.ts";
@@ -61,9 +62,20 @@ export const requireAccess = Effect.fn("Sharing.requireAccess")(function* (
 ) {
 	const access = yield* accessTo(id);
 	if (access === null) return yield* new NotFound({ message: "No such page" });
-	if (!atLeast(access, min)) return yield* new Forbidden({ message: DENIED[min] });
+	if (!atLeast(access, min)) {
+		// An editor held back by a lock is told so.
+		const lock =
+			min === "edit" ? Option.getOrUndefined(yield* MainDb.pages.findLock({ id })) : undefined;
+		return yield* new Forbidden({ message: lock ? lockedMessage(lock) : DENIED[min] });
+	}
 	return access;
 });
+
+/** Why a friend can't change something locked: what locks it. */
+export const lockedMessage = (lock: { kind: string; name: string | null }) =>
+	lock.kind === "folder"
+		? `It's in the locked folder "${lock.name ?? ""}": only an owner can change it`
+		: `"${lock.name || "Untitled"}" is locked: only an owner can change it`;
 
 /** Fails unless an owner is signed in. */
 export const requireOwner = Effect.gen(function* () {
@@ -99,13 +111,35 @@ export const requireFolder = Effect.fn("Sharing.requireFolder")(function* (
 	}
 	const access = (yield* folderAccessAll).get(id) ?? null;
 	if (access === null) return yield* new NotFound({ message: "No such folder" });
-	if (!atLeast(access, min))
-		return yield* new Forbidden({ message: "You can't change what's in that folder" });
+	if (!atLeast(access, min)) {
+		const lock = folderLock(yield* MainDb.folders.list(), id);
+		return yield* new Forbidden({
+			message:
+				lock && min === "edit"
+					? lockedMessage({ kind: "folder", name: lock.name })
+					: "You can't change what's in that folder",
+		});
+	}
 	return access;
 });
 
+/** The folder that locks folder `id`, nearest first: itself or one above it. */
+export const folderLock = (folders: readonly FolderRow[], id: string | null) => {
+	const byId = new Map(folders.map((folder) => [folder.id, folder]));
+	for (let at = id ? byId.get(id) : undefined, steps = 0; at && steps < 100; steps++) {
+		if (at.locked_at != null) return at;
+		at = at.parent_id ? byId.get(at.parent_id) : undefined;
+	}
+	return null;
+};
+
 /** Where a page lives: its database, the page holding it, or its folder (`null`, the top level). */
-type Home = { database_id: string | null; host_id: string | null; folder_id: string | null };
+type Home = {
+	id: string;
+	database_id: string | null;
+	host_id: string | null;
+	folder_id: string | null;
+};
 
 /**
  * Fails unless the signed-in person may change where `page` lives: move it
@@ -113,6 +147,10 @@ type Home = { database_id: string | null; host_id: string | null; folder_id: str
  * so a page shared with a friend on its own stays put.
  */
 export const requireHome = Effect.fn("Sharing.requireHome")(function* (page: Home) {
+	if ((yield* me)?.owner) return;
+	// A locked page stays where it is too.
+	const lock = Option.getOrUndefined(yield* MainDb.pages.findLock({ id: page.id }));
+	if (lock) return yield* new Forbidden({ message: lockedMessage(lock) });
 	const holder = page.database_id ?? page.host_id;
 	if (holder) {
 		const access = yield* accessTo(holder);

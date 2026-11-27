@@ -4,6 +4,8 @@ export interface FolderRow {
 	id: string;
 	parent_id: string | null;
 	name: string;
+	/** Set while it's locked: what's shared in it can't be changed by friends. */
+	locked_at?: number | null;
 }
 
 export interface PageRow {
@@ -14,6 +16,8 @@ export interface PageRow {
 	kind?: string;
 	/** Emoji shown in place of the default icon. */
 	icon?: string | null;
+	/** Set while it's locked. */
+	locked_at?: number | null;
 }
 
 export interface FolderNode {

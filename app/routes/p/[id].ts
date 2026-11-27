@@ -8,6 +8,7 @@ import * as Comments from "#modules/comments/comments.ts";
 import * as Database from "#modules/database/database.ts";
 import * as Pages from "#modules/pages/pages.ts";
 import { pageView } from "#modules/pages/views.ts";
+import * as Locks from "#modules/sharing/locks.ts";
 import * as Sharing from "#modules/sharing/sharing.ts";
 import { renderTree, sidebarActions, sidebarUrls } from "#modules/sidebar/actions.ts";
 import { navLink } from "#modules/sidebar/views.ts";
@@ -75,6 +76,16 @@ export default page({
 					return yield* Datastar.sse([Datastar.patchSignals({ _saving: false })]);
 				}),
 		}),
+		// An owner's Lock button, a form: back to the page.
+		lockPage: action({
+			input: Schema.Struct({ locked: Schema.Literals(["true", "false"]) }),
+			handler: ({ locked }) =>
+				Effect.gen(function* () {
+					const pageId = yield* id;
+					yield* Locks.setLock({ kind: "page", id: pageId, locked: locked === "true" });
+					return redirect(`/p/${pageId}`);
+				}),
+		}),
 		remove: action({
 			input: Schema.Struct({}),
 			handler: () => Effect.map(Effect.flatMap(id, Pages.remove), (to) => redirect(to)),
@@ -123,6 +134,7 @@ export default page({
 				backlinks: data.backlinks,
 				access: data.access,
 				canTrash: data.canTrash,
+				lock: data.lock,
 				comments: { threads: data.threads, me: data.me },
 				urls: {
 					save: actions.save.url,
@@ -134,6 +146,7 @@ export default page({
 					icon: actions.icon.url,
 					cover: actions.cover.url,
 					remove: actions.remove.url,
+					lock: actions.lockPage.url,
 				},
 			}),
 		}),

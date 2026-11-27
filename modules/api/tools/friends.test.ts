@@ -43,7 +43,7 @@ describe("a friend's token", () => {
 		const pages = (await friend("list_pages", {})).data.pages as Json[];
 		expect(pages.map((p) => p.title)).toEqual(["Plan"]);
 		expect((await friend("list_folders", {})).data.folders).toEqual([
-			{ id: trip.id, name: "Trip", parentId: null, path: "Trip", access: "view" },
+			{ id: trip.id, name: "Trip", parentId: null, path: "Trip", locked: false, access: "view" },
 		]);
 		expect((await friend("search", { query: "Hidden" })).data.results).toEqual([]);
 		expect((await friend("read_page", { page_id: plan })).error).toBe(false);

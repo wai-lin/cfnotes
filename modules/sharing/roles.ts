@@ -22,7 +22,8 @@ export const isRole = (value: unknown): value is Role =>
 
 /**
  * What a friend may do in each folder: the most that a share on it, or on a
- * folder above it, allows. Folders they can't see are left out.
+ * folder above it, allows, but at most commenting when it or a folder above
+ * it is locked. Folders they can't see are left out.
  */
 export function folderRoles(
 	shares: readonly { target_kind: string; target_id: string; role: string }[],
@@ -33,17 +34,21 @@ export function folderRoles(
 		if (share.target_kind !== "folder" || !isRole(share.role)) continue;
 		direct.set(share.target_id, Math.max(direct.get(share.target_id) ?? 0, RANK[share.role]));
 	}
-	const parent = new Map(folders.map((folder) => [folder.id, folder.parent_id]));
+	const byId = new Map(folders.map((folder) => [folder.id, folder]));
 	const out = new Map<string, Role>();
 	for (const folder of folders) {
 		let rank = 0;
+		let locked = false;
 		// Bounded, in case the folders ever loop.
 		for (
-			let at: string | null | undefined = folder.id, steps = 0;
+			let at: FolderRow | undefined = folder, steps = 0;
 			at && steps < 100;
-			at = parent.get(at), steps++
-		)
-			rank = Math.max(rank, direct.get(at) ?? 0);
+			at = at.parent_id ? byId.get(at.parent_id) : undefined, steps++
+		) {
+			rank = Math.max(rank, direct.get(at.id) ?? 0);
+			locked ||= at.locked_at != null;
+		}
+		if (locked) rank = Math.min(rank, RANK.comment);
 		if (rank > 0) out.set(folder.id, roleOfRank(rank));
 	}
 	return out;

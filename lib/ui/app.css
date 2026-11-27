@@ -446,6 +446,20 @@ button {
 	opacity: 1;
 }
 
+/* A locked page or folder (see modules/sharing/locks.ts). */
+.tree-lock {
+	display: grid;
+	flex: none;
+	place-items: center;
+	margin-right: 6px;
+	color: var(--faint);
+}
+
+.tree-page:hover:has(.page-more) .tree-lock,
+.tree-page:has(.page-more.is-open) .tree-lock {
+	visibility: hidden;
+}
+
 .tree-page:hover .nav-link,
 .tree-page:has(.is-open) .nav-link {
 	padding-right: 30px;

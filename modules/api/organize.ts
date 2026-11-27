@@ -7,6 +7,7 @@ import { Effect, Option, Schema } from "effect";
 import { BadRequest, NotFound } from "spacefn";
 
 import { isId } from "#lib/ids.ts";
+import * as Locks from "#modules/sharing/locks.ts";
 import * as Sharing from "#modules/sharing/sharing.ts";
 import * as Sidebar from "#modules/sidebar/sidebar.ts";
 import * as Trash from "#modules/trash/trash.ts";
@@ -61,9 +62,15 @@ export const createFolder = Effect.fn("Organize.createFolder")(function* (
 /** Renames a folder and moves it under another (or to the top level: `null`). */
 export const updateFolder = Effect.fn("Organize.updateFolder")(function* (
 	id: string,
-	changes: { name?: string | undefined; parentId?: string | null | undefined },
+	changes: {
+		name?: string | undefined;
+		parentId?: string | null | undefined;
+		locked?: boolean | undefined;
+	},
 ) {
 	yield* folder(id);
+	if (changes.locked !== undefined)
+		yield* Locks.setLock({ kind: "folder", id, locked: changes.locked });
 	if (changes.parentId) yield* folder(changes.parentId);
 	if (changes.name !== undefined) yield* Sidebar.renameFolder({ id, name: changes.name });
 	if (changes.parentId !== undefined)

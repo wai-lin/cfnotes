@@ -27,6 +27,7 @@ import { databaseState, runOp } from "#modules/database/database.ts";
 import { applyView, opsFor, type Filter, type Sort, type View } from "#modules/database/view.ts";
 import * as Pages from "#modules/pages/pages.ts";
 import * as Search from "#modules/search/search.ts";
+import * as Locks from "#modules/sharing/locks.ts";
 import type { Access } from "#modules/sharing/roles.ts";
 import * as Sharing from "#modules/sharing/sharing.ts";
 import * as Trash from "#modules/trash/trash.ts";
@@ -444,6 +445,7 @@ export const listFolders = Effect.gen(function* () {
 		name: f.name,
 		parentId: f.parent_id,
 		path: path(f.id),
+		locked: f.locked_at != null,
 		// A friend's role in it; owners may do anything anywhere.
 		...(owner ? {} : { access: access.get(f.id) }),
 	}));
@@ -495,6 +497,8 @@ export const getPage = Effect.fn("Api.getPage")(function* (
 		folderId: page.folder_id,
 		database: database ? { id: database.id, title: database.title } : null,
 		properties: database && row ? propertiesOf(database, row, refs) : null,
+		/** What locks it for the people it's shared with: itself, what holds it, or a folder above it. */
+		lock: Option.getOrNull(yield* MainDb.pages.findLock({ id })),
 		/** The pages that link to this one. */
 		backlinks: (yield* Sharing.visible(yield* MainDb.links.listBacklinks({ id }))).map((link) => ({
 			id: link.id,
@@ -723,6 +727,8 @@ export const PageChanges = Schema.Struct({
 	/** A gradient (`g1`…`g6`), an uploaded image (its `/files/img/…` path or URL), or empty to remove it. */
 	cover: Schema.optional(Schema.String),
 	properties: PropertiesInput,
+	/** Locks it (or unlocks it) for the people it's shared with. An owner's. */
+	locked: Schema.optional(Schema.Boolean),
 });
 
 /** A cover as the page stores it, or why it can't be one. */
@@ -822,6 +828,14 @@ export const updatePage = Effect.fn("Api.updatePage")(function* (
 	id: string,
 	input: typeof PageChanges.Type,
 ) {
+	// Only locking needs no edit: an owner may do anything, and a friend neither.
+	const onlyLock = Object.entries(input).every(
+		([key, value]) => key === "locked" || value === undefined,
+	);
+	if (onlyLock && input.locked !== undefined) {
+		yield* livePage(id);
+		return yield* Locks.setLock({ kind: "page", id, locked: input.locked });
+	}
 	const page = yield* livePage(id, "edit");
 	if (page.kind === "database" && (input.markdown ?? input.doc ?? input.append) !== undefined)
 		return yield* bad("A database has rows, not content");
@@ -835,6 +849,7 @@ export const updatePage = Effect.fn("Api.updatePage")(function* (
 		if (!page.database_id) return yield* bad("Only database rows have properties");
 		yield* setProperties(page.database_id, id, input.properties);
 	}
+	if (input.locked !== undefined) yield* Locks.setLock({ kind: "page", id, locked: input.locked });
 });
 
 /** Adds blocks (the editor's nodes) to the end of a page's content. */

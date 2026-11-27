@@ -80,3 +80,21 @@ describe("folderRoles", () => {
 		expect(roles.size).toBe(0);
 	});
 });
+
+describe("folderRoles with locks", () => {
+	it("lets a friend at most comment in a locked folder and below it", () => {
+		const folders = [
+			{ id: "a", parent_id: null, name: "A" },
+			{ id: "b", parent_id: "a", name: "B", locked_at: 1 },
+			{ id: "c", parent_id: "b", name: "C" },
+		];
+		const share = { target_kind: "folder", target_id: "a", role: "edit" };
+		expect([...folderRoles([share], folders)]).toEqual([
+			["a", "edit"],
+			["b", "comment"],
+			["c", "comment"],
+		]);
+		const viewer = { ...share, role: "view" };
+		expect(folderRoles([viewer], folders).get("c")).toBe("view");
+	});
+});

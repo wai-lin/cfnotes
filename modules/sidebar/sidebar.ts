@@ -135,7 +135,8 @@ export const renameFolder = Effect.fn("Sidebar.renameFolder")(function* (
 export const deleteFolder = Effect.fn("Sidebar.deleteFolder")(function* ({
 	id,
 }: typeof FolderRef.Type) {
-	yield* Sharing.requireFolder(id, "view");
+	// It goes, and what's in it moves out of it: an edit of it (so not when it's locked).
+	yield* Sharing.requireFolder(id);
 	const { folders } = yield* folderTarget(id);
 	const folder = folders.find((f) => f.id === id)!;
 	const parentId = folder.parent_id;
@@ -200,7 +201,7 @@ export const move = Effect.fn("Sidebar.move")(function* ({ kind, id, folderId }:
 		yield* MainDb.pages.move({ id, folderId: target.id });
 		return;
 	}
-	yield* Sharing.requireFolder(id, "view");
+	yield* Sharing.requireFolder(id);
 	if (!target.folders.some((folder) => folder.id === id)) return yield* bad("No such folder");
 	yield* mayLeave(target.folders.find((folder) => folder.id === id)!.parent_id);
 	// A folder can't go inside itself or one of its own subfolders.

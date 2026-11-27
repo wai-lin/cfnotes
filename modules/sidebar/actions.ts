@@ -9,6 +9,7 @@ import { HttpServerResponse } from "effect/http";
 import { action, actionUrl, Input, redirect } from "spacefn";
 
 import { fragment, json } from "#lib/responses.ts";
+import * as Locks from "#modules/sharing/locks.ts";
 import * as Sharing from "#modules/sharing/sharing.ts";
 
 import * as Sidebar from "./sidebar.ts";
@@ -73,6 +74,11 @@ export const sidebarActions = {
 	restorePage: action({
 		input: Sidebar.RestorePage,
 		handler: (input) => Effect.andThen(Sidebar.restorePage(input), treeResponse),
+	}),
+	// An owner's: what the people it's shared with may no longer change.
+	lock: action({
+		input: Locks.Lock,
+		handler: (input) => Effect.andThen(Locks.setLock(input), treeResponse),
 	}),
 	// Who a page or folder is shared with, from the Share dialog.
 	share: action({

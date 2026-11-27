@@ -48,11 +48,24 @@ interface TreeOptions {
 const mayEdit = (id: string | null, { guest, editable }: TreeOptions) =>
 	!guest || (id !== null && (editable?.has(id) ?? false));
 
+/** Marks a locked page or folder in the tree. */
+const lockMark = (locked: boolean) =>
+	locked ? html`<span class="tree-lock" title="Locked">${svg("lock", 14)}</span>` : "";
+
 function pageItem(page: PageRow, activeId?: string, options: TreeOptions = {}): Html {
-	if (!mayEdit(page.folder_id, options))
-		return html`<div class="tree-page" data-page="${page.id}">${navLink(page, activeId)}</div>`;
-	return html`<div class="tree-page" data-page="${page.id}" draggable="true">
-		${navLink(page, activeId)}
+	const locked = page.locked_at != null;
+	// A friend can't move or delete a locked page, even in a folder they edit.
+	if (!mayEdit(page.folder_id, options) || (options.guest && locked))
+		return html`<div class="tree-page" data-page="${page.id}" data-locked="${locked ? "true" : ""}">
+			${navLink(page, activeId)}${lockMark(locked)}
+		</div>`;
+	return html`<div
+		class="tree-page"
+		data-page="${page.id}"
+		data-locked="${locked ? "true" : ""}"
+		draggable="true"
+	>
+		${navLink(page, activeId)}${lockMark(locked)}
 		<button class="row-btn page-more" type="button" aria-label="Page options" title="More">
 			${svg("dots")}
 		</button>
@@ -70,12 +83,13 @@ function folderItem(
 	const empty = node.folders.length === 0 && node.pages.length === 0;
 	const editable = mayEdit(id, options);
 	// Taking it out of its parent is an edit of that: a folder shared with a friend stays put.
-	const movable = mayEdit(node.folder.parent_id, options);
+	const movable = editable && mayEdit(node.folder.parent_id, options);
 	return html`<div
 		class="tree-folder${isOpen ? " is-open" : ""}"
 		data-folder="${id}"
 		data-editable="${editable ? "true" : ""}"
 		data-movable="${movable ? "true" : ""}"
+		data-locked="${node.folder.locked_at != null ? "true" : ""}"
 	>
 		<div class="tree-row folder-row" draggable="${movable ? "true" : "false"}">
 			<button
@@ -88,7 +102,7 @@ function folderItem(
 			</button>
 			<span class="folder-icon">${svg("folder")}${svg("folderOpen")}</span>
 			<span class="folder-name">${name}</span>
-			${editable ? folderActions(id, name) : ""}
+			${lockMark(node.folder.locked_at != null)} ${editable ? folderActions(id, name) : ""}
 		</div>
 		<div class="folder-children" role="group">
 			${node.folders.map((child) => folderItem(child, open, activeId, options))}

@@ -4,6 +4,7 @@ import { Effect } from "effect";
 import * as Api from "../api.ts";
 import * as Sections from "../sections.ts";
 import {
+	boolean,
 	adds,
 	array,
 	changes,
@@ -45,6 +46,7 @@ export const pageText = (
 		...(page.folderId ? { folderId: page.folderId } : {}),
 		...(page.cover ? { cover: page.cover } : {}),
 		...(page.backlinks.length > 0 ? { linkedFrom: page.backlinks } : {}),
+		...(page.lock ? { lockedBy: page.lock } : {}),
 	};
 	const parts = [
 		`# ${page.icon ? `${page.icon} ` : ""}${page.title || "Untitled"}`,
@@ -250,6 +252,9 @@ export const PAGE_TOOLS: Tool[] = [
 				cover: string(
 					"g1 to g6 for a gradient, an uploaded image (its /files/img/… path or URL, e.g. from a files property), or empty to remove it.",
 				),
+				locked: boolean(
+					"Owners only: true locks it (and, for a database, its rows) so the people it's shared with can read and comment but not change, move or delete it; false unlocks it.",
+				),
 			},
 			["page_id"],
 		),
@@ -265,6 +270,7 @@ export const PAGE_TOOLS: Tool[] = [
 					icon: str(args.icon),
 					cover: str(args.cover),
 					properties: record(args.properties),
+					locked: typeof args.locked === "boolean" ? args.locked : undefined,
 				});
 				return yield* pageNow(id);
 			}),

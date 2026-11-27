@@ -46,6 +46,7 @@ import letterCase from "@tabler/icons/outline/letter-case.svg?raw";
 import link from "@tabler/icons/outline/link.svg?raw";
 import listNumbers from "@tabler/icons/outline/list-numbers.svg?raw";
 import list from "@tabler/icons/outline/list.svg?raw";
+import lock from "@tabler/icons/outline/lock.svg?raw";
 import mail from "@tabler/icons/outline/mail.svg?raw";
 import mathFunction from "@tabler/icons/outline/math-function.svg?raw";
 import menu from "@tabler/icons/outline/menu-2.svg?raw";
@@ -76,6 +77,7 @@ import world from "@tabler/icons/outline/world.svg?raw";
 import x from "@tabler/icons/outline/x.svg?raw";
 
 const SOURCES = {
+	lock,
 	gripVertical,
 	layoutGrid,
 	layoutKanban,

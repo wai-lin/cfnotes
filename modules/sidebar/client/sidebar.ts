@@ -65,6 +65,17 @@ function init() {
 	/** Whether the reader may add to folder `id` and change what's in it (`null`: the top level). */
 	const mayEdit = (id: string | null) =>
 		!guest || (id !== null && folderEl(id)?.dataset.editable === "true");
+	const pageEl = (id: string) =>
+		nav.querySelector<HTMLElement>(`.tree-page[data-page="${CSS.escape(id)}"]`);
+	/** An owner's Lock (or Unlock): the people it's shared with can't change it, or what's in it. */
+	const lockItem = (kind: Kind, id: string, locked: boolean): MenuItem => ({
+		label: locked ? "Unlock" : "Lock",
+		run: () => {
+			void act("lock", { kind, id, locked: !locked }).then((ok) => {
+				if (ok && location.pathname === `/p/${id}`) location.reload();
+			});
+		},
+	});
 	/** Whether the reader may move or delete folder `id` (an edit of its parent). */
 	const mayMove = (id: string) => !guest || folderEl(id)?.dataset.movable === "true";
 
@@ -398,6 +409,7 @@ function init() {
 			},
 			{ label: "New folder", run: () => newFolder(id) },
 			{ label: "Rename", run: () => rename(id) },
+			{ ...lockItem("folder", id, folderEl(id)?.dataset.locked === "true"), owner: true },
 			{
 				label: "Share…",
 				owner: true,
@@ -446,6 +458,7 @@ function init() {
 							run: () => openShareDialog({ kind: "page", id, title, path: paths.share! }),
 						},
 					]),
+			...(guest ? [] : [lockItem("page", id, pageEl(id)?.dataset.locked === "true")]),
 			{ label: "Move to…", run: () => openMenu(at, "Move to", folderChoices("page", id)) },
 			{ label: "Delete", danger: true, run: () => void deletePage(id) },
 		]);

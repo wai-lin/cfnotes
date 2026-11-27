@@ -59,7 +59,8 @@ export const view = Effect.fn("Pages.view")(function* (id: string) {
 	const table = page.kind === "database" ? yield* databaseState(id) : null;
 	// Delete is for an owner, or a friend who may edit where it lives.
 	const canTrash = access === "owner" || (yield* Sharing.mayRehome(page));
-	return { page, backlinks, parent, table, access, canTrash };
+	const lock = Option.getOrNull(yield* MainDb.pages.findLock({ id }));
+	return { page, backlinks, parent, table, access, canTrash, lock };
 });
 
 /** Where a page in Trash sends the reader: Trash for an owner, the workspace for a friend. */
