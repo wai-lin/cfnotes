@@ -189,6 +189,15 @@ export function pageView({
 							</form>`
 						: ""
 				}
+				<button
+					class="ghost page-bar-more"
+					type="button"
+					aria-label="More"
+					title="More"
+					aria-haspopup="menu"
+				>
+					${raw(icon("dots"))}
+				</button>
 			</header>
 			<div
 				class="page-head"

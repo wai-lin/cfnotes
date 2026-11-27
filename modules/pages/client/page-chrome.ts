@@ -4,6 +4,7 @@
  * Server state lives in the `icon` and `cover` page actions (`.page-head` data).
  */
 
+import { icon, type IconName } from "#lib/icons.ts";
 import { alertDialog } from "#lib/ui/dialog.ts";
 
 import type { NotesEditorElement } from "./notes-editor.ts";
@@ -209,6 +210,71 @@ function setup(head: HTMLElement): void {
 
 const head = document.querySelector<HTMLElement>(".page-head");
 if (head) setup(head);
+
+/**
+ * On a phone the page bar keeps its crumb and save status, and "More" holds
+ * the rest: each entry clicks the button it stands for, hidden there.
+ */
+function moreMenu(more: HTMLElement): void {
+	const bar = more.closest<HTMLElement>(".page-bar");
+	if (!bar) return;
+	more.addEventListener("click", () => {
+		const shown = document.querySelector(".chrome-pop.page-menu");
+		if (shown) return void shown.remove();
+		const entries: { label: string; icon: IconName; run?: HTMLElement; danger?: boolean }[] = [];
+		const locked = bar.querySelector<HTMLElement>(".page-locked");
+		if (locked) entries.push({ label: locked.title || "Locked", icon: "lock" });
+		const comments = bar.querySelector<HTMLElement>(".cm-toggle");
+		if (comments) {
+			const count = comments.querySelector(".cm-count")?.textContent;
+			entries.push({
+				label: count ? `Comments (${count})` : "Comments",
+				icon: "messageCircle",
+				run: comments,
+			});
+		}
+		const share = bar.querySelector<HTMLElement>(".page-share");
+		if (share) entries.push({ label: "Share", icon: "user", run: share });
+		for (const form of bar.querySelectorAll<HTMLFormElement>("form")) {
+			const button = form.querySelector<HTMLElement>("button[type=submit]");
+			const label = button?.textContent?.trim() ?? "";
+			if (!button || !label) continue;
+			const isDelete = label === "Delete";
+			entries.push({
+				label,
+				icon: isDelete ? "trash" : "lock",
+				run: button,
+				danger: isDelete,
+			});
+		}
+		const exporter = bar.querySelector<HTMLElement>(".page-export");
+		if (exporter) entries.push({ label: "Export PDF", icon: "download", run: exporter });
+		// Delete last, as menus put it.
+		entries.sort((a, b) => Number(a.danger ?? false) - Number(b.danger ?? false));
+
+		const pop = popover("page-menu", more);
+		pop.setAttribute("role", "menu");
+		for (const entry of entries) {
+			const item = document.createElement(entry.run ? "button" : "div");
+			item.className = `db-menu-item${entry.danger ? " is-danger" : ""}${entry.run ? "" : " page-menu-note"}`;
+			if (item instanceof HTMLButtonElement) {
+				item.type = "button";
+				item.setAttribute("role", "menuitem");
+			}
+			item.innerHTML = icon(entry.icon, 16);
+			item.append(Object.assign(document.createElement("span"), { textContent: entry.label }));
+			if (entry.run) {
+				const target = entry.run;
+				item.addEventListener("click", () => target.click());
+			}
+			pop.append(item);
+		}
+		pop.querySelector<HTMLElement>("button")?.focus();
+	});
+}
+
+const more = document.querySelector<HTMLElement>(".page-bar .page-bar-more");
+if (more) moreMenu(more);
 
 /**
  * Export PDF: the browser's print dialog (choose "Save as PDF"), with the print

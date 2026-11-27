@@ -876,8 +876,21 @@ a.new-page {
 	.page {
 		padding: 8px 16px 30vh;
 	}
+	/* Room for the sidebar's button; "More" holds all but the crumb and the save status. */
 	.page-bar {
 		margin-bottom: 24px;
+		padding-left: 40px;
+	}
+	.is-embed .page-bar {
+		padding-left: 0;
+	}
+	.page-bar > :not(.crumb, .status, .page-access, .page-bar-more, cf-comments),
+	.page-bar .cm-toggle,
+	.page-bar .page-locked {
+		display: none;
+	}
+	.page-bar .page-bar-more {
+		display: inline-flex;
 	}
 	.page-title {
 		display: none;
@@ -2372,6 +2385,27 @@ a.db-rel:hover {
 	box-shadow: var(--shadow);
 	border-radius: 8px;
 	padding: 8px;
+}
+
+.page-bar-more {
+	display: none;
+	color: var(--muted);
+}
+
+.page-menu {
+	min-width: 200px;
+	max-width: calc(100vw - 16px);
+	padding: 4px;
+}
+
+.page-menu-note {
+	color: var(--muted);
+	font-size: 13px;
+	cursor: default;
+}
+
+.page-menu-note:hover {
+	background: none;
 }
 
 .icon-grid {
