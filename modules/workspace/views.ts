@@ -62,15 +62,18 @@ export function shell(options: {
 	guest?: boolean;
 	/** A friend's folders shared with them to edit, where they may make and move things. */
 	editable?: readonly string[];
+	/** A database row's popup: the page alone, its links opening in the window around it. */
+	embed?: boolean;
 	/** The sidebar's actions on the page being shown. */
 	urls: Record<string, string> & { create: string; createDatabase: string };
 	body: Html;
 }): Html {
 	const guest = options.guest ?? false;
 	return html`<!doctype html>
-		<html lang="en">
+		<html lang="en" class="${options.embed ? "is-embed" : ""}">
 			<head>
 				<meta charset="utf-8" />
+				${options.embed ? html`<base target="_top" />` : ""}
 				<meta name="viewport" content="width=device-width, initial-scale=1" />
 				<title>${options.title} · cfnotes</title>
 				<link rel="icon" href="/favicon.svg" />

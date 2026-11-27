@@ -27,6 +27,7 @@ export default page({
 			threads: yield* Comments.threads(view.page.id),
 			me: yield* Sessions.editor,
 			user: yield* Sessions.requireUser,
+			embed: yield* Pages.embedded,
 			...(yield* Sharing.workspace),
 		};
 	}),
@@ -83,7 +84,7 @@ export default page({
 				Effect.gen(function* () {
 					const pageId = yield* id;
 					yield* Locks.setLock({ kind: "page", id: pageId, locked: locked === "true" });
-					return redirect(`/p/${pageId}`);
+					return redirect(`/p/${pageId}${(yield* Pages.embedded) ? "?embed=1" : ""}`);
 				}),
 		}),
 		remove: action({
@@ -125,6 +126,7 @@ export default page({
 			index: data.index,
 			guest: data.guest,
 			editable: data.editable,
+			embed: data.embed,
 			activeId: data.page.id,
 			urls: sidebarUrls,
 			body: pageView({
@@ -135,6 +137,7 @@ export default page({
 				access: data.access,
 				canTrash: data.canTrash,
 				lock: data.lock,
+				embed: data.embed,
 				comments: { threads: data.threads, me: data.me },
 				urls: {
 					save: actions.save.url,

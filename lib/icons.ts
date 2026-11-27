@@ -6,6 +6,7 @@ import arrowLeft from "@tabler/icons/outline/arrow-left.svg?raw";
 import arrowRight from "@tabler/icons/outline/arrow-right.svg?raw";
 import arrowUpRight from "@tabler/icons/outline/arrow-up-right.svg?raw";
 import arrowUp from "@tabler/icons/outline/arrow-up.svg?raw";
+import arrowsDiagonal from "@tabler/icons/outline/arrows-diagonal.svg?raw";
 import arrowsSort from "@tabler/icons/outline/arrows-sort.svg?raw";
 import bold from "@tabler/icons/outline/bold.svg?raw";
 import bookmark from "@tabler/icons/outline/bookmark.svg?raw";
@@ -86,6 +87,7 @@ const SOURCES = {
 	archive,
 	arrowBackUp,
 	arrowsSort,
+	arrowsDiagonal,
 	filter,
 	arrowUp,
 	arrowDown,

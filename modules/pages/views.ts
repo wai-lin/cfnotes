@@ -30,6 +30,7 @@ export function pageView({
 	access = "owner",
 	canTrash = access === "owner",
 	lock = null,
+	embed = false,
 	comments,
 	urls,
 }: {
@@ -50,6 +51,8 @@ export function pageView({
 	canTrash?: boolean;
 	/** What locks it, nearest first: itself, what holds it, or a folder above it. */
 	lock?: { kind: string; id: string | null; name: string | null } | null;
+	/** Shown in a row's popup, where links open in the window around it (but Lock stays). */
+	embed?: boolean;
 	/** The page's threads, and who is reading (`null`: no one signed in). */
 	comments: { threads: readonly Thread[]; me: string | null };
 	urls: PageUrls;
@@ -162,7 +165,11 @@ export function pageView({
 				}
 				${
 					access === "owner" && (!lock || lock.id === page.id)
-						? html`<form method="post" action="${urls.lock}">
+						? html`<form
+								method="post"
+								action="${embed ? `?embed=1&${urls.lock.slice(1)}` : urls.lock}"
+								target="_self"
+							>
 								<input type="hidden" name="locked" value="${lock ? "false" : "true"}" />
 								<button
 									class="ghost"

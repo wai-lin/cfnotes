@@ -23,6 +23,27 @@ describe("pages", () => {
 		expect(await (await app.fetch(path)).text()).toContain("<notes-editor");
 	});
 
+	it("shows a page alone in a popup's frame, whose links open around it", async () => {
+		await using app = cfnotes();
+		const { path } = await app.open();
+		const full = await (await app.fetch(path)).text();
+		expect(full).not.toContain("is-embed");
+		expect(full).not.toContain("<base");
+		const embed = await (await app.fetch(`${path}?embed=1`)).text();
+		expect(embed).toContain('class="is-embed"');
+		expect(embed).toContain('<base target="_top" />');
+		expect(embed).toContain("<notes-editor");
+		// Lock stays in the popup: its form posts there, and comes back to it.
+		expect(embed).toContain('action="?embed=1&amp;__action=lockPage"');
+		const locked = await app.fetch(`${path}?embed=1&__action=lockPage`, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ locked: "true" }),
+		});
+		expect(locked.status).toBe(303);
+		expect(locked.headers.get("location")).toBe(`${path}?embed=1`);
+	});
+
 	it("saves the document and finds it by its text", async () => {
 		await using app = cfnotes();
 		const { path, id } = await app.open();

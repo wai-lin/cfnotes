@@ -11,6 +11,7 @@ import { icon, type IconName } from "#lib/icons.ts";
  * Inside the editor it keeps its events to itself so Lexical doesn't act on them.
  */
 import { alertDialog, confirmDialog } from "#lib/ui/dialog.ts";
+import { openPage, peekOnClick } from "#modules/pages/client/peek.ts";
 import { archivedToast } from "#modules/trash/client/undo.ts";
 import { setIndexTitle } from "#modules/workspace/client/page-directory.ts";
 
@@ -910,6 +911,7 @@ export class DatabaseView extends HTMLElement {
 			cell.append(h("span", "db-text", row.title));
 			const open = withIcon(h("a", "db-open"), "arrowUpRight", "Open", 13);
 			open.href = `/p/${row.id}`;
+			peekOnClick(open, row.id);
 			cell.append(open);
 			return;
 		}
@@ -1546,7 +1548,7 @@ export class DatabaseView extends HTMLElement {
 		item.tabIndex = 0;
 		const open = (e: Event) => {
 			if ((e.target as Element).closest("a[href], input, button")) return;
-			location.assign(`/p/${row.id}`);
+			openPage(row.id, e);
 		};
 		item.addEventListener("click", open);
 		item.addEventListener("keydown", (e) => {
@@ -2144,7 +2146,7 @@ export class DatabaseView extends HTMLElement {
 				bar.classList.remove("is-dragging");
 				if (e.type === "pointercancel") return place(span.start, span.end);
 				if (shift === 0) {
-					if (mode === "move") location.assign(`/p/${row.id}`);
+					if (mode === "move") openPage(row.id, e);
 					return;
 				}
 				const n = next();
@@ -2162,7 +2164,7 @@ export class DatabaseView extends HTMLElement {
 		});
 		// ←/→ move the bar a day; with Shift, its end.
 		bar.addEventListener("keydown", (e) => {
-			if (e.key === "Enter") return location.assign(`/p/${row.id}`);
+			if (e.key === "Enter") return openPage(row.id);
 			if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
 			e.preventDefault();
 			const step = e.key === "ArrowLeft" ? -1 : 1;
@@ -2347,7 +2349,7 @@ export class DatabaseView extends HTMLElement {
 		}
 		const open = (e: Event) => {
 			if ((e.target as Element).closest("a[href], input")) return;
-			location.assign(`/p/${row.id}`);
+			openPage(row.id, e);
 		};
 		card.addEventListener("click", open);
 		card.addEventListener("keydown", (e) => {
@@ -3092,6 +3094,7 @@ export class DatabaseView extends HTMLElement {
 		const title = this.#state?.titles[id];
 		const chip = withIcon(h("a", "db-rel"), "fileText", (title ?? "").trim() || "Untitled", 13);
 		chip.href = `/p/${id}`;
+		peekOnClick(chip, id);
 		return chip;
 	}
 
@@ -3391,7 +3394,7 @@ export class DatabaseView extends HTMLElement {
 		this.#pop.open(anchor, (panel) => {
 			panel.append(
 				this.#pop.menu([
-					{ label: "Open", icon: "arrowUpRight", run: () => location.assign(`/p/${rowId}`) },
+					{ label: "Open", icon: "arrowUpRight", run: () => openPage(rowId) },
 					{
 						label: "Delete",
 						icon: "trash",

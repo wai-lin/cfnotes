@@ -1,6 +1,6 @@
 /** Pages: what one shows, and the edits made to it. */
 import { Clock, Effect, Option, Schema } from "effect";
-import { BadRequest, NotFound, PayloadTooLarge } from "spacefn";
+import { BadRequest, Input, NotFound, PayloadTooLarge } from "spacefn";
 
 import { Id } from "#lib/ids.ts";
 import { cleanTitle } from "#lib/titles.ts";
@@ -23,6 +23,9 @@ export const MAX_CONTENT_BYTES = 1_000_000;
 export const SAVE_LIMITS = { maxBytes: 2 * MAX_CONTENT_BYTES + 1024 };
 
 export const Params = Schema.Struct({ id: Id });
+/** `?embed=1`: the page alone, without the sidebar, as a database row's popup shows it. */
+export const Embed = Schema.Struct({ embed: Schema.optional(Schema.String) });
+export const embedded = Effect.map(Input.query(Embed), (query) => query.embed === "1");
 export const NewLinked = Schema.Struct({ title: Schema.optional(Schema.String) });
 export const Title = Schema.Struct({ title: Schema.String });
 export const Icon = Schema.Struct({ icon: Schema.String });
