@@ -1,6 +1,8 @@
 /** MCP tools for finding, reading and writing pages, and commenting on them. */
 import { Effect } from "effect";
 
+import { REACTIONS } from "#modules/comments/reactions.ts";
+
 import * as Api from "../api.ts";
 import * as Sections from "../sections.ts";
 import {
@@ -390,6 +392,31 @@ export const PAGE_TOOLS: Tool[] = [
 				}),
 				"Deleted the comment.",
 			),
+	},
+	{
+		name: "react_to_comment",
+		title: "React to a comment",
+		description: `Adds the token owner's reaction to a comment, or takes it back if they already reacted with that emoji. One of ${REACTIONS.join(" ")}. Answers with the comment's reactions.`,
+		inputSchema: object(
+			{
+				page_id: pageId,
+				comment_id: string("The comment (see read_page)."),
+				emoji: { type: "string", enum: [...REACTIONS] },
+			},
+			["page_id", "comment_id", "emoji"],
+		),
+		annotations: { ...changes, destructiveHint: false },
+		write: true,
+		run: (args) =>
+			Effect.gen(function* () {
+				const id = str(args.page_id) ?? "";
+				const comment = str(args.comment_id) ?? "";
+				yield* Api.changeComment(id, { op: "react", comment, emoji: str(args.emoji) ?? "" });
+				const found = (yield* Api.pageComments(id))
+					.flatMap((t) => t.comments)
+					.find((c) => c.id === comment);
+				return { commentId: comment, reactions: found?.reactions ?? [] };
+			}),
 	},
 	{
 		name: "trash_page",

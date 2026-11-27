@@ -14,6 +14,7 @@ import { isId } from "#lib/ids.ts";
 import { cleanTitle } from "#lib/titles.ts";
 import * as Sessions from "#modules/auth/sessions.ts";
 import * as Comments from "#modules/comments/comments.ts";
+import { REACTIONS } from "#modules/comments/reactions.ts";
 import {
 	readCell,
 	TITLE_COLUMN,
@@ -944,13 +945,17 @@ export const addComment = Effect.fn("Api.addComment")(function* (
 	return thread;
 });
 
-/** Resolves (or reopens) a thread, or edits or deletes one of the token owner's comments. */
+/**
+ * Resolves (or reopens) a thread, edits or deletes one of the token owner's
+ * comments, or toggles their reaction to one.
+ */
 export const changeComment = Effect.fn("Api.changeComment")(function* (
 	id: string,
 	change:
 		| { op: "resolve"; thread: string; resolved: boolean }
 		| { op: "edit"; comment: string; body: string }
-		| { op: "delete"; comment: string },
+		| { op: "delete"; comment: string }
+		| { op: "react"; comment: string; emoji: string },
 ) {
 	yield* livePage(id);
 	yield* Comments.run(id, change).pipe(
@@ -966,4 +971,5 @@ const COMMENT_PROBLEMS: Record<string, string> = {
 	comment_too_long: "A comment is at most 10,000 characters",
 	invalid_thread: "That isn't a thread's id (see read_page)",
 	invalid_comment: "That isn't a comment's id (see read_page)",
+	invalid_reaction: `A reaction is one of ${REACTIONS.join(" ")}`,
 };

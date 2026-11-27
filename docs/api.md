@@ -152,6 +152,7 @@ Tools:
 | `edit_page`                                        | Changes one heading's section, or finds and replaces text; all or nothing. _(write)_  |
 | `add_comment`                                      | A comment on a page or on quoted text (marked), or a reply in a thread. _(write)_     |
 | `resolve_thread`, `edit_comment`, `delete_comment` | Resolves or reopens threads; edits or deletes your comments. _(write)_                |
+| `react_to_comment`                                 | Adds or takes back your reaction to a comment (👍 ❤️ 🎉 😄 👀 🙏). _(write)_          |
 | `trash_page`                                       | Moves a page to Trash. _(write)_                                                      |
 | `move_page`                                        | Moves a page to a folder, and to a place among its pages. _(write)_                   |
 | `create_folder`, `update_folder`                   | Makes, renames and nests folders. _(write)_                                           |

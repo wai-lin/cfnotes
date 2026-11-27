@@ -144,6 +144,30 @@ describe("comments over MCP", () => {
 			"NotFound: No such thread",
 		);
 	});
+
+	it("reacts to a comment, and takes the reaction back", async () => {
+		await using app = cfnotes();
+		const { id, call } = await trip(app);
+		const { data: thread } = await call("add_comment", { page_id: id, body: "Ship it?" });
+		const comment = thread.comments[0].id as string;
+		const react = (emoji: string) =>
+			call("react_to_comment", { page_id: id, comment_id: comment, emoji });
+		expect((await react("🎉")).data).toEqual({
+			commentId: comment,
+			reactions: [{ emoji: "🎉", people: [expect.any(String)] }],
+		});
+		expect((await react("🎉")).data.reactions).toEqual([]);
+		expect((await react("🦄")).text).toMatch(/^BadRequest: A reaction is one of 👍/);
+		expect(
+			(
+				await call("react_to_comment", {
+					page_id: id,
+					comment_id: crypto.randomUUID(),
+					emoji: "👍",
+				})
+			).text,
+		).toBe("NotFound: No such comment");
+	});
 });
 
 describe("a page's details over MCP", () => {
