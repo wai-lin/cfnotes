@@ -6,7 +6,9 @@
 	padding-right: 24px; /* room for the "add column" bar */
 }
 
+/* It fills the page, its columns sharing the width; past what fits (80px a column), it scrolls. */
 .ne-table {
+	width: 100%;
 	border-collapse: collapse;
 }
 
