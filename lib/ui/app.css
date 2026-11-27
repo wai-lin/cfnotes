@@ -873,16 +873,20 @@ a.new-page {
 		transform: none;
 		box-shadow: var(--shadow);
 	}
+	/* A gutter on the left for the blocks' + and grip (46px wide). */
 	.page {
-		padding: 8px 16px 30vh;
+		padding: 8px 24px 30vh 52px;
 	}
-	/* Room for the sidebar's button; "More" holds all but the crumb and the save status. */
+	.page.page-database {
+		padding-left: 24px;
+	}
+	/* Clear of the sidebar's button (12px to 40px from the edge). */
+	.page.page-database .page-bar {
+		padding-left: 24px;
+	}
+	/* "More" holds all but the crumb and the save status. */
 	.page-bar {
 		margin-bottom: 24px;
-		padding-left: 40px;
-	}
-	.is-embed .page-bar {
-		padding-left: 0;
 	}
 	.page-bar > :not(.crumb, .status, .page-access, .page-bar-more, cf-comments),
 	.page-bar .cm-toggle,
