@@ -1,7 +1,7 @@
 /** Uploaded images and attachments, in Blob under random keys. */
 import { Effect, Option, Schema } from "effect";
 import { HttpServerResponse } from "effect/http";
-import { Blob, NotFound, UnsupportedMediaType, Upload } from "spacefn";
+import { BadRequest, Blob, NotFound, PayloadTooLarge, UnsupportedMediaType, Upload } from "spacefn";
 
 const MiB = 1024 * 1024;
 
@@ -68,6 +68,16 @@ export function byteRange(
 	return start <= end && start < size ? { start, end } : null;
 }
 
+/** What an image's first bytes say it is (one the editor shows), or `undefined`. */
+export function imageType(head: Uint8Array): string | undefined {
+	const ascii = (from: number, to: number) => String.fromCharCode(...head.subarray(from, to));
+	if (head[0] === 0x89 && ascii(1, 4) === "PNG") return "image/png";
+	if (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return "image/jpeg";
+	if (ascii(0, 4) === "GIF8") return "image/gif";
+	if (ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP") return "image/webp";
+	return undefined;
+}
+
 const EXTENSIONS = new Map([
 	["image/png", ".png"],
 	["image/jpeg", ".jpg"],
@@ -96,9 +106,52 @@ export const store = Effect.fn("Files.store")(function* (
 		return yield* new UnsupportedMediaType({
 			message: `"${file.name}" isn't audio, video or a PDF we can play`,
 		});
+	const { key } = yield* put(prefix, bytes, type);
+	return HttpServerResponse.jsonUnsafe({ key, name: file.name, type }, { status: 201 });
+});
+
+const put = Effect.fn("Files.put")(function* (
+	prefix: "img" | "file" | "media",
+	bytes: Uint8Array,
+	type: string,
+) {
 	const key = `${prefix}/${crypto.randomUUID()}${EXTENSIONS.get(type) ?? ""}`;
 	yield* Blob.put(key, bytes, { contentType: type });
-	return HttpServerResponse.jsonUnsafe({ key, name: file.name, type }, { status: 201 });
+	return { key, path: `/files/${key}`, type, size: bytes.length };
+});
+
+/** How big each kind may be. */
+const MAX_BYTES = {
+	img: IMAGE_LIMITS.maxFileBytes,
+	media: MEDIA_LIMITS.maxFileBytes,
+	file: ATTACHMENT_LIMITS.maxFileBytes,
+};
+
+/**
+ * Stores a file sent through the API, as what its bytes prove it is: an image,
+ * audio, video or a PDF (shown in the page), or else an attachment, which is
+ * only downloaded. `attachment` keeps any file a download.
+ */
+export const storeBytes = Effect.fn("Files.storeBytes")(function* (
+	bytes: Uint8Array,
+	attachment = false,
+) {
+	if (bytes.length === 0) return yield* new BadRequest({ message: "The file is empty" });
+	const head = bytes.subarray(0, 16);
+	const image = attachment ? undefined : imageType(head);
+	const media = attachment || image ? undefined : mediaType(head);
+	const prefix = image ? "img" : media ? "media" : "file";
+	if (bytes.length > MAX_BYTES[prefix])
+		return yield* new PayloadTooLarge({ limitBytes: MAX_BYTES[prefix] });
+	const stored = yield* put(prefix, bytes, image ?? media ?? "application/octet-stream");
+	const kind = image
+		? "image"
+		: media === "application/pdf"
+			? "pdf"
+			: media
+				? media.split("/")[0]!
+				: "attachment";
+	return { ...stored, kind };
 });
 
 /**

@@ -36,6 +36,9 @@ const INSTRUCTIONS = `cfnotes is a private notes workspace, like Notion: pages i
 const FRIEND_NOTE = `
 - This token is a friend's: it reaches only the pages and folders shared with them, each as view, comment or edit (list_folders says which). New pages, databases and folders go in folders shared with them to edit, not the top level.`;
 
+/** A message holds at most a page's content, or a file for upload_file as base64. */
+const MCP_LIMITS = { maxBytes: Math.max(SAVE_LIMITS.maxBytes, 14 * 1024 * 1024) };
+
 // ---------------------------------------------------------------- tools
 
 const TOOLS: Tool[] = [...PAGE_TOOLS, ...WORKSPACE_TOOLS, ...DATABASE_TOOLS];
@@ -92,7 +95,7 @@ export const post = Effect.gen(function* () {
 	const caller = Option.getOrUndefined(yield* Tokens.caller);
 	if (!caller) return replyError(null, -32600, "Send an API token", 401);
 
-	const body = yield* Input.body(Schema.Unknown, SAVE_LIMITS);
+	const body = yield* Input.body(Schema.Unknown, MCP_LIMITS);
 	if (Array.isArray(body)) return replyError(null, -32600, "Send one message at a time");
 	const decoded = Schema.decodeUnknownOption(Message)(body);
 	if (Option.isNone(decoded)) {

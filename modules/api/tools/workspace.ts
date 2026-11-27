@@ -1,6 +1,8 @@
-/** MCP tools for where pages live: moving them, folders, and Trash. */
 import { Effect } from "effect";
+/** MCP tools for where pages live: moving them, folders, and Trash; and uploading files for them. */
+import { BadRequest } from "spacefn";
 
+import * as Api from "../api.ts";
 import * as Organize from "../organize.ts";
 import {
 	boolean,
@@ -20,6 +22,17 @@ const parent = {
 	description: "The folder to put it in; null for the top level.",
 };
 const nullable = (value: unknown) => (value === null ? null : str(value));
+
+/** A file's bytes from base64 (or a `data:` URL), or why not. */
+const fromBase64 = (value: unknown) => {
+	const text = (str(value) ?? "").replace(/^data:[^,]*;base64,/, "").replace(/\s+/g, "");
+	if (!/^[A-Za-z0-9+/]*={0,2}$/.test(text) || text.length % 4 === 1)
+		return Effect.fail(new BadRequest({ message: "data isn't base64" }));
+	const binary = atob(text);
+	const bytes = new Uint8Array(binary.length);
+	for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+	return Effect.succeed(bytes);
+};
 
 export const WORKSPACE_TOOLS: Tool[] = [
 	{
@@ -108,5 +121,25 @@ export const WORKSPACE_TOOLS: Tool[] = [
 		annotations: { ...adds, idempotentHint: true },
 		write: true,
 		run: (args) => Effect.as(Organize.restorePage(str(args.page_id) ?? ""), "Restored."),
+	},
+	{
+		name: "upload_file",
+		title: "Upload a file",
+		description:
+			"Uploads a file of up to 10 MB, sent as base64, for pages to use: an image (PNG, JPEG, GIF, WebP), audio, video or a PDF (shown in the page), or anything else as a download. What it is comes from its bytes. (Bigger files, up to 30 MB, go through the REST API's POST /api/v1/files.) Answers with its path, for update_page's cover or a files property, and the Markdown that shows it: put that on a line of its own in create_page, update_page or edit_page.",
+		inputSchema: object(
+			{
+				data: string("The file, as base64 (a data: URL works too)."),
+				name: string("Its name, shown for downloads and media, or an image's alt text."),
+				attachment: boolean("true keeps it a download, even an image, audio, video or a PDF."),
+			},
+			["data"],
+		),
+		annotations: adds,
+		write: true,
+		run: (args) =>
+			Effect.flatMap(fromBase64(args.data), (bytes) =>
+				Api.uploadFile(bytes, { name: str(args.name), attachment: args.attachment === true }),
+			),
 	},
 ];

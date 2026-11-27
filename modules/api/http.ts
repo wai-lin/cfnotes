@@ -183,6 +183,18 @@ export const search = Effect.gen(function* () {
 	return yield* Api.search(q ?? "", paging);
 });
 
+/** `POST /api/v1/files?attachment=true` with a multipart `file`: see `Api.uploadFile`. */
+export const uploadFile = Effect.gen(function* () {
+	const { attachment } = yield* Input.query(
+		Schema.Struct({ attachment: Schema.optional(Schema.String) }),
+	);
+	const { file } = yield* Input.body(Files.Body, Files.MEDIA_LIMITS);
+	const bytes = new Uint8Array(yield* Effect.promise(() => file.arrayBuffer()));
+	return created(
+		yield* Api.uploadFile(bytes, { name: file.name, attachment: attachment === "true" }),
+	);
+});
+
 /** `GET /api/v1/files/<key>`: an uploaded file, as the app serves it. */
 export const file = Effect.gen(function* () {
 	const { key } = yield* Input.params(Files.Key);

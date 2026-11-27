@@ -7,7 +7,7 @@
  * `Sharing`, and each change goes through the app's own checks.
  */
 import { Clock, Effect, Option, Schema } from "effect";
-import { BadRequest, NotFound } from "spacefn";
+import { BadRequest, Forbidden, NotFound } from "spacefn";
 
 import Env from "#configs/env.ts";
 import { isId } from "#lib/ids.ts";
@@ -27,6 +27,7 @@ import {
 } from "#modules/database/columns.ts";
 import { databaseState, runOp } from "#modules/database/database.ts";
 import { applyView, opsFor, type Filter, type Sort, type View } from "#modules/database/view.ts";
+import * as Files from "#modules/files/files.ts";
 import * as Pages from "#modules/pages/pages.ts";
 import * as Search from "#modules/search/search.ts";
 import * as Locks from "#modules/sharing/locks.ts";
@@ -1014,3 +1015,35 @@ const COMMENT_PROBLEMS: Record<string, string> = {
 	invalid_comment: "That isn't a comment's id (see read_page)",
 	invalid_reaction: `A reaction is one of ${REACTIONS.join(" ")}`,
 };
+
+// ---------------------------------------------------------------- files
+
+/**
+ * Stores a file for pages to use, as the editor's uploads are: an image (for
+ * Markdown's `![]()` or a cover), audio, video or a PDF (played or shown in
+ * the page), or an attachment. Answers where it is and the Markdown that shows it.
+ */
+export const uploadFile = Effect.fn("Api.uploadFile")(function* (
+	bytes: Uint8Array,
+	options: { name?: string | undefined; attachment?: boolean | undefined } = {},
+) {
+	// As in the app: an owner, or a friend who may edit something.
+	const who = yield* Sharing.me;
+	if (!who || (!who.owner && !(yield* Sessions.editsSomething(who.email))))
+		return yield* new Forbidden({ message: "Only someone who may edit something can upload" });
+	const stored = yield* Files.storeBytes(bytes, options.attachment === true);
+	const name = (options.name ?? "")
+		.replace(/[\r\n]+/g, " ")
+		.trim()
+		.slice(0, 200);
+	const label = (name || (stored.kind === "image" ? "" : "Download")).replace(/[[\]\\]/g, "\\$&");
+	const { ORIGIN } = yield* Env;
+	return {
+		path: stored.path,
+		url: `${ORIGIN}/api/v1${stored.path}`,
+		kind: stored.kind,
+		type: stored.type,
+		size: stored.size,
+		markdown: `${stored.kind === "image" ? "!" : ""}[${label}](${stored.path})`,
+	};
+});
