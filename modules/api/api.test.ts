@@ -220,7 +220,11 @@ describe("the MCP server", () => {
 				(t) => t.name,
 			);
 		expect(await names(read)).not.toContain("create_page");
-		expect(await names(await app.token("write"))).toContain("create_page");
+		const all = await names(await app.token("write"));
+		expect(all).toContain("create_page");
+		// Its instructions name every tool, so an agent knows what there is.
+		const told = init.result.instructions as string;
+		expect(all.filter((name) => !new RegExp(`\\b${name}\\b`).test(told))).toEqual([]);
 		expect((await call(app, read, "create_page", { title: "x" })).isError).toBe(true);
 		expect(((await (await rpc(app, read, "nope")).json()) as Json).error.code).toBe(-32601);
 	});

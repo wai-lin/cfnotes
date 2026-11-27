@@ -23,14 +23,18 @@ const VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 const SERVER = { name: "cfnotes", title: "cfnotes", version: "1.0.0" };
 
 const INSTRUCTIONS = `cfnotes is a private notes workspace, like Notion: pages in folders, and databases whose rows are pages with properties.
-- Find things with search or list_pages; read one with read_page (Markdown).
+- Find things with search or list_pages (list_folders and list_databases list those); read one with read_page (Markdown). trash_page moves one to Trash.
 - For a database, get_database shows its properties and their choices; query_database lists rows, filtered with "where" ({"Status": "Published"}, or operators: {"Date": {"after": "2026-11-01"}, "Tags": {"empty": true}}), "where_any" for OR, and sorted with "sort" (["-Date"]).
 - create_database makes a database with its properties; update_database renames, adds, converts, moves and deletes properties, edits select options, and sets up relations, rollups and scripts. Add rows with create_page, or many at once with create_rows; update_rows changes many.
 - create_view, update_view and delete_view manage a database's views (table, board, list, gallery, calendar, timeline) with their own filters, sorts and grouping.
 - Write content as Markdown (GitHub's). Link to another page with [Title](/p/<id>). Toggles are <details><summary>…</summary>…</details>; equations $…$ or $$…$$.
 - Properties are set by name: a select by its option name (a new name adds an option), multi-select as a list of names, dates as YYYY-MM-DD, dates & times as YYYY-MM-DDTHH:MM (no time zone), times as HH:MM, people as emails, relations as row ids.
 - move_page, create_folder, update_folder and delete_folder organize the sidebar; list_trash and restore_page bring back what was trashed.
-- update_page with "markdown" replaces the whole content; "append_markdown" adds to the end. edit_page changes one heading's section, or finds and replaces text. Someone may have the page open: prefer appending or edit_page to replacing everything.`;
+- update_page with "markdown" replaces the whole content; "append_markdown" adds to the end. edit_page changes one heading's section, or finds and replaces text. Someone may have the page open: prefer appending or edit_page to replacing everything.
+- read_page says what this token may do on a page ("access": owner, edit, comment or view; a lock leaves the people it's shared with commenting) and who can be named there ("people", as emails).
+- Comments: add_comment (on the page, on quoted text, or as a reply), resolve_thread, edit_comment, delete_comment and react_to_comment. Bodies are Markdown: [@name](mailto:email) mentions one of the page's people, [Title](/p/<id>) links a page or database (which then lists the commented page in its linkedFrom). list_comments finds open threads across the workspace, or with mentions_me those asking for the token's owner.
+- upload_file stores an image, audio, video, PDF or attachment (base64) and answers with the Markdown that shows it, to put on a line of its own, and a path for a cover or a files property.
+- An owner can lock a page or folder with update_page or update_folder ("locked").`;
 
 /** Told to a friend's agent: what their token reaches. */
 const FRIEND_NOTE = `
