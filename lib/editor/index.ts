@@ -69,6 +69,12 @@ export { imageExtension, INSERT_IMAGE_COMMAND } from "./extensions/image/index.t
 export { linkExtension, OPEN_LINK_EDITOR_COMMAND } from "./extensions/link/index.ts";
 export { listExtension } from "./extensions/list/index.ts";
 export { markdownExtension } from "./extensions/markdown/index.ts";
+export {
+	mentionEmail,
+	mentionExtension,
+	type MentionOptions,
+	type Person,
+} from "./extensions/mention/index.ts";
 export { INSERT_MEDIA_COMMAND, mediaExtension } from "./extensions/media/index.ts";
 export { syncedExtension, type SyncedStore } from "./extensions/synced/index.ts";
 export { tocExtension } from "./extensions/toc/index.ts";

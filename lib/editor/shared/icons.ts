@@ -1,4 +1,5 @@
 import arrowsExchange from "@tabler/icons/outline/arrows-exchange.svg?raw";
+import at from "@tabler/icons/outline/at.svg?raw";
 /**
  * The Tabler icons (https://tabler.io/icons) the editor draws, imported as SVG
  * text. Add a name here to use it.
@@ -44,6 +45,7 @@ const SOURCES = {
 	music,
 	fileTypePdf,
 	arrowsExchange,
+	at,
 	bold,
 	bookmark,
 	check,
